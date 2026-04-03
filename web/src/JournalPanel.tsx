@@ -34,6 +34,8 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
     if (session) {
       setDraft(session.summary)
     }
+  // Intentionally omit session.summary: reset draft only when session changes,
+  // not on every re-render with a server-side summary update.
   }, [session?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
   async function handleGenerateRecap() {
     const result = await generateRecap(session!.id)
     setDraft(result.summary)
-    await patchSessionSummary(session!.id, result.summary)
+    await patchSessionSummary(session!.id, result.summary).catch(console.error)
   }
 
   return (

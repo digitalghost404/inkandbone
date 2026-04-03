@@ -16,21 +16,21 @@ afterEach(() => {
 describe('WorldNotesPanel', () => {
   it('renders notes returned by fetch', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(notes) }))
-    render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     expect(await screen.findByText('Tavern')).toBeInTheDocument()
     expect(screen.getByText('Dragon')).toBeInTheDocument()
   })
 
   it('shows empty state when no notes', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }))
-    render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     expect(await screen.findByText('No notes found.')).toBeInTheDocument()
   })
 
   it('calls fetch with q param when search input changes', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
     vi.stubGlobal('fetch', mockFetch)
-    render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     await screen.findByText('No notes found.')
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'tavern' } })
     await waitFor(() => {
@@ -40,14 +40,14 @@ describe('WorldNotesPanel', () => {
 
   it('renders tag pills from tags_json', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(notes) }))
-    render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     expect(await screen.findByText('inn')).toBeInTheDocument()
   })
 
   it('filters by tag when a tag pill is clicked', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(notes) })
     vi.stubGlobal('fetch', mockFetch)
-    render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     fireEvent.click(await screen.findByText('inn'))
     await waitFor(() => {
       expect(mockFetch).toHaveBeenLastCalledWith('/api/campaigns/1/world-notes?tag=inn')
@@ -57,7 +57,7 @@ describe('WorldNotesPanel', () => {
   it('deselects tag when same pill is clicked again', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(notes) })
     vi.stubGlobal('fetch', mockFetch)
-    render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     const pill = await screen.findByText('inn')
     fireEvent.click(pill)
     await waitFor(() => expect(mockFetch).toHaveBeenLastCalledWith('/api/campaigns/1/world-notes?tag=inn'))
@@ -68,10 +68,10 @@ describe('WorldNotesPanel', () => {
   it('refetches on world_note_updated event', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
     vi.stubGlobal('fetch', mockFetch)
-    const { rerender } = render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    const { rerender } = render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     await screen.findByText('No notes found.')
     const callsBefore = mockFetch.mock.calls.length
-    rerender(<WorldNotesPanel campaignId={1} lastEvent={{ type: 'world_note_updated', payload: { note_id: 1 } }} />)
+    rerender(<WorldNotesPanel campaignId={1} lastEvent={{ type: 'world_note_updated', payload: { note_id: 1 } }} aiEnabled={false} />)
     await waitFor(() => {
       expect(mockFetch.mock.calls.length).toBeGreaterThan(callsBefore)
     })
@@ -80,10 +80,10 @@ describe('WorldNotesPanel', () => {
   it('refetches on world_note_created event', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
     vi.stubGlobal('fetch', mockFetch)
-    const { rerender } = render(<WorldNotesPanel campaignId={1} lastEvent={null} />)
+    const { rerender } = render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
     await screen.findByText('No notes found.')
     const callsBefore = mockFetch.mock.calls.length
-    rerender(<WorldNotesPanel campaignId={1} lastEvent={{ type: 'world_note_created', payload: { note_id: 2 } }} />)
+    rerender(<WorldNotesPanel campaignId={1} lastEvent={{ type: 'world_note_created', payload: { note_id: 2 } }} aiEnabled={false} />)
     await waitFor(() => {
       expect(mockFetch.mock.calls.length).toBeGreaterThan(callsBefore)
     })

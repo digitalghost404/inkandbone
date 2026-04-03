@@ -5,7 +5,7 @@ import type { WorldNote } from './types'
 interface Props {
   campaignId: number
   lastEvent: unknown
-  aiEnabled?: boolean
+  aiEnabled: boolean
 }
 
 function parseTags(json: string): string[] {
