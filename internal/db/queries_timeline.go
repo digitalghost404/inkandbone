@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 )
 
@@ -28,15 +29,21 @@ func (d *DB) GetSessionTimeline(sessionID int64) ([]TimelineEntry, error) {
 
 	entries := make([]TimelineEntry, 0, len(msgs)+len(rolls))
 	for _, m := range msgs {
-		b, _ := json.Marshal(m)
+		b, err := json.Marshal(m)
+		if err != nil {
+			return nil, fmt.Errorf("marshal message %d: %w", m.ID, err)
+		}
 		entries = append(entries, TimelineEntry{Type: "message", Timestamp: m.CreatedAt, Data: b})
 	}
 	for _, r := range rolls {
-		b, _ := json.Marshal(r)
+		b, err := json.Marshal(r)
+		if err != nil {
+			return nil, fmt.Errorf("marshal dice roll %d: %w", r.ID, err)
+		}
 		entries = append(entries, TimelineEntry{Type: "dice_roll", Timestamp: r.CreatedAt, Data: b})
 	}
 
-	sort.Slice(entries, func(i, j int) bool {
+	sort.SliceStable(entries, func(i, j int) bool {
 		return entries[i].Timestamp < entries[j].Timestamp
 	})
 
