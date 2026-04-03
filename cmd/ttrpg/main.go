@@ -49,7 +49,7 @@ func main() {
 		}
 	}()
 
-	mcpSrv := mcpserver.New(database, httpServer.Bus()) // aiClient added in Task 5
+	mcpSrv := mcpserver.New(database, httpServer.Bus(), aiClient)
 	if err := mcpSrv.Start(); err != nil {
 		log.Fatalf("MCP server: %v", err)
 	}

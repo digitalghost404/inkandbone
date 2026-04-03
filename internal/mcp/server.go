@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"github.com/digitalghost404/inkandbone/internal/ai"
 	"github.com/digitalghost404/inkandbone/internal/api"
 	"github.com/digitalghost404/inkandbone/internal/db"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
@@ -9,17 +10,19 @@ import (
 
 // Server wraps the MCP server and holds shared dependencies.
 type Server struct {
-	db  *db.DB
-	bus *api.Bus
-	srv *server.MCPServer
+	db       *db.DB
+	bus      *api.Bus
+	srv      *server.MCPServer
+	aiClient ai.Completer // nil when ANTHROPIC_API_KEY is unset
 }
 
 // New creates the MCP server and registers all tools.
-func New(database *db.DB, bus *api.Bus) *Server {
+func New(database *db.DB, bus *api.Bus, aiClient ai.Completer) *Server {
 	s := &Server{
-		db:  database,
-		bus: bus,
-		srv: server.NewMCPServer("ink & bone", "1.0.0"),
+		db:       database,
+		bus:      bus,
+		srv:      server.NewMCPServer("ink & bone", "1.0.0"),
+		aiClient: aiClient,
 	}
 	s.registerTools()
 	return s
@@ -174,5 +177,11 @@ func (s *Server) registerTools() {
 		mcplib.WithString("note", mcplib.Description("Pin note text")),
 		mcplib.WithString("color", mcplib.Description("Pin color (hex or name)")),
 	), s.handleAddMapPin)
+
+	// Plan 8
+	s.srv.AddTool(mcplib.NewTool("generate_session_recap",
+		mcplib.WithDescription("Generate a narrative recap for a session using AI. Reads messages and dice rolls, writes the summary, and fires a session_updated event."),
+		mcplib.WithNumber("session_id", mcplib.Description("Session ID (defaults to active session)")),
+	), s.handleGenerateSessionRecap)
 }
 

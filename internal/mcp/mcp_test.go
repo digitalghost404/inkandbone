@@ -3,6 +3,7 @@ package mcp
 import (
 	"testing"
 
+	"github.com/digitalghost404/inkandbone/internal/ai"
 	"github.com/digitalghost404/inkandbone/internal/api"
 	"github.com/digitalghost404/inkandbone/internal/db"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,14 @@ func newTestMCP(t *testing.T) *Server {
 	t.Helper()
 	d := newTestDB(t)
 	bus := api.NewBus()
-	return New(d, bus)
+	return New(d, bus, nil)
+}
+
+func newTestMCPWithAI(t *testing.T, c ai.Completer) *Server {
+	t.Helper()
+	d := newTestDB(t)
+	bus := api.NewBus()
+	return New(d, bus, c)
 }
 
 func TestNewServer_doesNotPanic(t *testing.T) {
