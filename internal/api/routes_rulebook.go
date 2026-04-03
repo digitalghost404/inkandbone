@@ -2,7 +2,8 @@ package api
 
 import (
 	"bufio"
-	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/digitalghost404/inkandbone/internal/db"
 )
+
+var errInvalidPDF = errors.New("invalid or unreadable PDF")
 
 func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 	rulesetID, ok := parsePathID(r, "id")
@@ -50,7 +53,11 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 
 		extracted, err := extractPDFText(file)
 		if err != nil {
-			http.Error(w, "pdf extraction: "+err.Error(), http.StatusBadRequest)
+			if errors.Is(err, errInvalidPDF) {
+				http.Error(w, "pdf extraction: "+err.Error(), http.StatusUnprocessableEntity)
+			} else {
+				http.Error(w, "pdf extraction: "+err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		text = extracted
@@ -66,8 +73,7 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"chunks_created": len(chunks)}) //nolint:errcheck
+	writeJSON(w, map[string]int{"chunks_created": len(chunks)})
 }
 
 // chunkByHeadings splits text into chunks delimited by lines starting with "#".
@@ -79,7 +85,7 @@ func chunkByHeadings(text string) []db.RulebookChunk {
 
 	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, "#") {
-			if currentContent.Len() > 0 {
+			if currentHeading.Len() > 0 {
 				chunks = append(chunks, db.RulebookChunk{
 					Heading: strings.TrimSpace(strings.TrimLeft(currentHeading.String(), "#")),
 					Content: strings.TrimSpace(currentContent.String()),
@@ -92,7 +98,7 @@ func chunkByHeadings(text string) []db.RulebookChunk {
 			currentContent.WriteString(line + "\n")
 		}
 	}
-	if currentContent.Len() > 0 {
+	if currentHeading.Len() > 0 || currentContent.Len() > 0 {
 		chunks = append(chunks, db.RulebookChunk{
 			Heading: strings.TrimSpace(strings.TrimLeft(currentHeading.String(), "#")),
 			Content: strings.TrimSpace(currentContent.String()),
@@ -107,7 +113,7 @@ func chunkByHeadings(text string) []db.RulebookChunk {
 func extractPDFText(r io.ReadSeeker) (string, error) {
 	conf := model.NewDefaultConfiguration()
 	if err := pdfapi.Validate(r, conf); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %v", errInvalidPDF, err)
 	}
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
 		return "", err
@@ -151,14 +157,15 @@ func extractTextFromContentStream(r io.Reader) string {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
 		// Extract text from Tj operator: (text) Tj
-		if strings.HasSuffix(strings.TrimSpace(line), " Tj") || strings.HasSuffix(strings.TrimSpace(line), "Tj") {
+		if strings.HasSuffix(trimmed, "Tj") {
 			if t := extractParenText(line); t != "" {
 				sb.WriteString(t)
 			}
 		}
 		// Extract text from TJ operator: [(text) ...] TJ
-		if strings.HasSuffix(strings.TrimSpace(line), " TJ") || strings.HasSuffix(strings.TrimSpace(line), "TJ") {
+		if strings.HasSuffix(trimmed, "TJ") {
 			if t := extractParenText(line); t != "" {
 				sb.WriteString(t)
 			}
