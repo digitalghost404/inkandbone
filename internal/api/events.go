@@ -17,6 +17,8 @@ const (
 	EventDiceRolled       EventType = "dice_rolled"
 	EventSessionStarted   EventType = "session_started"
 	EventSessionEnded     EventType = "session_ended"
+	EventCampaignCreated  EventType = "campaign_created"
+	EventCharacterCreated EventType = "character_created"
 )
 
 // Event is published by MCP tool handlers and broadcast to WebSocket clients.

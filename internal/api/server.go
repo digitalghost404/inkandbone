@@ -56,7 +56,12 @@ func (s *Server) RegisterStatic(fsys http.FileSystem) {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/ws", s.hub.ServeWS)
 	s.mux.HandleFunc("/api/health", s.handleHealth)
-	// Static files and remaining API routes added in Plan 3
+	s.mux.HandleFunc("GET /api/campaigns", s.handleListCampaigns)
+	s.mux.HandleFunc("GET /api/campaigns/{id}/characters", s.handleListCharacters)
+	s.mux.HandleFunc("GET /api/campaigns/{id}/sessions", s.handleListSessions)
+	s.mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleListMessages)
+	s.mux.HandleFunc("GET /api/sessions/{id}/dice-rolls", s.handleListDiceRolls)
+	s.mux.HandleFunc("GET /api/maps/{id}/pins", s.handleListMapPins)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

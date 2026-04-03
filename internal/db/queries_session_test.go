@@ -9,9 +9,10 @@ import (
 
 func setupCampaign(t *testing.T, d *DB) int64 {
 	t.Helper()
-	rsID, err := d.CreateRuleset("dnd5e", `{}`, "1.0")
+	rs, err := d.GetRulesetByName("dnd5e")
 	require.NoError(t, err)
-	campID, err := d.CreateCampaign(rsID, "Test", "")
+	require.NotNil(t, rs)
+	campID, err := d.CreateCampaign(rs.ID, "Test", "")
 	require.NoError(t, err)
 	return campID
 }

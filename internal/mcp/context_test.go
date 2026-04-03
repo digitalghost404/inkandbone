@@ -30,9 +30,10 @@ func TestGetContext_withActiveState(t *testing.T) {
 	s := newTestMCP(t)
 	d := s.db
 
-	rsID, err := d.CreateRuleset("dnd5e", `{}`, "1.0")
+	rs, err := d.GetRulesetByName("dnd5e")
 	require.NoError(t, err)
-	campID, err := d.CreateCampaign(rsID, "Test Campaign", "")
+	require.NotNil(t, rs, "dnd5e ruleset must be seeded by migration 002")
+	campID, err := d.CreateCampaign(rs.ID, "Test Campaign", "")
 	require.NoError(t, err)
 	charID, err := d.CreateCharacter(campID, "Arin")
 	require.NoError(t, err)
@@ -64,9 +65,10 @@ func TestGetContext_withActiveCombat(t *testing.T) {
 	s := newTestMCP(t)
 	d := s.db
 
-	rsID, err := d.CreateRuleset("dnd5e", `{}`, "1.0")
+	rs2, err := d.GetRulesetByName("dnd5e")
 	require.NoError(t, err)
-	campID, err := d.CreateCampaign(rsID, "Test Campaign", "")
+	require.NotNil(t, rs2, "dnd5e ruleset must be seeded by migration 002")
+	campID, err := d.CreateCampaign(rs2.ID, "Test Campaign", "")
 	require.NoError(t, err)
 	charID, err := d.CreateCharacter(campID, "Arin")
 	require.NoError(t, err)

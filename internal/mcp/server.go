@@ -135,6 +135,34 @@ func (s *Server) registerTools() {
 		mcplib.WithString("narrative", mcplib.Description("Optional narrative to log")),
 	), s.handleRollDice)
 
+	// Lifecycle — campaign & character creation
+	s.srv.AddTool(mcplib.NewTool("create_campaign",
+		mcplib.WithDescription("Create a new campaign under a ruleset and make it active. Call once at the very start of a new game."),
+		mcplib.WithString("ruleset", mcplib.Required(), mcplib.Description("Ruleset name: dnd5e, ironsworn, vtm, coc, or cyberpunk")),
+		mcplib.WithString("name", mcplib.Required(), mcplib.Description("Campaign name")),
+		mcplib.WithString("description", mcplib.Description("Optional campaign description")),
+	), s.handleCreateCampaign)
+
+	s.srv.AddTool(mcplib.NewTool("list_campaigns",
+		mcplib.WithDescription("List all campaigns."),
+	), s.handleListCampaigns)
+
+	s.srv.AddTool(mcplib.NewTool("create_character",
+		mcplib.WithDescription("Create a new player character in the active campaign and make them active."),
+		mcplib.WithString("name", mcplib.Required(), mcplib.Description("Character name")),
+		mcplib.WithNumber("campaign_id", mcplib.Description("Campaign ID (defaults to active campaign)")),
+	), s.handleCreateCharacter)
+
+	s.srv.AddTool(mcplib.NewTool("list_characters",
+		mcplib.WithDescription("List all characters in the active (or specified) campaign."),
+		mcplib.WithNumber("campaign_id", mcplib.Description("Campaign ID (defaults to active campaign)")),
+	), s.handleListCharacters)
+
+	s.srv.AddTool(mcplib.NewTool("list_sessions",
+		mcplib.WithDescription("List all sessions for the active (or specified) campaign, newest first."),
+		mcplib.WithNumber("campaign_id", mcplib.Description("Campaign ID (defaults to active campaign)")),
+	), s.handleListSessions)
+
 	// Maps
 	s.srv.AddTool(mcplib.NewTool("add_map_pin",
 		mcplib.WithDescription("Pin a location on the active campaign map."),

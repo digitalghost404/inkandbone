@@ -35,24 +35,24 @@ func TestSettings(t *testing.T) {
 func TestRulesets(t *testing.T) {
 	d := newTestDB(t)
 
-	id, err := d.CreateRuleset("dnd5e", `{"fields":[]}`, "1.0")
-	require.NoError(t, err)
-	assert.Positive(t, id)
-
+	// "dnd5e" is already seeded by migration 002; look it up instead of inserting.
 	r, err := d.GetRulesetByName("dnd5e")
 	require.NoError(t, err)
 	require.NotNil(t, r)
+	assert.Positive(t, r.ID)
 	assert.Equal(t, "dnd5e", r.Name)
 
 	list, err := d.ListRulesets()
 	require.NoError(t, err)
-	assert.Len(t, list, 1)
+	assert.Len(t, list, 5)
 }
 
 func TestCampaigns(t *testing.T) {
 	d := newTestDB(t)
-	rsID, err := d.CreateRuleset("ironsworn", `{}`, "1.0")
+	rs, err := d.GetRulesetByName("ironsworn")
 	require.NoError(t, err)
+	require.NotNil(t, rs)
+	rsID := rs.ID
 
 	id, err := d.CreateCampaign(rsID, "The Ironlands", "A grim world")
 	require.NoError(t, err)
@@ -69,9 +69,10 @@ func TestCampaigns(t *testing.T) {
 
 func TestCharacters(t *testing.T) {
 	d := newTestDB(t)
-	rsID, err := d.CreateRuleset("ironsworn", `{}`, "1.0")
+	rs, err := d.GetRulesetByName("ironsworn")
 	require.NoError(t, err)
-	campID, err := d.CreateCampaign(rsID, "Test Campaign", "")
+	require.NotNil(t, rs)
+	campID, err := d.CreateCampaign(rs.ID, "Test Campaign", "")
 	require.NoError(t, err)
 
 	charID, err := d.CreateCharacter(campID, "Kael")

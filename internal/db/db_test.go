@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,4 +37,15 @@ func TestOpen_IdempotentMigrations(t *testing.T) {
 	require.NoError(t, err)
 	defer d2.Close()
 	// Reaching here means migrations ran twice without error (idempotent)
+}
+
+func TestRulesets_SeededByMigration(t *testing.T) {
+	d := newTestDB(t)
+	list, err := d.ListRulesets()
+	require.NoError(t, err)
+	names := make([]string, len(list))
+	for i, r := range list {
+		names[i] = r.Name
+	}
+	assert.ElementsMatch(t, []string{"dnd5e", "ironsworn", "vtm", "coc", "cyberpunk"}, names)
 }
