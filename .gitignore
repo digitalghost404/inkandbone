@@ -1,0 +1,21 @@
+# Go
+*.exe
+*.test
+*.out
+/ttrpg
+
+# Web
+web/dist/
+web/node_modules/
+
+# Dev
+.air.toml
+tmp/
+
+# Data
+*.db
+*.db-shm
+*.db-wal
+
+# Env
+.env
