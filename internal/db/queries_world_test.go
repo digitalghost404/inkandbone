@@ -99,6 +99,27 @@ func TestMapsAndPins(t *testing.T) {
 	assert.Equal(t, "Entrance", pins[0].Label)
 }
 
+func TestListMaps(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+
+	maps, err := d.ListMaps(campID)
+	require.NoError(t, err)
+	assert.Empty(t, maps)
+
+	id1, err := d.CreateMap(campID, "World Map", "maps/abc.jpg")
+	require.NoError(t, err)
+	_, err = d.CreateMap(campID, "Dungeon", "maps/def.jpg")
+	require.NoError(t, err)
+
+	maps, err = d.ListMaps(campID)
+	require.NoError(t, err)
+	require.Len(t, maps, 2)
+	assert.Equal(t, id1, maps[0].ID)
+	assert.Equal(t, "World Map", maps[0].Name)
+	assert.Equal(t, "maps/abc.jpg", maps[0].ImagePath)
+}
+
 func TestDiceRolls(t *testing.T) {
 	d := newTestDB(t)
 	sessID := setupSession(t, d)

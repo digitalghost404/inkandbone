@@ -120,6 +120,26 @@ func (d *DB) GetMap(id int64) (*Map, error) {
 	return m, err
 }
 
+func (d *DB) ListMaps(campaignID int64) ([]Map, error) {
+	rows, err := d.db.Query(
+		"SELECT id, campaign_id, name, image_path, created_at FROM maps WHERE campaign_id = ? ORDER BY created_at",
+		campaignID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Map
+	for rows.Next() {
+		var m Map
+		if err := rows.Scan(&m.ID, &m.CampaignID, &m.Name, &m.ImagePath, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 // --- Map Pins ---
 
 type MapPin struct {
