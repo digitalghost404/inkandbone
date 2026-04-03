@@ -103,3 +103,54 @@ export async function uploadMap(campaignId: number, file: File): Promise<Campaig
   if (!res.ok) throw new Error(`POST ${url} failed: ${res.status}`)
   return res.json()
 }
+
+export interface Character {
+  id: number;
+  name: string;
+  data_json: string;
+  campaign_id: number;
+  portrait_path: string;
+}
+
+export interface Ruleset {
+  id: number;
+  name: string;
+  schema_json: string;
+}
+
+export async function fetchRuleset(rulesetId: number): Promise<Ruleset> {
+  const res = await fetch(`/api/rulesets/${rulesetId}`)
+  if (!res.ok) throw new Error(`fetchRuleset failed: ${res.status}`)
+  return res.json()
+}
+
+export async function patchCharacter(characterId: number, updates: Record<string, unknown>): Promise<Character> {
+  const res = await fetch(`/api/characters/${characterId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) throw new Error(`patchCharacter failed: ${res.status}`)
+  return res.json()
+}
+
+export async function uploadPortrait(characterId: number, file: File): Promise<Character> {
+  const form = new FormData()
+  form.append('portrait', file)
+  const res = await fetch(`/api/characters/${characterId}/portrait`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) throw new Error(`uploadPortrait failed: ${res.status}`)
+  return res.json()
+}
+
+export async function ingestRulebook(rulesetId: number, text: string): Promise<{ chunks_created: number }> {
+  const res = await fetch(`/api/rulesets/${rulesetId}/rulebook`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: text,
+  })
+  if (!res.ok) throw new Error(`ingestRulebook failed: ${res.status}`)
+  return res.json()
+}
