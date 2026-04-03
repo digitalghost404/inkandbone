@@ -124,4 +124,25 @@ describe('App', () => {
     await screen.findByText('Greyhawk')
     expect(screen.getByText('Session Timeline')).toBeInTheDocument()
   })
+
+  it('renders MapPanel', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    // MapPanel fetches maps and gets [] back, so it shows "No map uploaded."
+    expect(screen.getByText('No map uploaded.')).toBeInTheDocument()
+  })
+
+  it('renders JournalPanel', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    // JournalPanel renders a textarea when session is present
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('passes aiEnabled to WorldNotesPanel', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    // aiEnabled=true means the "Draft with AI" button is visible
+    expect(screen.getByRole('button', { name: 'Draft with AI' })).toBeInTheDocument()
+  })
 })

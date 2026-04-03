@@ -6,6 +6,8 @@ import { CombatPanel } from './CombatPanel'
 import { SessionTimeline } from './SessionTimeline'
 import { WorldNotesPanel } from './WorldNotesPanel'
 import { DiceHistoryPanel } from './DiceHistoryPanel'
+import { MapPanel } from './MapPanel'
+import { JournalPanel } from './JournalPanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -36,6 +38,8 @@ export default function App() {
   )
 
   const { lastEvent } = useWebSocket(WS_URL, handleEvent)
+
+  const aiEnabled = true
 
   if (error) return <div className="error">{error}</div>
   if (!ctx) return <div className="loading">Loading…</div>
@@ -79,8 +83,12 @@ export default function App() {
         )}
 
         {ctx.campaign && (
-          <WorldNotesPanel campaignId={ctx.campaign.id} lastEvent={lastEvent} />
+          <WorldNotesPanel campaignId={ctx.campaign.id} lastEvent={lastEvent} aiEnabled={aiEnabled} />
         )}
+
+        <MapPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />
+
+        <JournalPanel session={ctx?.session ?? null} lastEvent={lastEvent} aiEnabled={aiEnabled} />
 
         {ctx.session && (
           <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />

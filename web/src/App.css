@@ -473,3 +473,22 @@ body {
   background: rgba(233, 69, 96, 0.2);
   color: var(--accent);
 }
+
+/* Map Panel */
+
+.map-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.map-pin-popover {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  max-width: 200px;
+  z-index: 10;
+  pointer-events: none;
+}
