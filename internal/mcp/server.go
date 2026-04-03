@@ -119,6 +119,7 @@ func (s *Server) registerTools() {
 		mcplib.WithNumber("note_id", mcplib.Required(), mcplib.Description("World note ID")),
 		mcplib.WithString("title", mcplib.Required(), mcplib.Description("New title")),
 		mcplib.WithString("content", mcplib.Required(), mcplib.Description("New content")),
+		mcplib.WithString("tags", mcplib.Description(`JSON array of tag strings, e.g. ["npc","villain"]`)),
 		mcplib.WithString("narrative", mcplib.Description("Optional narrative to log")),
 	), s.handleUpdateWorldNote)
 

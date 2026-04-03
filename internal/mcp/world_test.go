@@ -68,6 +68,30 @@ func TestUpdateWorldNote(t *testing.T) {
 	assert.Equal(t, "New content", notes[0].Content)
 }
 
+func TestUpdateWorldNote_withTags(t *testing.T) {
+	s := newTestMCP(t)
+	campID := setupActiveCampaign(t, s)
+
+	noteID, err := s.db.CreateWorldNote(campID, "Old", "Old content", "npc")
+	require.NoError(t, err)
+
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		"note_id": float64(noteID),
+		"title":   "New",
+		"content": "New content",
+		"tags":    `["boss","undead"]`,
+	}
+	result, err := s.handleUpdateWorldNote(context.Background(), req)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	notes, err := s.db.SearchWorldNotes(campID, "New", "", "boss")
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	assert.Contains(t, notes[0].TagsJSON, "boss")
+}
+
 func TestSearchWorldNotes(t *testing.T) {
 	s := newTestMCP(t)
 	campID := setupActiveCampaign(t, s)
