@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, waitFor } from '@testing-library/react'
-import { userEvent } from '@testing-library/user-event'
 import { MapPanel } from './MapPanel'
 import type { CampaignMap, MapPin } from './api'
 
@@ -70,8 +69,6 @@ describe('MapPanel', () => {
     const { rerender } = render(<MapPanel campaignId={1} lastEvent={null} />)
     await screen.findAllByRole('button')
 
-    const callsBefore = mockFetch.mock.calls.length
-
     rerender(
       <MapPanel
         campaignId={1}
@@ -80,7 +77,7 @@ describe('MapPanel', () => {
     )
 
     await waitFor(() => {
-      const pinCalls = mockFetch.mock.calls.filter(([url]: [string]) => url === `/api/maps/${map.id}/pins`)
+      const pinCalls = mockFetch.mock.calls.filter((args: unknown[]) => args[0] === `/api/maps/${map.id}/pins`)
       expect(pinCalls.length).toBeGreaterThanOrEqual(2)
     })
   })

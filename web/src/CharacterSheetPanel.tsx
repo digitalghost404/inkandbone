@@ -91,14 +91,14 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
         const v = next[f.key]
         updates[f.key] = f.type === 'number' ? (v === '' ? null : Number(v)) : v
       })
-      patchCharacter(character.id, updates).catch(console.error)
+      patchCharacter(character!.id, updates).catch(console.error)
     }, 500)
   }
 
   function handlePortraitChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    uploadPortrait(character.id, file).catch(console.error)
+    uploadPortrait(character!.id, file).catch(console.error)
   }
 
   return (

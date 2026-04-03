@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { CampaignMap, MapPin, fetchMaps, fetchMapPins } from './api'
+import type { CampaignMap, MapPin } from './api'
+import { fetchMaps, fetchMapPins } from './api'
 
 function isMapPinAddedEvent(e: unknown): e is { type: string; payload: { map_id: number } } {
   return (

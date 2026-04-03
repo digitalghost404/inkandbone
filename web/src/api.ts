@@ -128,7 +128,7 @@ export async function patchCharacter(characterId: number, updates: Record<string
   const res = await fetch(`/api/characters/${characterId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
+    body: JSON.stringify({ data_json: JSON.stringify(updates) }),
   })
   if (!res.ok) throw new Error(`patchCharacter failed: ${res.status}`)
   return res.json()
