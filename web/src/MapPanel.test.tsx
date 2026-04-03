@@ -80,7 +80,8 @@ describe('MapPanel', () => {
     )
 
     await waitFor(() => {
-      expect(mockFetch.mock.calls.length).toBeGreaterThan(callsBefore)
+      const pinCalls = mockFetch.mock.calls.filter(([url]: [string]) => url === `/api/maps/${map.id}/pins`)
+      expect(pinCalls.length).toBeGreaterThanOrEqual(2)
     })
   })
 })

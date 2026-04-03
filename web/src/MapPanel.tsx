@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
 import { CampaignMap, MapPin, fetchMaps, fetchMapPins } from './api'
 
+function isMapPinAddedEvent(e: unknown): e is { type: string; payload: { map_id: number } } {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    (e as any).type === 'map_pin_added' &&
+    typeof (e as any).payload?.map_id === 'number'
+  )
+}
+
 interface MapPanelProps {
   campaignId: number | null
   lastEvent: unknown
@@ -12,26 +21,19 @@ export function MapPanel({ campaignId, lastEvent }: MapPanelProps) {
   const [selectedPin, setSelectedPin] = useState<MapPin | null>(null)
 
   useEffect(() => {
+    setSelectedPin(null)
     if (campaignId === null) return
-    fetchMaps(campaignId).then((maps) => {
-      if (maps.length > 0) {
-        setMap(maps[0])
-      } else {
-        setMap(null)
-      }
-    })
+    fetchMaps(campaignId).then(maps => setMap(maps[0] ?? null)).catch(console.error)
   }, [campaignId])
 
   useEffect(() => {
     if (!map) return
-    fetchMapPins(map.id).then(setPins)
+    fetchMapPins(map.id).then(setPins).catch(console.error)
   }, [map])
 
   useEffect(() => {
-    if (!lastEvent || !map) return
-    const event = lastEvent as { type: string; payload: { map_id: number } }
-    if (event.type === 'map_pin_added' && event.payload.map_id === map.id) {
-      fetchMapPins(map.id).then(setPins)
+    if (isMapPinAddedEvent(lastEvent) && map && lastEvent.payload.map_id === map.id) {
+      fetchMapPins(map.id).then(setPins).catch(console.error)
     }
   }, [lastEvent, map])
 
