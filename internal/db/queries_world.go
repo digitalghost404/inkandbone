@@ -55,6 +55,18 @@ func (d *DB) UpdateWorldNote(id int64, title, content, tagsJSON string) error {
 	return nil
 }
 
+func (d *DB) GetWorldNote(id int64) (*WorldNote, error) {
+	var n WorldNote
+	err := d.db.QueryRow(
+		"SELECT id, campaign_id, title, content, category, tags_json, created_at FROM world_notes WHERE id = ?",
+		id,
+	).Scan(&n.ID, &n.CampaignID, &n.Title, &n.Content, &n.Category, &n.TagsJSON, &n.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &n, nil
+}
+
 func (d *DB) SearchWorldNotes(campaignID int64, query, category, tag string) ([]WorldNote, error) {
 	q := "SELECT id, campaign_id, title, content, category, tags_json, created_at FROM world_notes WHERE campaign_id = ?"
 	args := []any{campaignID}

@@ -336,10 +336,15 @@ func (s *Server) handleDraftWorldNote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid campaign id", http.StatusBadRequest)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	var body struct {
 		Hint string `json:"hint"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Hint == "" {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.Hint == "" {
 		http.Error(w, "hint is required", http.StatusBadRequest)
 		return
 	}
@@ -368,20 +373,9 @@ func (s *Server) handleDraftWorldNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notes, err := s.db.SearchWorldNotes(id, "", "", "")
+	created, err := s.db.GetWorldNote(noteID)
 	if err != nil {
 		http.Error(w, "fetch note: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	var created *db.WorldNote
-	for i := range notes {
-		if notes[i].ID == noteID {
-			created = &notes[i]
-			break
-		}
-	}
-	if created == nil {
-		http.Error(w, "note not found after create", http.StatusInternalServerError)
 		return
 	}
 
