@@ -149,7 +149,7 @@ func (s *Server) handleGetContext(w http.ResponseWriter, _ *http.Request) {
 				resp.RecentMessages = msgs
 			}
 			if enc, err := s.db.GetActiveEncounter(sessID); err == nil && enc != nil {
-				cs := &contextCombatSnapshot{Encounter: enc}
+				cs := &contextCombatSnapshot{Encounter: enc, Combatants: []db.Combatant{}}
 				if combatants, err := s.db.ListCombatants(enc.ID); err == nil {
 					cs.Combatants = combatants
 				}
