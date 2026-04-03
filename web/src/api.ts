@@ -6,9 +6,13 @@ export async function fetchContext(): Promise<GameContext> {
   return res.json()
 }
 
-export async function fetchWorldNotes(campaignId: number, q?: string): Promise<WorldNote[]> {
-  const url = q
-    ? `/api/campaigns/${campaignId}/world-notes?q=${encodeURIComponent(q)}`
+export async function fetchWorldNotes(campaignId: number, q?: string, tag?: string): Promise<WorldNote[]> {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (tag) params.set('tag', tag)
+  const qs = params.toString()
+  const url = qs
+    ? `/api/campaigns/${campaignId}/world-notes?${qs}`
     : `/api/campaigns/${campaignId}/world-notes`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`)

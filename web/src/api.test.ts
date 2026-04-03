@@ -67,6 +67,20 @@ describe('fetchWorldNotes', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
     await expect(fetchWorldNotes(1)).rejects.toThrow('failed: 404')
   })
+
+  it('appends tag param when tag is provided', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
+    vi.stubGlobal('fetch', mockFetch)
+    await fetchWorldNotes(1, undefined, 'npc')
+    expect(mockFetch).toHaveBeenCalledWith('/api/campaigns/1/world-notes?tag=npc')
+  })
+
+  it('appends both q and tag when both provided', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
+    vi.stubGlobal('fetch', mockFetch)
+    await fetchWorldNotes(1, 'tavern', 'location')
+    expect(mockFetch).toHaveBeenCalledWith('/api/campaigns/1/world-notes?q=tavern&tag=location')
+  })
 })
 
 describe('fetchDiceRolls', () => {
