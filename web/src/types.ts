@@ -65,3 +65,22 @@ export interface GameContext {
   recent_messages: Message[]
   active_combat: CombatSnapshot | null
 }
+
+export interface WorldNote {
+  id: number
+  campaign_id: number
+  title: string
+  content: string
+  category: string
+  tags_json: string
+  created_at: string
+}
+
+export interface DiceRoll {
+  id: number
+  session_id: number
+  expression: string
+  result: number
+  breakdown_json: string
+  created_at: string
+}

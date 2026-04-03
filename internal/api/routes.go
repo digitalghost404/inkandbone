@@ -116,6 +116,25 @@ func (s *Server) handleListMapPins(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, pins)
 }
 
+func (s *Server) handleListWorldNotes(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	q := r.URL.Query().Get("q")
+	category := r.URL.Query().Get("category")
+	notes, err := s.db.SearchWorldNotes(id, q, category)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if notes == nil {
+		notes = []db.WorldNote{}
+	}
+	writeJSON(w, notes)
+}
+
 type contextCombatSnapshot struct {
 	Encounter  *db.CombatEncounter `json:"encounter"`
 	Combatants []db.Combatant      `json:"combatants"`

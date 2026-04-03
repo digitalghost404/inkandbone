@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
 import { fetchContext } from './api'
 import type { GameContext, Message } from './types'
+import { WorldNotesPanel } from './WorldNotesPanel'
+import { DiceHistoryPanel } from './DiceHistoryPanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -86,6 +88,10 @@ export default function App() {
             </table>
           </section>
         )}
+
+        {ctx.campaign && <WorldNotesPanel campaignId={ctx.campaign.id} />}
+
+        {ctx.session && <DiceHistoryPanel sessionId={ctx.session.id} />}
       </main>
     </div>
   )

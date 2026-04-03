@@ -22,9 +22,12 @@ class MockWebSocket {
 describe('App', () => {
   beforeEach(() => {
     vi.stubGlobal('WebSocket', MockWebSocket)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockCtx),
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCtx) })
+      }
+      // WorldNotesPanel and DiceHistoryPanel sub-fetches return empty arrays
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
     }))
   })
 
@@ -52,5 +55,18 @@ describe('App', () => {
     render(<App />)
     expect(await screen.findByText('You enter the tavern.')).toBeInTheDocument()
     expect(await screen.findByText('I look for a table.')).toBeInTheDocument()
+  })
+
+  it('renders world notes panel heading', async () => {
+    render(<App />)
+    // Wait for context to load, then the panel heading should appear
+    await screen.findByText('Greyhawk')
+    expect(screen.getByText('World Notes')).toBeInTheDocument()
+  })
+
+  it('renders dice history panel heading', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    expect(screen.getByText('Dice History')).toBeInTheDocument()
   })
 })

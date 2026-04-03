@@ -59,6 +59,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/campaigns", s.handleListCampaigns)
 	s.mux.HandleFunc("GET /api/campaigns/{id}/characters", s.handleListCharacters)
 	s.mux.HandleFunc("GET /api/campaigns/{id}/sessions", s.handleListSessions)
+	s.mux.HandleFunc("GET /api/campaigns/{id}/world-notes", s.handleListWorldNotes)
 	s.mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleListMessages)
 	s.mux.HandleFunc("GET /api/sessions/{id}/dice-rolls", s.handleListDiceRolls)
 	s.mux.HandleFunc("GET /api/maps/{id}/pins", s.handleListMapPins)
