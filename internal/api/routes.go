@@ -124,7 +124,8 @@ func (s *Server) handleListWorldNotes(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query().Get("q")
 	category := r.URL.Query().Get("category")
-	notes, err := s.db.SearchWorldNotes(id, q, category)
+	tag := r.URL.Query().Get("tag")
+	notes, err := s.db.SearchWorldNotes(id, q, category, tag)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

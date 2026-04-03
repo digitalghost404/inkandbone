@@ -62,7 +62,7 @@ func (s *Server) handleUpdateWorldNote(_ context.Context, req mcplib.CallToolReq
 		return mcplib.NewToolResultError("content is required"), nil
 	}
 
-	if err := s.db.UpdateWorldNote(noteID, title, content); err != nil {
+	if err := s.db.UpdateWorldNote(noteID, title, content, ""); err != nil {
 		return mcplib.NewToolResultError("update note: " + err.Error()), nil
 	}
 
@@ -80,7 +80,7 @@ func (s *Server) handleSearchWorldNotes(_ context.Context, req mcplib.CallToolRe
 	query := optStr(req, "query")
 	category := optStr(req, "category")
 
-	notes, err := s.db.SearchWorldNotes(campID, query, category)
+	notes, err := s.db.SearchWorldNotes(campID, query, category, "")
 	if err != nil {
 		return mcplib.NewToolResultError("search error: " + err.Error()), nil
 	}

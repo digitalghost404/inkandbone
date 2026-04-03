@@ -28,11 +28,20 @@ func (d *DB) CreateWorldNote(campaignID int64, title, content, category string) 
 	return res.LastInsertId()
 }
 
-func (d *DB) UpdateWorldNote(id int64, title, content string) error {
-	res, err := d.db.Exec(
-		"UPDATE world_notes SET title = ?, content = ? WHERE id = ?",
-		title, content, id,
-	)
+func (d *DB) UpdateWorldNote(id int64, title, content, tagsJSON string) error {
+	var res sql.Result
+	var err error
+	if tagsJSON != "" {
+		res, err = d.db.Exec(
+			"UPDATE world_notes SET title = ?, content = ?, tags_json = ? WHERE id = ?",
+			title, content, tagsJSON, id,
+		)
+	} else {
+		res, err = d.db.Exec(
+			"UPDATE world_notes SET title = ?, content = ? WHERE id = ?",
+			title, content, id,
+		)
+	}
 	if err != nil {
 		return err
 	}
@@ -46,7 +55,7 @@ func (d *DB) UpdateWorldNote(id int64, title, content string) error {
 	return nil
 }
 
-func (d *DB) SearchWorldNotes(campaignID int64, query, category string) ([]WorldNote, error) {
+func (d *DB) SearchWorldNotes(campaignID int64, query, category, tag string) ([]WorldNote, error) {
 	q := "SELECT id, campaign_id, title, content, category, tags_json, created_at FROM world_notes WHERE campaign_id = ?"
 	args := []any{campaignID}
 	if query != "" {
@@ -57,6 +66,10 @@ func (d *DB) SearchWorldNotes(campaignID int64, query, category string) ([]World
 	if category != "" {
 		q += " AND category = ?"
 		args = append(args, category)
+	}
+	if tag != "" {
+		q += " AND tags_json LIKE ?"
+		args = append(args, `%"`+tag+`"%`)
 	}
 	q += " ORDER BY title"
 	rows, err := d.db.Query(q, args...)

@@ -39,7 +39,7 @@ func TestCreateWorldNote(t *testing.T) {
 
 	campIDStr, _ := s.db.GetSetting("active_campaign_id")
 	campID, _ := strconv.ParseInt(campIDStr, 10, 64)
-	notes, err := s.db.SearchWorldNotes(campID, "Mira", "")
+	notes, err := s.db.SearchWorldNotes(campID, "Mira", "", "")
 	require.NoError(t, err)
 	require.Len(t, notes, 1)
 	assert.Equal(t, "Mira", notes[0].Title)
@@ -62,7 +62,7 @@ func TestUpdateWorldNote(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
-	notes, err := s.db.SearchWorldNotes(campID, "New Title", "")
+	notes, err := s.db.SearchWorldNotes(campID, "New Title", "", "")
 	require.NoError(t, err)
 	require.Len(t, notes, 1)
 	assert.Equal(t, "New content", notes[0].Content)
