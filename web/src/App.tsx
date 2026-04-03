@@ -33,7 +33,7 @@ export default function App() {
     [loadContext],
   )
 
-  useWebSocket(WS_URL, handleEvent)
+  const { lastEvent } = useWebSocket(WS_URL, handleEvent)
 
   if (error) return <div className="error">{error}</div>
   if (!ctx) return <div className="loading">Loading…</div>
@@ -43,7 +43,16 @@ export default function App() {
       <header className="state-bar">
         <span className="campaign">{ctx.campaign?.name ?? 'No campaign'}</span>
         <span className="separator">·</span>
-        <span className="character">{ctx.character?.name ?? 'No character'}</span>
+        <span className="character-info">
+          {ctx.character?.portrait_path && (
+            <img
+              className="portrait"
+              src={`/api/files/${ctx.character.portrait_path}`}
+              alt={ctx.character.name}
+            />
+          )}
+          <span className="character">{ctx.character?.name ?? 'No character'}</span>
+        </span>
         <span className="separator">·</span>
         <span className="session">{ctx.session?.title ?? 'No session'}</span>
       </header>
@@ -89,9 +98,9 @@ export default function App() {
           </section>
         )}
 
-        {ctx.campaign && <WorldNotesPanel campaignId={ctx.campaign.id} />}
+        {ctx.campaign && <WorldNotesPanel campaignId={ctx.campaign.id} lastEvent={lastEvent} />}
 
-        {ctx.session && <DiceHistoryPanel sessionId={ctx.session.id} />}
+        {ctx.session && <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />}
       </main>
     </div>
   )

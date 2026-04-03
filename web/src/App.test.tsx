@@ -69,4 +69,32 @@ describe('App', () => {
     await screen.findByText('Greyhawk')
     expect(screen.getByText('Dice History')).toBeInTheDocument()
   })
+
+  it('renders portrait img when portrait_path is set', async () => {
+    const ctxWithPortrait = {
+      ...mockCtx,
+      character: { ...mockCtx.character!, portrait_path: 'portraits/zara.jpg' },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(ctxWithPortrait) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    const img = await screen.findByRole('img', { name: 'Zara' })
+    expect(img).toHaveAttribute('src', '/api/files/portraits/zara.jpg')
+  })
+
+  it('does not render portrait img when portrait_path is empty', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCtx) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    expect(screen.queryByRole('img')).toBeNull()
+  })
 })

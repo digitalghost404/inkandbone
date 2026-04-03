@@ -235,3 +235,75 @@ body {
   padding: 2rem;
   text-align: center;
 }
+
+/* Portrait */
+
+.character-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.portrait {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Tag Pills */
+
+.tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+}
+
+.tag-pill {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.tag-pill:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tag-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Die Badges */
+
+.breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-top: 0.15rem;
+}
+
+.die-badge {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 0.05rem 0.25rem;
+}
+
+.roll-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
