@@ -150,15 +150,6 @@ func (s *Server) registerTools() {
 }
 
 // stub handlers — replaced task by task
-func (s *Server) handleSetActive(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
-func (s *Server) handleStartSession(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
-func (s *Server) handleEndSession(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
 func (s *Server) handleGetCharacterSheet(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 	return mcplib.NewToolResultText("not implemented"), nil
 }
