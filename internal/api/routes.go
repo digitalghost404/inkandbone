@@ -199,14 +199,14 @@ func (s *Server) handleServeFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetTimeline(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
 		return
 	}
 	entries, err := s.db.GetSessionTimeline(id)
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if entries == nil {
