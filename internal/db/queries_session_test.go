@@ -29,10 +29,12 @@ func TestSessions(t *testing.T) {
 	assert.Empty(t, s.Summary)
 
 	require.NoError(t, d.UpdateSessionSummary(sessID, "Found the dungeon"))
-	s, _ = d.GetSession(sessID)
+	s, err = d.GetSession(sessID)
+	require.NoError(t, err)
 	assert.Equal(t, "Found the dungeon", s.Summary)
 
-	list, _ := d.ListSessions(campID)
+	list, err := d.ListSessions(campID)
+	require.NoError(t, err)
 	assert.Len(t, list, 1)
 }
 
@@ -47,6 +49,7 @@ func TestMessages(t *testing.T) {
 	_, err = d.CreateMessage(sessID, "user", "I draw my sword")
 	require.NoError(t, err)
 
+	// ORDER BY created_at, id — id tiebreaker ensures determinism when timestamps share the same second
 	msgs, err := d.ListMessages(sessID)
 	require.NoError(t, err)
 	assert.Len(t, msgs, 2)

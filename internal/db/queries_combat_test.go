@@ -49,7 +49,8 @@ func TestCombatants(t *testing.T) {
 	assert.Equal(t, 20, list[0].HPCurrent)
 
 	require.NoError(t, d.UpdateCombatant(cID, 12, `["poisoned"]`))
-	list, _ = d.ListCombatants(encID)
+	list, err = d.ListCombatants(encID)
+	require.NoError(t, err)
 	assert.Equal(t, 12, list[0].HPCurrent)
 	assert.Equal(t, `["poisoned"]`, list[0].ConditionsJSON)
 }

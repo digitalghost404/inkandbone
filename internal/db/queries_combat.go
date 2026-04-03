@@ -1,6 +1,9 @@
 package db
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+)
 
 type CombatEncounter struct {
 	ID        int64
@@ -12,7 +15,9 @@ type CombatEncounter struct {
 
 func (d *DB) CreateEncounter(sessionID int64, name string) (int64, error) {
 	// Deactivate any existing active encounter in this session first
-	d.db.Exec("UPDATE combat_encounters SET active = 0 WHERE session_id = ? AND active = 1", sessionID)
+	if _, err := d.db.Exec("UPDATE combat_encounters SET active = 0 WHERE session_id = ? AND active = 1", sessionID); err != nil {
+		return 0, fmt.Errorf("deactivate existing encounter: %w", err)
+	}
 	res, err := d.db.Exec(
 		"INSERT INTO combat_encounters (session_id, name) VALUES (?, ?)",
 		sessionID, name,
