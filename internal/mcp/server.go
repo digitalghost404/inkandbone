@@ -150,15 +150,6 @@ func (s *Server) registerTools() {
 }
 
 // stub handlers — replaced task by task
-func (s *Server) handleCreateWorldNote(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
-func (s *Server) handleUpdateWorldNote(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
-func (s *Server) handleSearchWorldNotes(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
 func (s *Server) handleRollDice(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 	return mcplib.NewToolResultText("not implemented"), nil
 }
