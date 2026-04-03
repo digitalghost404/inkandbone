@@ -7,6 +7,8 @@
   --border: #2a2a4a;
   --player: #6bffb8;
   --enemy: #ff6b6b;
+  --note-category: #a78bfa;
+  --dice-result: #fbbf24;
 }
 
 * {
@@ -75,6 +77,8 @@ body {
   margin-bottom: 0.25rem;
 }
 
+/* Session Log */
+
 .message {
   display: flex;
   gap: 0.75rem;
@@ -97,10 +101,7 @@ body {
   color: #4a9eff;
 }
 
-.empty {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
+/* Combat Tracker */
 
 .combat {
   max-width: 340px;
@@ -132,6 +133,95 @@ body {
 
 .combat tr.enemy td {
   color: var(--enemy);
+}
+
+/* World Notes Panel */
+
+.world-notes {
+  max-width: 320px;
+  flex: none;
+}
+
+.search {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 0.35rem 0.6rem;
+  outline: none;
+}
+
+.search:focus {
+  border-color: var(--accent);
+}
+
+.world-note {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.note-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.note-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.note-category {
+  font-size: 0.7rem;
+  color: var(--note-category);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.note-content {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* Dice History Panel */
+
+.dice-history {
+  max-width: 220px;
+  flex: none;
+}
+
+.dice-roll {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+
+.dice-roll .expression {
+  color: var(--text);
+  font-family: monospace;
+}
+
+.dice-roll .result {
+  font-weight: 700;
+  color: var(--dice-result);
+  font-size: 1rem;
+}
+
+/* Shared */
+
+.empty {
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .error {
