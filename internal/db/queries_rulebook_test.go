@@ -20,14 +20,16 @@ func TestGetRuleset(t *testing.T) {
 
 func TestCreateAndSearchRulebookChunks(t *testing.T) {
 	d := newTestDB(t)
-	rulesets, _ := d.ListRulesets()
+	rulesets, err := d.ListRulesets()
+	require.NoError(t, err)
+	require.NotEmpty(t, rulesets)
 	rulesetID := rulesets[0].ID
 
 	chunks := []RulebookChunk{
 		{Heading: "Stealth Rules", Content: "Characters can hide in shadows."},
 		{Heading: "Combat", Content: "Initiative is rolled at the start of combat."},
 	}
-	err := d.CreateRulebookChunks(rulesetID, chunks)
+	err = d.CreateRulebookChunks(rulesetID, chunks)
 	require.NoError(t, err)
 
 	results, err := d.SearchRulebookChunks(rulesetID, "stealth")
@@ -38,7 +40,9 @@ func TestCreateAndSearchRulebookChunks(t *testing.T) {
 
 func TestSearchRulebookChunks_empty(t *testing.T) {
 	d := newTestDB(t)
-	rulesets, _ := d.ListRulesets()
+	rulesets, err := d.ListRulesets()
+	require.NoError(t, err)
+	require.NotEmpty(t, rulesets)
 	results, err := d.SearchRulebookChunks(rulesets[0].ID, "nonexistent")
 	require.NoError(t, err)
 	require.Empty(t, results)

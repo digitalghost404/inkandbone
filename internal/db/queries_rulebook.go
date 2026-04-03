@@ -1,6 +1,9 @@
 package db
 
-import "time"
+import (
+	"database/sql"
+	"time"
+)
 
 // RulebookChunk represents a parsed chunk of rulebook text for a given ruleset.
 type RulebookChunk struct {
@@ -17,6 +20,9 @@ func (d *DB) GetRuleset(id int64) (*Ruleset, error) {
 	err := d.db.QueryRow(
 		"SELECT id, name, schema_json, version FROM rulesets WHERE id = ?", id,
 	).Scan(&r.ID, &r.Name, &r.SchemaJSON, &r.Version)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
