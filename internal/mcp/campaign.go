@@ -10,17 +10,17 @@ import (
 )
 
 func (s *Server) handleSetActive(_ context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	if id, ok := optInt64(req, "campaign_id"); ok {
+	if id, ok := optInt64(req, "campaign_id"); ok && id > 0 {
 		if err := s.db.SetSetting("active_campaign_id", strconv.FormatInt(id, 10)); err != nil {
 			return mcplib.NewToolResultError("set campaign: " + err.Error()), nil
 		}
 	}
-	if id, ok := optInt64(req, "session_id"); ok {
+	if id, ok := optInt64(req, "session_id"); ok && id > 0 {
 		if err := s.db.SetSetting("active_session_id", strconv.FormatInt(id, 10)); err != nil {
 			return mcplib.NewToolResultError("set session: " + err.Error()), nil
 		}
 	}
-	if id, ok := optInt64(req, "character_id"); ok {
+	if id, ok := optInt64(req, "character_id"); ok && id > 0 {
 		if err := s.db.SetSetting("active_character_id", strconv.FormatInt(id, 10)); err != nil {
 			return mcplib.NewToolResultError("set character: " + err.Error()), nil
 		}
@@ -77,6 +77,7 @@ func (s *Server) handleEndSession(_ context.Context, req mcplib.CallToolRequest)
 	if err := s.db.UpdateSessionSummary(sessID, summary); err != nil {
 		return mcplib.NewToolResultError("update summary: " + err.Error()), nil
 	}
+	_ = s.db.SetSetting("active_session_id", "")
 
 	s.logNarrative(req, sessID)
 	s.bus.Publish(api.Event{Type: api.EventSessionEnded, Payload: map[string]any{"session_id": sessID}})

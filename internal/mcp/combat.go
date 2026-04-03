@@ -56,10 +56,11 @@ func (s *Server) handleUpdateCombatant(_ context.Context, req mcplib.CallToolReq
 		return mcplib.NewToolResultError("combatant_id is required"), nil
 	}
 
-	hpCurrent := 0
-	if hp, ok := optInt64(req, "hp_current"); ok {
-		hpCurrent = int(hp)
+	hpRaw, hpOk := optInt64(req, "hp_current")
+	if !hpOk {
+		return mcplib.NewToolResultError("hp_current is required"), nil
 	}
+	hpCurrent := int(hpRaw)
 	conditions := optStr(req, "conditions")
 	if conditions == "" {
 		conditions = "[]"

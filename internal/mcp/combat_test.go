@@ -74,6 +74,21 @@ func TestUpdateCombatant(t *testing.T) {
 	assert.Equal(t, `["poisoned"]`, combatants[0].ConditionsJSON)
 }
 
+func TestUpdateCombatant_missingHP(t *testing.T) {
+	s := newTestMCP(t)
+	setupActiveSession(t, s)
+
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		"combatant_id": float64(1),
+		"conditions":   `["prone"]`,
+		// hp_current intentionally omitted
+	}
+	result, err := s.handleUpdateCombatant(context.Background(), req)
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+}
+
 func TestEndCombat(t *testing.T) {
 	s := newTestMCP(t)
 	sessID := setupActiveSession(t, s)

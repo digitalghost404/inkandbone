@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/digitalghost404/inkandbone/internal/api"
 	"github.com/digitalghost404/inkandbone/internal/db"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 )
@@ -59,14 +58,6 @@ func (s *Server) handleGetContext(_ context.Context, _ mcplib.CallToolRequest) (
 				snap.ActiveCombat = cs
 			}
 		}
-	}
-
-	// publish event so the frontend can refresh (only when a session is active)
-	if snap.Session != nil {
-		s.bus.Publish(api.Event{
-			Type:    api.EventSessionStarted,
-			Payload: snap,
-		})
 	}
 
 	b, err := json.Marshal(snap)
