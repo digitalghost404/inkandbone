@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS rulebook_chunks (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  ruleset_id INTEGER NOT NULL REFERENCES rulesets(id),
+  heading    TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
