@@ -12,9 +12,10 @@ import (
 
 func setupActiveSession(t *testing.T, s *Server) int64 {
 	t.Helper()
-	rsID, err := s.db.CreateRuleset("dnd5e", `{}`, "1.0")
+	rs, err := s.db.GetRulesetByName("dnd5e")
 	require.NoError(t, err)
-	campID, err := s.db.CreateCampaign(rsID, "Camp", "")
+	require.NotNil(t, rs, "dnd5e ruleset must be seeded by migration 002")
+	campID, err := s.db.CreateCampaign(rs.ID, "Camp", "")
 	require.NoError(t, err)
 	sessID, err := s.db.CreateSession(campID, "S1", "2026-04-01")
 	require.NoError(t, err)
