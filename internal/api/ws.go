@@ -47,6 +47,13 @@ func (h *Hub) broadcast(event Event) {
 	}
 }
 
+// ClientCount returns the number of currently connected WebSocket clients.
+func (h *Hub) ClientCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.clients)
+}
+
 // ServeWS upgrades an HTTP connection to WebSocket and registers it with the hub.
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)

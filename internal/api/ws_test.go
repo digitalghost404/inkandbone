@@ -25,8 +25,14 @@ func TestHubBroadcastsEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	// Give hub time to register the client
-	time.Sleep(10 * time.Millisecond)
+	// Wait for the hub to register the client
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for hub.ClientCount() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for hub to register client")
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
 
 	bus.Publish(Event{Type: EventDiceRolled, Payload: map[string]any{"result": 18}})
 
