@@ -13,7 +13,11 @@ import (
 )
 
 func main() {
-	dbPath := filepath.Join(os.Getenv("HOME"), ".ttrpg", "ttrpg.db")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("home dir: %v", err)
+	}
+	dbPath := filepath.Join(home, ".ttrpg", "ttrpg.db")
 
 	database, err := db.Open(dbPath)
 	if err != nil {

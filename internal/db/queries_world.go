@@ -1,6 +1,9 @@
 package db
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+)
 
 // --- World Notes ---
 
@@ -26,11 +29,21 @@ func (d *DB) CreateWorldNote(campaignID int64, title, content, category string) 
 }
 
 func (d *DB) UpdateWorldNote(id int64, title, content string) error {
-	_, err := d.db.Exec(
+	res, err := d.db.Exec(
 		"UPDATE world_notes SET title = ?, content = ? WHERE id = ?",
 		title, content, id,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("world note %d not found", id)
+	}
+	return nil
 }
 
 func (d *DB) SearchWorldNotes(campaignID int64, query, category string) ([]WorldNote, error) {

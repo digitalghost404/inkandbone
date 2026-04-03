@@ -14,18 +14,27 @@ type CombatEncounter struct {
 }
 
 func (d *DB) CreateEncounter(sessionID int64, name string) (int64, error) {
-	// Deactivate any existing active encounter in this session first
-	if _, err := d.db.Exec("UPDATE combat_encounters SET active = 0 WHERE session_id = ? AND active = 1", sessionID); err != nil {
+	tx, err := d.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.Exec("UPDATE combat_encounters SET active = 0 WHERE session_id = ? AND active = 1", sessionID); err != nil {
 		return 0, fmt.Errorf("deactivate existing encounter: %w", err)
 	}
-	res, err := d.db.Exec(
+	res, err := tx.Exec(
 		"INSERT INTO combat_encounters (session_id, name) VALUES (?, ?)",
 		sessionID, name,
 	)
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, tx.Commit()
 }
 
 func (d *DB) GetActiveEncounter(sessionID int64) (*CombatEncounter, error) {

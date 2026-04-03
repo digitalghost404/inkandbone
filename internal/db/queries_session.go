@@ -1,6 +1,9 @@
 package db
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+)
 
 type Session struct {
 	ID         int64
@@ -34,8 +37,18 @@ func (d *DB) GetSession(id int64) (*Session, error) {
 }
 
 func (d *DB) UpdateSessionSummary(id int64, summary string) error {
-	_, err := d.db.Exec("UPDATE sessions SET summary = ? WHERE id = ?", summary, id)
-	return err
+	res, err := d.db.Exec("UPDATE sessions SET summary = ? WHERE id = ?", summary, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("session %d not found", id)
+	}
+	return nil
 }
 
 func (d *DB) ListSessions(campaignID int64) ([]Session, error) {

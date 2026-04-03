@@ -13,15 +13,18 @@ var upgrader = websocket.Upgrader{
 }
 
 // Hub manages WebSocket connections and broadcasts events to all clients.
+// Each client gets a dedicated send channel and write goroutine so that
+// broadcast (called from Hub.Run) never shares a *websocket.Conn with the
+// per-connection read goroutine in ServeWS.
 type Hub struct {
 	mu      sync.Mutex
-	clients map[*websocket.Conn]bool
+	clients map[*websocket.Conn]chan Event
 	bus     *Bus
 }
 
 func NewHub(bus *Bus) *Hub {
 	return &Hub{
-		clients: make(map[*websocket.Conn]bool),
+		clients: make(map[*websocket.Conn]chan Event),
 		bus:     bus,
 	}
 }
@@ -38,11 +41,11 @@ func (h *Hub) Run() {
 func (h *Hub) broadcast(event Event) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for conn := range h.clients {
-		if err := conn.WriteJSON(event); err != nil {
-			log.Printf("ws write error: %v", err)
-			conn.Close()
-			delete(h.clients, conn)
+	for _, send := range h.clients {
+		select {
+		case send <- event:
+		default:
+			// slow client; drop rather than block the broadcast goroutine
 		}
 	}
 }
@@ -61,18 +64,34 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ws upgrade: %v", err)
 		return
 	}
+
+	send := make(chan Event, 64)
+
 	h.mu.Lock()
-	h.clients[conn] = true
+	h.clients[conn] = send
 	h.mu.Unlock()
 
-	defer func() {
-		h.mu.Lock()
-		delete(h.clients, conn)
-		h.mu.Unlock()
+	// Write goroutine — the only goroutine that calls WriteJSON on this conn.
+	go func() {
+		for event := range send {
+			if err := conn.WriteJSON(event); err != nil {
+				log.Printf("ws write error: %v", err)
+				break
+			}
+		}
 		conn.Close()
 	}()
 
-	// Read loop — keeps connection alive; client messages are ignored for now
+	defer func() {
+		h.mu.Lock()
+		if ch, ok := h.clients[conn]; ok {
+			delete(h.clients, conn)
+			close(ch)
+		}
+		h.mu.Unlock()
+	}()
+
+	// Read loop — keeps connection alive; client messages are ignored for now.
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
 			break
