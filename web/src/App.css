@@ -307,3 +307,169 @@ body {
   justify-content: space-between;
   align-items: center;
 }
+
+/* Combat Panel */
+
+.combat-panel {
+  max-width: 300px;
+  flex: none;
+}
+
+.combatant-card {
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.combatant-card.active-turn {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.5rem;
+}
+
+.combatant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.combatant-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.combatant-card.player .combatant-name {
+  color: var(--player);
+}
+
+.combatant-card.enemy .combatant-name {
+  color: var(--enemy);
+}
+
+.combatant-init {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.hp-bar-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hp-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.hp-bar-green { background: #4ade80; }
+.hp-bar-yellow { background: #facc15; }
+.hp-bar-red { background: var(--enemy); }
+
+.hp-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.condition-badge {
+  font-size: 0.65rem;
+  background: var(--border);
+  color: var(--note-category);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Session Timeline */
+
+.timeline-panel {
+  min-width: 260px;
+  flex: 1.5;
+}
+
+.timeline-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.timeline-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
+}
+
+.timeline-entry.entry-new {
+  animation: slide-in 0.25s ease-out;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tl-role {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.timeline-message .tl-role {
+  color: #4a9eff;
+}
+
+.tl-content {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.tl-expr {
+  font-family: monospace;
+  color: var(--text);
+}
+
+.tl-result {
+  font-weight: 700;
+  color: var(--dice-result);
+}
+
+.tl-breakdown {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.tl-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  flex-shrink: 0;
+}
+
+.tl-badge.note {
+  background: rgba(167, 139, 250, 0.2);
+  color: var(--note-category);
+}
+
+.tl-badge.combat {
+  background: rgba(233, 69, 96, 0.2);
+  color: var(--accent);
+}

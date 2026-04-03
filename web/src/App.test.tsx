@@ -97,4 +97,31 @@ describe('App', () => {
     await screen.findByText('Greyhawk')
     expect(screen.queryByRole('img')).toBeNull()
   })
+
+  it('renders combat panel when active_combat is set', async () => {
+    const ctxWithCombat: GameContext = {
+      ...mockCtx,
+      active_combat: {
+        encounter: { id: 1, session_id: 1, name: 'Dragon Fight', active: true, created_at: '' },
+        combatants: [
+          { id: 1, encounter_id: 1, character_id: null, name: 'Zara', initiative: 20, hp_current: 40, hp_max: 40, conditions_json: '[]', is_player: true },
+        ],
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(ctxWithCombat) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    expect(await screen.findByText('Combat: Dragon Fight')).toBeInTheDocument()
+    expect(screen.getAllByText('Zara').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders session timeline heading', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    expect(screen.getByText('Session Timeline')).toBeInTheDocument()
+  })
 })

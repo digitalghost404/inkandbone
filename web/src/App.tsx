@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
 import { fetchContext } from './api'
 import type { GameContext, Message } from './types'
+import { CombatPanel } from './CombatPanel'
+import { SessionTimeline } from './SessionTimeline'
 import { WorldNotesPanel } from './WorldNotesPanel'
 import { DiceHistoryPanel } from './DiceHistoryPanel'
 import './App.css'
@@ -43,16 +45,14 @@ export default function App() {
       <header className="state-bar">
         <span className="campaign">{ctx.campaign?.name ?? 'No campaign'}</span>
         <span className="separator">·</span>
-        <span className="character-info">
-          {ctx.character?.portrait_path && (
-            <img
-              className="portrait"
-              src={`/api/files/${ctx.character.portrait_path}`}
-              alt={ctx.character.name}
-            />
-          )}
-          <span className="character">{ctx.character?.name ?? 'No character'}</span>
-        </span>
+        {ctx.character?.portrait_path && (
+          <img
+            className="portrait"
+            src={`/api/files/${ctx.character.portrait_path}`}
+            alt={ctx.character.name}
+          />
+        )}
+        <span className="character">{ctx.character?.name ?? 'No character'}</span>
         <span className="separator">·</span>
         <span className="session">{ctx.session?.title ?? 'No session'}</span>
       </header>
@@ -72,35 +72,19 @@ export default function App() {
           )}
         </section>
 
-        {ctx.active_combat && (
-          <section className="panel combat">
-            <h2>Combat: {ctx.active_combat.encounter.name}</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Init</th>
-                  <th>HP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ctx.active_combat.combatants.map((c) => (
-                  <tr key={c.id} className={c.is_player ? 'player' : 'enemy'}>
-                    <td>{c.name}</td>
-                    <td>{c.initiative}</td>
-                    <td>
-                      {c.hp_current}/{c.hp_max}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+        {ctx.active_combat && <CombatPanel combat={ctx.active_combat} />}
+
+        {ctx.session && (
+          <SessionTimeline sessionId={ctx.session.id} lastEvent={lastEvent} />
         )}
 
-        {ctx.campaign && <WorldNotesPanel campaignId={ctx.campaign.id} lastEvent={lastEvent} />}
+        {ctx.campaign && (
+          <WorldNotesPanel campaignId={ctx.campaign.id} lastEvent={lastEvent} />
+        )}
 
-        {ctx.session && <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />}
+        {ctx.session && (
+          <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />
+        )}
       </main>
     </div>
   )
