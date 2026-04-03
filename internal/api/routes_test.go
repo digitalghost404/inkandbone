@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -362,4 +365,84 @@ func TestServeFile_traversal(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestListMaps_empty(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	req := httptest.NewRequest(http.MethodGet, "/api/campaigns/"+strconv.FormatInt(campID, 10)+"/maps", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var maps []db.Map
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &maps))
+	assert.Empty(t, maps)
+}
+
+func TestGetMap_found(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	mapID, err := s.db.CreateMap(campID, "World", "maps/test.jpg")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/api/maps/"+strconv.FormatInt(mapID, 10), nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var m db.Map
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &m))
+	assert.Equal(t, mapID, m.ID)
+	assert.Equal(t, "World", m.Name)
+}
+
+func TestGetMap_notFound(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/maps/9999", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestPatchSession_ok(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	body := `{"summary":"Session went great"}`
+	req := httptest.NewRequest(http.MethodPatch,
+		"/api/sessions/"+strconv.FormatInt(sessID, 10),
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	sess, err := s.db.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "Session went great", sess.Summary)
+}
+
+func TestUploadMap_ok(t *testing.T) {
+	dir := t.TempDir()
+	s := newTestServerWithDir(t, dir)
+	campID, _ := seedCampaign(t, s.db)
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("image", "map.png")
+	require.NoError(t, err)
+	_, err = io.WriteString(fw, "fake-image-data")
+	require.NoError(t, err)
+	require.NoError(t, mw.WriteField("name", "World Map"))
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/campaigns/"+strconv.FormatInt(campID, 10)+"/maps",
+		&body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var m db.Map
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &m))
+	assert.Equal(t, campID, m.CampaignID)
+	assert.Equal(t, "World Map", m.Name)
+	assert.True(t, strings.HasPrefix(m.ImagePath, "maps/"))
+	assert.FileExists(t, filepath.Join(dir, "maps", filepath.Base(m.ImagePath)))
 }

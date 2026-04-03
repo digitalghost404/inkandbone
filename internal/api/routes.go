@@ -1,8 +1,12 @@
 package api
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -194,19 +198,131 @@ func (s *Server) handleServeFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListMaps(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-func (s *Server) handleUploadMap(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	maps, err := s.db.ListMaps(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if maps == nil {
+		maps = []db.Map{}
+	}
+	writeJSON(w, maps)
 }
 
 func (s *Server) handleGetMap(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid map id", http.StatusBadRequest)
+		return
+	}
+	m, err := s.db.GetMap(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if m == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, m)
+}
+
+func (s *Server) handleUploadMap(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	name := r.FormValue("name")
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "image is required: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	ext := filepath.Ext(header.Filename)
+	filename := randomHex(16) + ext
+	destDir := filepath.Join(s.dataDir, "maps")
+	if err := os.MkdirAll(destDir, 0750); err != nil {
+		http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out, err := os.Create(filepath.Join(destDir, filename))
+	if err != nil {
+		http.Error(w, "create file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, file); err != nil {
+		out.Close()
+		os.Remove(filepath.Join(destDir, filename))
+		http.Error(w, "write file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	imagePath := "maps/" + filename
+	mapID, err := s.db.CreateMap(id, name, imagePath)
+	if err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	m, err := s.db.GetMap(mapID)
+	if err != nil || m == nil {
+		http.Error(w, "fetch created map", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(m) //nolint:errcheck
+}
+
+// randomHex returns n random hex bytes as a hex string.
+func randomHex(n int) string {
+	b := make([]byte, n)
+	rand.Read(b) //nolint:errcheck // crypto/rand.Read never returns an error on supported platforms
+	return fmt.Sprintf("%x", b)
 }
 
 func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Summary string `json:"summary"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.UpdateSessionSummary(id, body.Summary); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
+		"session_id": id,
+		"summary":    body.Summary,
+	}})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleGenerateRecap(w http.ResponseWriter, r *http.Request) {
