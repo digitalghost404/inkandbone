@@ -187,6 +187,23 @@ func TestListWorldNotes_searchFilter(t *testing.T) {
 	assert.Equal(t, "Tavern", notes[0].Title)
 }
 
+func TestListWorldNotes_categoryFilter(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	_, err := s.db.CreateWorldNote(campID, "Tavern", "A seedy place.", "location")
+	require.NoError(t, err)
+	_, err = s.db.CreateWorldNote(campID, "Dragon", "Ancient red dragon.", "npc")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/api/campaigns/"+strconv.FormatInt(campID, 10)+"/world-notes?category=location", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var notes []db.WorldNote
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &notes))
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Tavern", notes[0].Title)
+}
+
 func TestGetContext_withActiveState(t *testing.T) {
 	s := newTestServer(t)
 	campID, sessID := seedCampaign(t, s.db)
