@@ -103,8 +103,11 @@ func (d *DB) GetCampaign(id int64) (*Campaign, error) {
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
 	c.Active = active == 1
-	return c, err
+	return c, nil
 }
 
 func (d *DB) ListCampaigns() ([]Campaign, error) {
@@ -135,7 +138,7 @@ type Character struct {
 	CampaignID   int64
 	Name         string
 	DataJSON     string
-	PortraitPath string
+	PortraitPath string // NOT NULL DEFAULT '' in schema; never nil
 	CreatedAt    string
 }
 
@@ -166,7 +169,10 @@ func (d *DB) UpdateCharacterData(id int64, dataJSON string) error {
 	if err != nil {
 		return err
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
 	if n == 0 {
 		return fmt.Errorf("character %d not found", id)
 	}

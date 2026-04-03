@@ -51,7 +51,8 @@ func TestRulesets(t *testing.T) {
 
 func TestCampaigns(t *testing.T) {
 	d := newTestDB(t)
-	rsID, _ := d.CreateRuleset("ironsworn", `{}`, "1.0")
+	rsID, err := d.CreateRuleset("ironsworn", `{}`, "1.0")
+	require.NoError(t, err)
 
 	id, err := d.CreateCampaign(rsID, "The Ironlands", "A grim world")
 	require.NoError(t, err)
@@ -68,8 +69,10 @@ func TestCampaigns(t *testing.T) {
 
 func TestCharacters(t *testing.T) {
 	d := newTestDB(t)
-	rsID, _ := d.CreateRuleset("ironsworn", `{}`, "1.0")
-	campID, _ := d.CreateCampaign(rsID, "Test Campaign", "")
+	rsID, err := d.CreateRuleset("ironsworn", `{}`, "1.0")
+	require.NoError(t, err)
+	campID, err := d.CreateCampaign(rsID, "Test Campaign", "")
+	require.NoError(t, err)
 
 	charID, err := d.CreateCharacter(campID, "Kael")
 	require.NoError(t, err)
