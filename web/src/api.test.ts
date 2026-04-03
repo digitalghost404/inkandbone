@@ -104,3 +104,24 @@ describe('fetchDiceRolls', () => {
     await expect(fetchDiceRolls(1)).rejects.toThrow('failed: 500')
   })
 })
+
+describe('fetchTimeline', () => {
+  it('returns parsed TimelineEntry array on success', async () => {
+    const entries = [
+      { type: 'message', timestamp: '2026-04-03T10:00:00Z', data: { id: 1, role: 'user', content: 'Hi' } },
+      { type: 'dice_roll', timestamp: '2026-04-03T10:01:00Z', data: { id: 1, expression: '1d20', result: 15 } },
+    ]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(entries) }))
+    const { fetchTimeline } = await import('./api')
+    const result = await fetchTimeline(1)
+    expect(result).toHaveLength(2)
+    expect(result[0].type).toBe('message')
+    expect(result[1].type).toBe('dice_roll')
+  })
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
+    const { fetchTimeline } = await import('./api')
+    await expect(fetchTimeline(1)).rejects.toThrow('failed: 404')
+  })
+})

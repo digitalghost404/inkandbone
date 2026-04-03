@@ -84,3 +84,9 @@ export interface DiceRoll {
   breakdown_json: string
   created_at: string
 }
+
+export interface TimelineEntry {
+  type: 'message' | 'dice_roll' | 'world_note_event' | 'combat_event'
+  timestamp: string
+  data: Record<string, unknown>
+}

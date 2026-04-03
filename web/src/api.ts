@@ -1,4 +1,4 @@
-import type { GameContext, WorldNote, DiceRoll } from './types'
+import type { GameContext, WorldNote, DiceRoll, TimelineEntry } from './types'
 
 export async function fetchContext(): Promise<GameContext> {
   const res = await fetch('/api/context')
@@ -21,6 +21,13 @@ export async function fetchWorldNotes(campaignId: number, q?: string, tag?: stri
 
 export async function fetchDiceRolls(sessionId: number): Promise<DiceRoll[]> {
   const url = `/api/sessions/${sessionId}/dice-rolls`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchTimeline(sessionId: number): Promise<TimelineEntry[]> {
+  const url = `/api/sessions/${sessionId}/timeline`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`)
   return res.json()
