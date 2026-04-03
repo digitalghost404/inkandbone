@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fetchContext, fetchWorldNotes, fetchDiceRolls, fetchTimeline } from './api'
+import { fetchContext, fetchWorldNotes, fetchDiceRolls, fetchTimeline, fetchMaps, fetchMapPins, patchSessionSummary, generateRecap, draftWorldNote, uploadMap } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -121,5 +121,141 @@ describe('fetchTimeline', () => {
   it('throws on non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
     await expect(fetchTimeline(1)).rejects.toThrow('failed: 404')
+  })
+})
+
+describe('fetchMaps', () => {
+  it('returns parsed CampaignMap array on success', async () => {
+    const maps = [
+      { id: 1, campaign_id: 2, image_path: '/uploads/map1.png', created_at: '2026-04-03T10:00:00Z' },
+    ]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(maps),
+    }))
+
+    const result = await fetchMaps(2)
+    expect(result).toHaveLength(1)
+    expect(result[0].image_path).toBe('/uploads/map1.png')
+  })
+
+  it('calls the correct URL', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await fetchMaps(5)
+    expect(mockFetch).toHaveBeenCalledWith('/api/campaigns/5/maps')
+  })
+})
+
+describe('fetchMapPins', () => {
+  it('returns parsed MapPin array on success', async () => {
+    const pins = [
+      { id: 1, map_id: 3, x: 100, y: 200, label: 'Tavern', note: 'Meeting point', color: '#ff0000', created_at: '2026-04-03T10:00:00Z' },
+    ]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(pins),
+    }))
+
+    const result = await fetchMapPins(3)
+    expect(result).toHaveLength(1)
+    expect(result[0].label).toBe('Tavern')
+    expect(result[0].x).toBe(100)
+  })
+
+  it('calls the correct URL', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await fetchMapPins(7)
+    expect(mockFetch).toHaveBeenCalledWith('/api/maps/7/pins')
+  })
+})
+
+describe('patchSessionSummary', () => {
+  it('sends PATCH request with correct body', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({})
+    vi.stubGlobal('fetch', mockFetch)
+
+    await patchSessionSummary(4, 'The party defeated the dragon.')
+    expect(mockFetch).toHaveBeenCalledWith('/api/sessions/4', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary: 'The party defeated the dragon.' }),
+    })
+  })
+})
+
+describe('generateRecap', () => {
+  it('returns parsed summary on success', async () => {
+    const payload = { summary: 'An epic battle ensued.' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(payload),
+    }))
+
+    const result = await generateRecap(4)
+    expect(result.summary).toBe('An epic battle ensued.')
+  })
+
+  it('sends POST request to correct URL', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve({ summary: '' }) })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await generateRecap(9)
+    expect(mockFetch).toHaveBeenCalledWith('/api/sessions/9/recap', { method: 'POST' })
+  })
+})
+
+describe('draftWorldNote', () => {
+  it('returns parsed draft on success', async () => {
+    const payload = { id: 10, title: 'The Lost Temple', content: 'Ancient ruins deep in the forest.' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(payload),
+    }))
+
+    const result = await draftWorldNote(2, 'ancient ruins')
+    expect(result.id).toBe(10)
+    expect(result.title).toBe('The Lost Temple')
+  })
+
+  it('sends POST request with correct body', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve({ id: 1, title: '', content: '' }) })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await draftWorldNote(3, 'dark forest')
+    expect(mockFetch).toHaveBeenCalledWith('/api/campaigns/3/world-notes/draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hint: 'dark forest' }),
+    })
+  })
+})
+
+describe('uploadMap', () => {
+  it('returns parsed CampaignMap on success', async () => {
+    const payload = { id: 5, campaign_id: 2, image_path: '/uploads/new-map.png', created_at: '2026-04-03T10:00:00Z' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(payload),
+    }))
+
+    const file = new File(['binary'], 'map.png', { type: 'image/png' })
+    const result = await uploadMap(2, file)
+    expect(result.id).toBe(5)
+    expect(result.image_path).toBe('/uploads/new-map.png')
+  })
+
+  it('sends POST with FormData to correct URL', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ id: 1, campaign_id: 2, image_path: '', created_at: '' }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const file = new File(['binary'], 'map.png', { type: 'image/png' })
+    await uploadMap(2, file)
+
+    expect(mockFetch).toHaveBeenCalledOnce()
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toBe('/api/campaigns/2/maps')
+    expect(options.method).toBe('POST')
+    expect(options.body).toBeInstanceOf(FormData)
   })
 })
