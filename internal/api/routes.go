@@ -115,3 +115,48 @@ func (s *Server) handleListMapPins(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, pins)
 }
+
+type contextCombatSnapshot struct {
+	Encounter  *db.CombatEncounter `json:"encounter"`
+	Combatants []db.Combatant      `json:"combatants"`
+}
+
+type contextResponse struct {
+	Campaign       *db.Campaign           `json:"campaign"`
+	Character      *db.Character          `json:"character"`
+	Session        *db.Session            `json:"session"`
+	RecentMessages []db.Message           `json:"recent_messages"`
+	ActiveCombat   *contextCombatSnapshot `json:"active_combat"`
+}
+
+func (s *Server) handleGetContext(w http.ResponseWriter, _ *http.Request) {
+	resp := contextResponse{RecentMessages: []db.Message{}}
+
+	if campIDStr, err := s.db.GetSetting("active_campaign_id"); err == nil && campIDStr != "" {
+		if campID, err := strconv.ParseInt(campIDStr, 10, 64); err == nil {
+			resp.Campaign, _ = s.db.GetCampaign(campID)
+		}
+	}
+	if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
+		if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
+			resp.Character, _ = s.db.GetCharacter(charID)
+		}
+	}
+	if sessIDStr, err := s.db.GetSetting("active_session_id"); err == nil && sessIDStr != "" {
+		if sessID, err := strconv.ParseInt(sessIDStr, 10, 64); err == nil {
+			resp.Session, _ = s.db.GetSession(sessID)
+			if msgs, err := s.db.RecentMessages(sessID, 20); err == nil {
+				resp.RecentMessages = msgs
+			}
+			if enc, err := s.db.GetActiveEncounter(sessID); err == nil && enc != nil {
+				cs := &contextCombatSnapshot{Encounter: enc}
+				if combatants, err := s.db.ListCombatants(enc.ID); err == nil {
+					cs.Combatants = combatants
+				}
+				resp.ActiveCombat = cs
+			}
+		}
+	}
+
+	writeJSON(w, resp)
+}
