@@ -50,6 +50,9 @@ func TestGenerateSessionRecap(t *testing.T) {
 	}
 	require.Len(t, events, 1)
 	assert.Equal(t, api.EventSessionUpdated, events[0].Type)
+	payload := events[0].Payload.(map[string]any)
+	assert.Equal(t, sessID, payload["session_id"])
+	assert.Equal(t, "The heroes fought valiantly.", payload["summary"])
 
 	// Verify DB updated
 	sess, err := s.db.GetSession(sessID)
