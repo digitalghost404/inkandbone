@@ -305,3 +305,40 @@ func TestServeFile_traversalBlocked(t *testing.T) {
 	s.ServeHTTP(w, req)
 	assert.NotEqual(t, http.StatusOK, w.Code)
 }
+
+func TestGetTimeline_empty(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/"+strconv.FormatInt(sessID, 10)+"/timeline", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var entries []db.TimelineEntry
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entries))
+	assert.Empty(t, entries)
+}
+
+func TestGetTimeline_withData(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	_, err := s.db.CreateMessage(sessID, "user", "A brave move.")
+	require.NoError(t, err)
+	_, err = s.db.LogDiceRoll(sessID, "2d6", 9, "[4,5]")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/"+strconv.FormatInt(sessID, 10)+"/timeline", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var entries []db.TimelineEntry
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entries))
+	assert.Len(t, entries, 2)
+}
+
+func TestGetTimeline_invalidID(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/abc/timeline", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}

@@ -198,6 +198,23 @@ func (s *Server) handleServeFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, target)
 }
 
+func (s *Server) handleGetTimeline(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	entries, err := s.db.GetSessionTimeline(id)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	if entries == nil {
+		entries = []db.TimelineEntry{}
+	}
+	writeJSON(w, entries)
+}
+
 func (s *Server) handleGetContext(w http.ResponseWriter, _ *http.Request) {
 	resp := contextResponse{RecentMessages: []db.Message{}}
 
