@@ -15,7 +15,8 @@ class MockWebSocket {
   onclose: (() => void) | null = null
   close = vi.fn(() => { this.readyState = MockWebSocket.CLOSED })
 
-  constructor(public url: string) {}
+  url: string
+  constructor(url: string) { this.url = url }
 
   open() {
     this.readyState = MockWebSocket.OPEN
