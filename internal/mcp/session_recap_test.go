@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/digitalghost404/inkandbone/internal/api"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
@@ -32,7 +33,6 @@ func TestGenerateSessionRecap(t *testing.T) {
 	require.NoError(t, s.db.SetSetting("active_session_id", strconv.FormatInt(sessID, 10)))
 
 	// Collect WS events
-	events := []api.Event{}
 	ch := s.bus.Subscribe()
 
 	req := mcplib.CallToolRequest{}
@@ -43,14 +43,15 @@ func TestGenerateSessionRecap(t *testing.T) {
 	assert.False(t, result.IsError)
 
 	// Drain one event
+	var e api.Event
 	select {
-	case e := <-ch:
-		events = append(events, e)
-	default:
+	case e = <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for session_updated event")
 	}
-	require.Len(t, events, 1)
-	assert.Equal(t, api.EventSessionUpdated, events[0].Type)
-	payload := events[0].Payload.(map[string]any)
+	assert.Equal(t, api.EventSessionUpdated, e.Type)
+	payload, ok := e.Payload.(map[string]any)
+	require.True(t, ok, "expected map[string]any payload")
 	assert.Equal(t, sessID, payload["session_id"])
 	assert.Equal(t, "The heroes fought valiantly.", payload["summary"])
 

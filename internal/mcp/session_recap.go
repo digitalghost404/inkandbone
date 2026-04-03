@@ -9,7 +9,7 @@ import (
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 )
 
-func (s *Server) handleGenerateSessionRecap(_ context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+func (s *Server) handleGenerateSessionRecap(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 	if s.aiClient == nil {
 		return mcplib.NewToolResultError("AI not configured — set ANTHROPIC_API_KEY"), nil
 	}
@@ -43,7 +43,11 @@ func (s *Server) handleGenerateSessionRecap(_ context.Context, req mcplib.CallTo
 		fmt.Fprintf(&sb, "%s = %d\n", r.Expression, r.Result)
 	}
 
-	summary, err := s.aiClient.Generate(context.Background(), sb.String())
+	if sb.Len() > 32000 {
+		return mcplib.NewToolResultError("session transcript too long for recap — try end_session with a manual summary"), nil
+	}
+
+	summary, err := s.aiClient.Generate(ctx, sb.String())
 	if err != nil {
 		return mcplib.NewToolResultError("AI error: " + err.Error()), nil
 	}
