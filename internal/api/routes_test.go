@@ -297,3 +297,11 @@ func TestServeFile_notFound(t *testing.T) {
 	s.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
+
+func TestServeFile_traversalBlocked(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/files/../../etc/passwd", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.NotEqual(t, http.StatusOK, w.Code)
+}

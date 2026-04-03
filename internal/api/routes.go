@@ -3,9 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"path"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/digitalghost404/inkandbone/internal/db"
 )
@@ -180,9 +181,21 @@ func (s *Server) handlePatchWorldNote(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleServeFile(w http.ResponseWriter, r *http.Request) {
 	rawPath := r.PathValue("path")
-	// path.Clean prevents traversal: "/../.." resolves to "/" which stays under data/
-	safe := path.Clean("/" + rawPath)
-	http.ServeFile(w, r, filepath.Join("data", safe))
+	absData, err := filepath.Abs("data")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	target, err := filepath.Abs(filepath.Join("data", rawPath))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if target != absData && !strings.HasPrefix(target, absData+string(os.PathSeparator)) {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, target)
 }
 
 func (s *Server) handleGetContext(w http.ResponseWriter, _ *http.Request) {
