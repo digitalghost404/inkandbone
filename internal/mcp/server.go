@@ -1,8 +1,6 @@
 package mcp
 
 import (
-	"context"
-
 	"github.com/digitalghost404/inkandbone/internal/api"
 	"github.com/digitalghost404/inkandbone/internal/db"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
@@ -149,10 +147,3 @@ func (s *Server) registerTools() {
 	), s.handleAddMapPin)
 }
 
-// stub handlers — replaced task by task
-func (s *Server) handleRollDice(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
-func (s *Server) handleAddMapPin(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("not implemented"), nil
-}
