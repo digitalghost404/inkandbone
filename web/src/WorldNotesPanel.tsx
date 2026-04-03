@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchWorldNotes } from './api'
+import { fetchWorldNotes, draftWorldNote } from './api'
 import type { WorldNote } from './types'
 
 interface Props {
   campaignId: number
   lastEvent: unknown
+  aiEnabled?: boolean
 }
 
 function parseTags(json: string): string[] {
@@ -12,10 +13,11 @@ function parseTags(json: string): string[] {
   catch { return [] }
 }
 
-export function WorldNotesPanel({ campaignId, lastEvent }: Props) {
+export function WorldNotesPanel({ campaignId, lastEvent, aiEnabled }: Props) {
   const [notes, setNotes] = useState<WorldNote[]>([])
   const [query, setQuery] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [drafting, setDrafting] = useState(false)
 
   const loadNotes = useCallback(() => {
     fetchWorldNotes(campaignId, query || undefined, activeTag || undefined)
@@ -34,9 +36,29 @@ export function WorldNotesPanel({ campaignId, lastEvent }: Props) {
     }
   }, [lastEvent, loadNotes])
 
+  async function handleDraftWithAI() {
+    const hint = window.prompt('Describe the note:')
+    if (!hint) return
+    setDrafting(true)
+    try {
+      await draftWorldNote(campaignId, hint)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDrafting(false)
+    }
+  }
+
   return (
     <section className="panel world-notes">
-      <h2>World Notes</h2>
+      <div className="panel-toolbar">
+        <h2>World Notes</h2>
+        {aiEnabled && (
+          <button disabled={drafting} onClick={handleDraftWithAI}>
+            Draft with AI
+          </button>
+        )}
+      </div>
       <input
         className="search"
         type="search"

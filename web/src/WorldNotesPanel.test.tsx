@@ -88,4 +88,38 @@ describe('WorldNotesPanel', () => {
       expect(mockFetch.mock.calls.length).toBeGreaterThan(callsBefore)
     })
   })
+
+  it('draft button not shown when aiEnabled=false', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }))
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={false} />)
+    await screen.findByText('No notes found.')
+    expect(screen.queryByRole('button', { name: /draft with ai/i })).not.toBeInTheDocument()
+  })
+
+  it('draft button shown when aiEnabled=true', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }))
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={true} />)
+    await screen.findByText('No notes found.')
+    expect(screen.getByRole('button', { name: /draft with ai/i })).toBeInTheDocument()
+  })
+
+  it('draft button calls draftWorldNote with hint from window.prompt', async () => {
+    vi.stubGlobal('prompt', vi.fn().mockReturnValue('Elven smith'))
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // initial load
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 10, title: 'Smith', content: 'A skilled elven smith.' }) }) // draftWorldNote
+    vi.stubGlobal('fetch', mockFetch)
+    render(<WorldNotesPanel campaignId={1} lastEvent={null} aiEnabled={true} />)
+    await screen.findByText('No notes found.')
+    fireEvent.click(screen.getByRole('button', { name: /draft with ai/i }))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/campaigns/1/world-notes/draft',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ hint: 'Elven smith' }),
+        })
+      )
+    })
+  })
 })
