@@ -9,6 +9,7 @@ import (
 
 	"github.com/digitalghost404/inkandbone/internal/api"
 	"github.com/digitalghost404/inkandbone/internal/db"
+	mcpserver "github.com/digitalghost404/inkandbone/internal/mcp"
 	ttrpgweb "github.com/digitalghost404/inkandbone/web"
 )
 
@@ -25,17 +26,23 @@ func main() {
 	}
 	defer database.Close()
 
-	server := api.NewServer(database)
+	httpServer := api.NewServer(database)
 
-	// Serve embedded React SPA for all non-API routes
 	distFS, err := fs.Sub(ttrpgweb.Static, "dist")
 	if err != nil {
 		log.Fatalf("embed sub: %v", err)
 	}
-	server.RegisterStatic(http.FS(distFS))
+	httpServer.RegisterStatic(http.FS(distFS))
 
-	log.Println("TTRPG Companion running at http://localhost:7432")
-	if err := server.ListenAndServe(":7432"); err != nil {
-		log.Fatalf("server: %v", err)
+	go func() {
+		log.Println("HTTP server listening on :7432")
+		if err := httpServer.ListenAndServe(":7432"); err != nil {
+			log.Printf("HTTP server stopped: %v", err)
+		}
+	}()
+
+	mcpSrv := mcpserver.New(database, httpServer.Bus())
+	if err := mcpSrv.Start(); err != nil {
+		log.Fatalf("MCP server: %v", err)
 	}
 }
