@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fetchContext, fetchWorldNotes, fetchDiceRolls } from './api'
+import { fetchContext, fetchWorldNotes, fetchDiceRolls, fetchTimeline } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -112,7 +112,6 @@ describe('fetchTimeline', () => {
       { type: 'dice_roll', timestamp: '2026-04-03T10:01:00Z', data: { id: 1, expression: '1d20', result: 15 } },
     ]
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(entries) }))
-    const { fetchTimeline } = await import('./api')
     const result = await fetchTimeline(1)
     expect(result).toHaveLength(2)
     expect(result[0].type).toBe('message')
@@ -121,7 +120,6 @@ describe('fetchTimeline', () => {
 
   it('throws on non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
-    const { fetchTimeline } = await import('./api')
     await expect(fetchTimeline(1)).rejects.toThrow('failed: 404')
   })
 })
