@@ -38,6 +38,44 @@ func TestCreateAndSearchRulebookChunks(t *testing.T) {
 	require.Equal(t, "Stealth Rules", results[0].Heading)
 }
 
+func TestDeleteRulebookChunks(t *testing.T) {
+	d := newTestDB(t)
+	rulesets, err := d.ListRulesets()
+	require.NoError(t, err)
+	rulesetID := rulesets[0].ID
+
+	err = d.CreateRulebookChunks(rulesetID, []RulebookChunk{
+		{Heading: "Old Chapter", Content: "Stale content."},
+	})
+	require.NoError(t, err)
+
+	err = d.DeleteRulebookChunks(rulesetID)
+	require.NoError(t, err)
+
+	results, err := d.SearchRulebookChunks(rulesetID, "Stale")
+	require.NoError(t, err)
+	require.Empty(t, results)
+}
+
+func TestSearchRulebookChunks_limitThree(t *testing.T) {
+	d := newTestDB(t)
+	rulesets, err := d.ListRulesets()
+	require.NoError(t, err)
+	rulesetID := rulesets[0].ID
+
+	chunks := []RulebookChunk{
+		{Heading: "A", Content: "magic word"},
+		{Heading: "B", Content: "magic word"},
+		{Heading: "C", Content: "magic word"},
+		{Heading: "D", Content: "magic word"},
+	}
+	require.NoError(t, d.CreateRulebookChunks(rulesetID, chunks))
+
+	results, err := d.SearchRulebookChunks(rulesetID, "magic")
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+}
+
 func TestSearchRulebookChunks_empty(t *testing.T) {
 	d := newTestDB(t)
 	rulesets, err := d.ListRulesets()

@@ -29,6 +29,12 @@ func (d *DB) GetRuleset(id int64) (*Ruleset, error) {
 	return &r, nil
 }
 
+// DeleteRulebookChunks removes all chunks for a ruleset, used before re-ingestion.
+func (d *DB) DeleteRulebookChunks(rulesetID int64) error {
+	_, err := d.db.Exec("DELETE FROM rulebook_chunks WHERE ruleset_id = ?", rulesetID)
+	return err
+}
+
 // CreateRulebookChunks inserts multiple chunks for a ruleset in a single transaction.
 func (d *DB) CreateRulebookChunks(rulesetID int64, chunks []RulebookChunk) error {
 	tx, err := d.db.Begin()

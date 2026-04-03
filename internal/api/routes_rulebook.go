@@ -68,6 +68,10 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chunks := chunkByHeadings(text)
+	if err := s.db.DeleteRulebookChunks(rulesetID); err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := s.db.CreateRulebookChunks(rulesetID, chunks); err != nil {
 		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
 		return

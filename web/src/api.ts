@@ -96,6 +96,7 @@ export async function uploadMap(campaignId: number, file: File): Promise<Campaig
   const url = `/api/campaigns/${campaignId}/maps`
   const form = new FormData()
   form.append('image', file)
+  form.append('name', file.name.replace(/\.[^.]+$/, ''))
   const res = await fetch(url, {
     method: 'POST',
     body: form,
