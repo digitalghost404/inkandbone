@@ -183,5 +183,12 @@ func (s *Server) registerTools() {
 		mcplib.WithDescription("Generate a narrative recap for a session using AI. Reads messages and dice rolls, writes the summary, and fires a session_updated event."),
 		mcplib.WithNumber("session_id", mcplib.Description("Session ID (defaults to active session)")),
 	), s.handleGenerateSessionRecap)
+
+	// Plan 9
+	s.srv.AddTool(mcplib.NewTool("search_rulebook",
+		mcplib.WithDescription("Search rulebook chunks by keyword. Returns up to 3 matching sections (heading + content). Call proactively when adjudicating rules."),
+		mcplib.WithString("query", mcplib.Required(), mcplib.Description("Keyword to search in rulebook headings and content")),
+		mcplib.WithNumber("ruleset_id", mcplib.Description("Ruleset ID (defaults to active campaign's ruleset)")),
+	), s.handleSearchRulebook)
 }
 
