@@ -79,6 +79,10 @@ export function SessionTimeline({ sessionId, lastEvent }: Props) {
     newCountTimerRef.current = setTimeout(() => {
       setNewCount((c) => Math.max(0, c - 1))
     }, 600)
+
+    return () => {
+      if (newCountTimerRef.current) clearTimeout(newCountTimerRef.current)
+    }
   }, [lastEvent])
 
   if (error) return <p className="error">{error}</p>
