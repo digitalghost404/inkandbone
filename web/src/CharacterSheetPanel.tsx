@@ -74,7 +74,19 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
 
   const schema: SchemaField[] = (() => {
     try {
-      return JSON.parse(ruleset?.schema_json ?? '[]') as SchemaField[]
+      const parsed = JSON.parse(ruleset?.schema_json ?? '[]') as unknown
+      // Legacy format: {"system":"dnd5e","fields":["hp","class",...]}
+      if (!Array.isArray(parsed) && typeof parsed === 'object' && parsed !== null) {
+        const legacy = parsed as Record<string, unknown>
+        if (Array.isArray(legacy['fields'])) {
+          return (legacy['fields'] as string[]).map((key) => ({
+            key,
+            label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+            type: 'text' as const,
+          }))
+        }
+      }
+      return parsed as SchemaField[]
     } catch {
       return []
     }

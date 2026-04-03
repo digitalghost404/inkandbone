@@ -22,17 +22,13 @@ describe('fetchRuleset', () => {
 });
 
 describe('patchCharacter', () => {
-  it('calls PATCH and returns updated character', async () => {
-    const char = { id: 2, name: 'Aria', data_json: '{"hp":10}', campaign_id: 1, portrait_path: '' };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(char),
-    }));
-    const result = await patchCharacter(2, { hp: 10 });
-    expect(result.id).toBe(2);
+  it('calls PATCH with data_json body (backend returns 204)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 204 }));
+    await patchCharacter(2, { hp: 10 });
     const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls[0][0]).toBe('/api/characters/2');
     expect(calls[0][1].method).toBe('PATCH');
+    expect(JSON.parse(calls[0][1].body)).toEqual({ data_json: JSON.stringify({ hp: 10 }) });
   });
 
   it('throws on error', async () => {

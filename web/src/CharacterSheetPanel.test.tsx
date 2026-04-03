@@ -36,6 +36,21 @@ describe('CharacterSheetPanel', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('renders fields from legacy {system, fields:[]} schema format', async () => {
+    const legacyRuleset = {
+      id: 2,
+      name: 'dnd5e',
+      schema_json: JSON.stringify({ system: 'dnd5e', fields: ['hp', 'proficiency_bonus'] }),
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(legacyRuleset),
+    }))
+    render(<CharacterSheetPanel character={mockCharacter} rulesetId={2} lastEvent={null} />)
+    await waitFor(() => expect(screen.getByLabelText('Hp')).toBeTruthy())
+    expect(screen.getByLabelText('Proficiency bonus')).toBeTruthy()
+  })
+
   it('fetches ruleset and renders fields', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
