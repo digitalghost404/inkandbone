@@ -35,6 +35,7 @@ func Open(path string) (*DB, error) {
 	}
 	sqldb.SetMaxOpenConns(1) // SQLite is single-writer
 	if err := runMigrations(sqldb); err != nil {
+		sqldb.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &DB{db: sqldb}, nil
@@ -78,11 +79,27 @@ func runMigrations(db *sql.DB) error {
 		if err != nil {
 			return err
 		}
-		if _, err := db.Exec(string(sqlBytes)); err != nil {
-			return fmt.Errorf("apply %s: %w", version, err)
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx for %s: %w", version, err)
 		}
-		if _, err := db.Exec("INSERT INTO schema_migrations (version) VALUES (?)", version); err != nil {
-			return err
+		statements := strings.Split(string(sqlBytes), ";")
+		for _, stmt := range statements {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+			if _, err := tx.Exec(stmt); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("apply %s: %w", version, err)
+			}
+		}
+		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES (?)", version); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("record %s: %w", version, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit %s: %w", version, err)
 		}
 	}
 	return nil

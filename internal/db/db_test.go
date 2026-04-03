@@ -1,6 +1,7 @@
 package db
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,11 +27,7 @@ func TestOpen_CreatesTablesOnFirstRun(t *testing.T) {
 }
 
 func TestOpen_IdempotentMigrations(t *testing.T) {
-	d, err := Open(":memory:")
-	require.NoError(t, err)
-	d.Close()
-
-	tmp := t.TempDir() + "/test.db"
+	tmp := filepath.Join(t.TempDir(), "test.db")
 	d1, err := Open(tmp)
 	require.NoError(t, err)
 	d1.Close()
@@ -38,4 +35,5 @@ func TestOpen_IdempotentMigrations(t *testing.T) {
 	d2, err := Open(tmp)
 	require.NoError(t, err)
 	defer d2.Close()
+	// Reaching here means migrations ran twice without error (idempotent)
 }
