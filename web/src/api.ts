@@ -52,43 +52,54 @@ export async function fetchTimeline(sessionId: number): Promise<TimelineEntry[]>
 }
 
 export async function fetchMaps(campaignId: number): Promise<CampaignMap[]> {
-  const res = await fetch(`/api/campaigns/${campaignId}/maps`);
-  return res.json();
+  const url = `/api/campaigns/${campaignId}/maps`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`)
+  return res.json()
 }
 
 export async function fetchMapPins(mapId: number): Promise<MapPin[]> {
-  const res = await fetch(`/api/maps/${mapId}/pins`);
-  return res.json();
+  const url = `/api/maps/${mapId}/pins`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`)
+  return res.json()
 }
 
 export async function patchSessionSummary(sessionId: number, summary: string): Promise<void> {
-  await fetch(`/api/sessions/${sessionId}`, {
+  const res = await fetch(`/api/sessions/${sessionId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ summary }),
-  });
+  })
+  if (!res.ok) throw new Error(`PATCH /api/sessions/${sessionId} failed: ${res.status}`)
 }
 
 export async function generateRecap(sessionId: number): Promise<{ summary: string }> {
-  const res = await fetch(`/api/sessions/${sessionId}/recap`, { method: 'POST' });
-  return res.json();
+  const url = `/api/sessions/${sessionId}/recap`
+  const res = await fetch(url, { method: 'POST' })
+  if (!res.ok) throw new Error(`POST ${url} failed: ${res.status}`)
+  return res.json()
 }
 
 export async function draftWorldNote(campaignId: number, hint: string): Promise<{ id: number; title: string; content: string }> {
-  const res = await fetch(`/api/campaigns/${campaignId}/world-notes/draft`, {
+  const url = `/api/campaigns/${campaignId}/world-notes/draft`
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hint }),
-  });
-  return res.json();
+  })
+  if (!res.ok) throw new Error(`POST ${url} failed: ${res.status}`)
+  return res.json()
 }
 
 export async function uploadMap(campaignId: number, file: File): Promise<CampaignMap> {
-  const form = new FormData();
-  form.append('image', file);
-  const res = await fetch(`/api/campaigns/${campaignId}/maps`, {
+  const url = `/api/campaigns/${campaignId}/maps`
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(url, {
     method: 'POST',
     body: form,
-  });
-  return res.json();
+  })
+  if (!res.ok) throw new Error(`POST ${url} failed: ${res.status}`)
+  return res.json()
 }

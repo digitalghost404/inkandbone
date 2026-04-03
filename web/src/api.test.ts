@@ -130,6 +130,7 @@ describe('fetchMaps', () => {
       { id: 1, campaign_id: 2, image_path: '/uploads/map1.png', created_at: '2026-04-03T10:00:00Z' },
     ]
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve(maps),
     }))
 
@@ -139,11 +140,16 @@ describe('fetchMaps', () => {
   })
 
   it('calls the correct URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) })
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
     vi.stubGlobal('fetch', mockFetch)
 
     await fetchMaps(5)
     expect(mockFetch).toHaveBeenCalledWith('/api/campaigns/5/maps')
+  })
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    await expect(fetchMaps(2)).rejects.toThrow('failed: 500')
   })
 })
 
@@ -153,6 +159,7 @@ describe('fetchMapPins', () => {
       { id: 1, map_id: 3, x: 100, y: 200, label: 'Tavern', note: 'Meeting point', color: '#ff0000', created_at: '2026-04-03T10:00:00Z' },
     ]
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve(pins),
     }))
 
@@ -163,17 +170,22 @@ describe('fetchMapPins', () => {
   })
 
   it('calls the correct URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve([]) })
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
     vi.stubGlobal('fetch', mockFetch)
 
     await fetchMapPins(7)
     expect(mockFetch).toHaveBeenCalledWith('/api/maps/7/pins')
   })
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    await expect(fetchMapPins(3)).rejects.toThrow('failed: 500')
+  })
 })
 
 describe('patchSessionSummary', () => {
   it('sends PATCH request with correct body', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({})
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', mockFetch)
 
     await patchSessionSummary(4, 'The party defeated the dragon.')
@@ -183,12 +195,18 @@ describe('patchSessionSummary', () => {
       body: JSON.stringify({ summary: 'The party defeated the dragon.' }),
     })
   })
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    await expect(patchSessionSummary(4, 'summary')).rejects.toThrow('failed: 500')
+  })
 })
 
 describe('generateRecap', () => {
   it('returns parsed summary on success', async () => {
     const payload = { summary: 'An epic battle ensued.' }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve(payload),
     }))
 
@@ -197,11 +215,16 @@ describe('generateRecap', () => {
   })
 
   it('sends POST request to correct URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve({ summary: '' }) })
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ summary: '' }) })
     vi.stubGlobal('fetch', mockFetch)
 
     await generateRecap(9)
     expect(mockFetch).toHaveBeenCalledWith('/api/sessions/9/recap', { method: 'POST' })
+  })
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    await expect(generateRecap(4)).rejects.toThrow('failed: 500')
   })
 })
 
@@ -209,6 +232,7 @@ describe('draftWorldNote', () => {
   it('returns parsed draft on success', async () => {
     const payload = { id: 10, title: 'The Lost Temple', content: 'Ancient ruins deep in the forest.' }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve(payload),
     }))
 
@@ -218,7 +242,7 @@ describe('draftWorldNote', () => {
   })
 
   it('sends POST request with correct body', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve({ id: 1, title: '', content: '' }) })
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 1, title: '', content: '' }) })
     vi.stubGlobal('fetch', mockFetch)
 
     await draftWorldNote(3, 'dark forest')
@@ -228,12 +252,18 @@ describe('draftWorldNote', () => {
       body: JSON.stringify({ hint: 'dark forest' }),
     })
   })
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    await expect(draftWorldNote(2, 'hint')).rejects.toThrow('failed: 500')
+  })
 })
 
 describe('uploadMap', () => {
   it('returns parsed CampaignMap on success', async () => {
     const payload = { id: 5, campaign_id: 2, image_path: '/uploads/new-map.png', created_at: '2026-04-03T10:00:00Z' }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve(payload),
     }))
 
@@ -245,6 +275,7 @@ describe('uploadMap', () => {
 
   it('sends POST with FormData to correct URL', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve({ id: 1, campaign_id: 2, image_path: '', created_at: '' }),
     })
     vi.stubGlobal('fetch', mockFetch)
@@ -257,5 +288,12 @@ describe('uploadMap', () => {
     expect(url).toBe('/api/campaigns/2/maps')
     expect(options.method).toBe('POST')
     expect(options.body).toBeInstanceOf(FormData)
+    expect((options.body as FormData).get('image')).toBe(file)
+  })
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    const file = new File(['binary'], 'map.png', { type: 'image/png' })
+    await expect(uploadMap(2, file)).rejects.toThrow('failed: 500')
   })
 })
