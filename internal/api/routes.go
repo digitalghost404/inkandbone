@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -180,22 +179,42 @@ func (s *Server) handlePatchWorldNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleServeFile(w http.ResponseWriter, r *http.Request) {
-	rawPath := r.PathValue("path")
-	absData, err := filepath.Abs("data")
-	if err != nil {
-		http.NotFound(w, r)
+	rel := filepath.Clean(r.PathValue("path"))
+	// Reject any path that tries to escape the data directory
+	if strings.HasPrefix(rel, "..") {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	target, err := filepath.Abs(filepath.Join("data", rawPath))
-	if err != nil {
-		http.NotFound(w, r)
+	abs := filepath.Join(s.dataDir, rel)
+	if !strings.HasPrefix(abs+string(filepath.Separator), s.dataDir+string(filepath.Separator)) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	if target != absData && !strings.HasPrefix(target, absData+string(os.PathSeparator)) {
-		http.NotFound(w, r)
-		return
-	}
-	http.ServeFile(w, r, target)
+	http.ServeFile(w, r, abs)
+}
+
+func (s *Server) handleListMaps(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (s *Server) handleUploadMap(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (s *Server) handleGetMap(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (s *Server) handleGenerateRecap(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
+}
+
+func (s *Server) handleDraftWorldNote(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) handleGetTimeline(w http.ResponseWriter, r *http.Request) {
