@@ -47,6 +47,7 @@ All 9 existing HTTP routes are read-only. The following `PATCH` and `POST` endpo
 | 1 | PATCH | `/api/world-notes/{id}` | Update note title/content/tags |
 | 2 | GET | `/api/sessions/{id}/timeline` | Merged chronological feed |
 | 3 | PATCH | `/api/sessions/{id}` | Update session summary |
+| 3 | GET | `/api/campaigns/{id}/maps` | List maps for campaign |
 | 3 | POST | `/api/campaigns/{id}/maps` | Upload map image |
 | 3 | GET | `/api/maps/{id}` | Map metadata + image URL |
 | 4 | PATCH | `/api/characters/{id}` | Update character data_json |
@@ -182,16 +183,19 @@ Returns merged, chronologically sorted array of typed entries:
 
 ### AI Content Generation
 
+The server makes direct Anthropic API calls for AI generation features. Requires `ANTHROPIC_API_KEY` in the environment (or config). If unset, AI buttons are disabled in the UI with a tooltip explaining why.
+
 - "Draft with Claude" button in WorldNotesPanel toolbar
 - Opens a small prompt input: user types a hint (e.g. "Elven blacksmith NPC")
-- Calls new MCP tool `draft_world_note(campaign_id, hint)`
-- Claude generates title + content, calls `create_world_note`
-- `world_note_created` WS event makes it appear instantly in the panel
+- UI calls `POST /api/campaigns/{id}/world-notes/draft` with `{"hint": "..."}` (new HTTP endpoint)
+- Server calls Anthropic API (claude-haiku-4-5) with hint + campaign context, returns generated title + content
+- Server then calls `create_world_note` DB method directly and fires `world_note_created` WS event
+- The new note appears instantly in the panel
 
 ### New MCP Tools
 
-- `generate_session_recap(session_id)` — reads messages/rolls, writes summary
-- `draft_world_note(campaign_id, hint)` — generates and creates a world note
+- `generate_session_recap(session_id)` — reads messages/rolls, calls Anthropic API server-side, writes summary via `PATCH /api/sessions/{id}`, fires `session_updated`
+- `draft_world_note` is replaced by the HTTP endpoint above — no MCP tool needed since the server handles generation directly
 
 ---
 
