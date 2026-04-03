@@ -6,12 +6,12 @@ import (
 )
 
 type Session struct {
-	ID         int64
-	CampaignID int64
-	Title      string
-	Date       string
-	Summary    string
-	CreatedAt  string
+	ID         int64  `json:"id"`
+	CampaignID int64  `json:"campaign_id"`
+	Title      string `json:"title"`
+	Date       string `json:"date"`
+	Summary    string `json:"summary"`
+	CreatedAt  string `json:"created_at"`
 }
 
 func (d *DB) CreateSession(campaignID int64, title, date string) (int64, error) {
@@ -74,11 +74,11 @@ func (d *DB) ListSessions(campaignID int64) ([]Session, error) {
 // --- Messages ---
 
 type Message struct {
-	ID        int64
-	SessionID int64
-	Role      string // "user" or "assistant"
-	Content   string
-	CreatedAt string
+	ID        int64  `json:"id"`
+	SessionID int64  `json:"session_id"`
+	Role      string `json:"role"` // "user" or "assistant"
+	Content   string `json:"content"`
+	CreatedAt string `json:"created_at"`
 }
 
 func (d *DB) CreateMessage(sessionID int64, role, content string) (int64, error) {

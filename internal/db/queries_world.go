@@ -8,13 +8,13 @@ import (
 // --- World Notes ---
 
 type WorldNote struct {
-	ID         int64
-	CampaignID int64
-	Title      string
-	Content    string
-	Category   string
-	TagsJSON   string
-	CreatedAt  string
+	ID         int64  `json:"id"`
+	CampaignID int64  `json:"campaign_id"`
+	Title      string `json:"title"`
+	Content    string `json:"content"`
+	Category   string `json:"category"`
+	TagsJSON   string `json:"tags_json"`
+	CreatedAt  string `json:"created_at"`
 }
 
 func (d *DB) CreateWorldNote(campaignID int64, title, content, category string) (int64, error) {
@@ -78,11 +78,11 @@ func (d *DB) SearchWorldNotes(campaignID int64, query, category string) ([]World
 // --- Maps ---
 
 type Map struct {
-	ID         int64
-	CampaignID int64
-	Name       string
-	ImagePath  string
-	CreatedAt  string
+	ID         int64  `json:"id"`
+	CampaignID int64  `json:"campaign_id"`
+	Name       string `json:"name"`
+	ImagePath  string `json:"image_path"`
+	CreatedAt  string `json:"created_at"`
 }
 
 func (d *DB) CreateMap(campaignID int64, name, imagePath string) (int64, error) {
@@ -110,14 +110,14 @@ func (d *DB) GetMap(id int64) (*Map, error) {
 // --- Map Pins ---
 
 type MapPin struct {
-	ID        int64
-	MapID     int64
-	X         float64
-	Y         float64
-	Label     string
-	Note      string
-	Color     string
-	CreatedAt string
+	ID        int64   `json:"id"`
+	MapID     int64   `json:"map_id"`
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	Label     string  `json:"label"`
+	Note      string  `json:"note"`
+	Color     string  `json:"color"`
+	CreatedAt string  `json:"created_at"`
 }
 
 func (d *DB) AddMapPin(mapID int64, x, y float64, label, note, color string) (int64, error) {
@@ -154,12 +154,12 @@ func (d *DB) ListMapPins(mapID int64) ([]MapPin, error) {
 // --- Dice Rolls ---
 
 type DiceRoll struct {
-	ID            int64
-	SessionID     int64
-	Expression    string
-	Result        int
-	BreakdownJSON string
-	CreatedAt     string
+	ID            int64  `json:"id"`
+	SessionID     int64  `json:"session_id"`
+	Expression    string `json:"expression"`
+	Result        int    `json:"result"`
+	BreakdownJSON string `json:"breakdown_json"`
+	CreatedAt     string `json:"created_at"`
 }
 
 func (d *DB) LogDiceRoll(sessionID int64, expression string, result int, breakdownJSON string) (int64, error) {

@@ -126,3 +126,42 @@ func TestListMapPins_empty(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &pins))
 	assert.Empty(t, pins)
 }
+
+func TestGetContext_empty(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/context", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp contextResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Nil(t, resp.Campaign)
+	assert.Nil(t, resp.Character)
+	assert.Nil(t, resp.Session)
+	assert.Empty(t, resp.RecentMessages)
+	assert.Nil(t, resp.ActiveCombat)
+}
+
+func TestGetContext_withActiveState(t *testing.T) {
+	s := newTestServer(t)
+	campID, sessID := seedCampaign(t, s.db)
+	charID, err := s.db.CreateCharacter(campID, "Arin")
+	require.NoError(t, err)
+	require.NoError(t, s.db.SetSetting("active_campaign_id", strconv.FormatInt(campID, 10)))
+	require.NoError(t, s.db.SetSetting("active_character_id", strconv.FormatInt(charID, 10)))
+	require.NoError(t, s.db.SetSetting("active_session_id", strconv.FormatInt(sessID, 10)))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/context", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp contextResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.NotNil(t, resp.Campaign)
+	assert.Equal(t, "Test Campaign", resp.Campaign.Name)
+	require.NotNil(t, resp.Character)
+	assert.Equal(t, "Arin", resp.Character.Name)
+	require.NotNil(t, resp.Session)
+	assert.Equal(t, "S1", resp.Session.Title)
+	assert.Nil(t, resp.ActiveCombat)
+}

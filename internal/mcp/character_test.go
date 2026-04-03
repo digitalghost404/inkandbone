@@ -36,8 +36,8 @@ func TestGetCharacterSheet(t *testing.T) {
 	require.True(t, ok)
 	var char map[string]any
 	require.NoError(t, json.Unmarshal([]byte(tc.Text), &char))
-	assert.Equal(t, float64(charID), char["ID"])
-	assert.Equal(t, "Lyra", char["Name"])
+	assert.Equal(t, float64(charID), char["id"])
+	assert.Equal(t, "Lyra", char["name"])
 }
 
 func TestUpdateCharacter(t *testing.T) {
