@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { fetchWorldNotes } from './api'
 import type { WorldNote } from './types'
 
@@ -10,15 +10,13 @@ export function WorldNotesPanel({ campaignId }: Props) {
   const [notes, setNotes] = useState<WorldNote[]>([])
   const [query, setQuery] = useState('')
 
-  const load = useCallback(() => {
-    fetchWorldNotes(campaignId, query || undefined)
-      .then(setNotes)
-      .catch(() => setNotes([]))
-  }, [campaignId, query])
-
   useEffect(() => {
-    load()
-  }, [load])
+    let ignored = false
+    fetchWorldNotes(campaignId, query || undefined)
+      .then((data) => { if (!ignored) setNotes(data) })
+      .catch(() => { if (!ignored) setNotes([]) })
+    return () => { ignored = true }
+  }, [campaignId, query])
 
   return (
     <section className="panel world-notes">
