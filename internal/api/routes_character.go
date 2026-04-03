@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func (s *Server) handleGetRuleset(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +66,13 @@ func (s *Server) handleUploadPortrait(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	filename := fmt.Sprintf("%d_%s", id, header.Filename)
+	filename := fmt.Sprintf("%d_%s", id, filepath.Base(header.Filename))
+	ext := strings.ToLower(filepath.Ext(filename))
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowed[ext] {
+		http.Error(w, "unsupported image format", http.StatusBadRequest)
+		return
+	}
 	destDir := filepath.Join(s.dataDir, "portraits")
 	if err := os.MkdirAll(destDir, 0750); err != nil {
 		http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)

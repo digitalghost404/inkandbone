@@ -87,6 +87,9 @@ func TestUploadPortrait(t *testing.T) {
 	charID, err := s.db.CreateCharacter(campID, "Mira")
 	require.NoError(t, err)
 
+	// Subscribe before the request so we capture the event
+	ch := s.bus.Subscribe()
+
 	// Build multipart body
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
@@ -115,4 +118,17 @@ func TestUploadPortrait(t *testing.T) {
 	char, err := s.db.GetCharacter(charID)
 	require.NoError(t, err)
 	assert.Equal(t, resp.PortraitPath, char.PortraitPath)
+
+	// Verify event published
+	var got Event
+	select {
+	case got = <-ch:
+	default:
+		t.Fatal("expected character_updated event, got none")
+	}
+	assert.Equal(t, EventCharacterUpdated, got.Type)
+	payload, ok := got.Payload.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, charID, payload["id"])
+	assert.Equal(t, resp.PortraitPath, payload["portrait_path"])
 }

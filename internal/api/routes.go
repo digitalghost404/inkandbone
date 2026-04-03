@@ -255,7 +255,12 @@ func (s *Server) handleUploadMap(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	ext := filepath.Ext(header.Filename)
+	ext := strings.ToLower(filepath.Ext(filepath.Base(header.Filename)))
+	allowedMapExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowedMapExts[ext] {
+		http.Error(w, "unsupported image format", http.StatusBadRequest)
+		return
+	}
 	filename := randomHex(16) + ext
 	destDir := filepath.Join(s.dataDir, "maps")
 	if err := os.MkdirAll(destDir, 0750); err != nil {
