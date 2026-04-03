@@ -82,8 +82,10 @@ describe('App', () => {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
     }))
     render(<App />)
-    const img = await screen.findByRole('img', { name: 'Zara' })
-    expect(img).toHaveAttribute('src', '/api/files/portraits/zara.jpg')
+    // Both the state-bar portrait and the character sheet panel render an img with name "Zara"
+    const imgs = await screen.findAllByRole('img', { name: 'Zara' })
+    expect(imgs.length).toBeGreaterThanOrEqual(1)
+    expect(imgs[0]).toHaveAttribute('src', '/api/files/portraits/zara.jpg')
   })
 
   it('does not render portrait img when portrait_path is empty', async () => {
@@ -144,5 +146,26 @@ describe('App', () => {
     await screen.findByText('Greyhawk')
     // aiEnabled=true means the "Draft with AI" button is visible
     expect(screen.getByRole('button', { name: 'Draft with AI' })).toBeInTheDocument()
+  })
+
+  it('renders character sheet panel when character is present', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCtx) })
+      }
+      if (url === '/api/rulesets/1') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: 1, name: 'dnd5e',
+            schema_json: JSON.stringify([{ key: 'hp', label: 'HP', type: 'number' }]),
+          }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    expect(await screen.findByText(/Character Sheet/)).toBeInTheDocument()
   })
 })

@@ -8,6 +8,7 @@ import { WorldNotesPanel } from './WorldNotesPanel'
 import { DiceHistoryPanel } from './DiceHistoryPanel'
 import { MapPanel } from './MapPanel'
 import { JournalPanel } from './JournalPanel'
+import { CharacterSheetPanel } from './CharacterSheetPanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -89,6 +90,12 @@ export default function App() {
         <MapPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />
 
         <JournalPanel session={ctx?.session ?? null} lastEvent={lastEvent} aiEnabled={aiEnabled} />
+
+        <CharacterSheetPanel
+          character={ctx?.character ?? null}
+          rulesetId={ctx?.campaign?.ruleset_id ?? null}
+          lastEvent={lastEvent}
+        />
 
         {ctx.session && (
           <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />
