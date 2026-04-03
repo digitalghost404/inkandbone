@@ -27,10 +27,10 @@ func (d *DB) SetSetting(key, value string) error {
 // --- Rulesets ---
 
 type Ruleset struct {
-	ID         int64
-	Name       string
-	SchemaJSON string
-	Version    string
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	SchemaJSON string `json:"schema_json"`
+	Version    string `json:"version"`
 }
 
 func (d *DB) CreateRuleset(name, schemaJSON, version string) (int64, error) {
@@ -75,12 +75,12 @@ func (d *DB) ListRulesets() ([]Ruleset, error) {
 // --- Campaigns ---
 
 type Campaign struct {
-	ID          int64
-	RulesetID   int64
-	Name        string
-	Description string
-	Active      bool
-	CreatedAt   string
+	ID          int64  `json:"id"`
+	RulesetID   int64  `json:"ruleset_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Active      bool   `json:"active"`
+	CreatedAt   string `json:"created_at"`
 }
 
 func (d *DB) CreateCampaign(rulesetID int64, name, description string) (int64, error) {
@@ -134,12 +134,12 @@ func (d *DB) ListCampaigns() ([]Campaign, error) {
 // --- Characters ---
 
 type Character struct {
-	ID           int64
-	CampaignID   int64
-	Name         string
-	DataJSON     string
-	PortraitPath string // NOT NULL DEFAULT '' in schema; never nil
-	CreatedAt    string
+	ID           int64  `json:"id"`
+	CampaignID   int64  `json:"campaign_id"`
+	Name         string `json:"name"`
+	DataJSON     string `json:"data_json"`
+	PortraitPath string `json:"portrait_path"` // NOT NULL DEFAULT '' in schema; never nil
+	CreatedAt    string `json:"created_at"`
 }
 
 func (d *DB) CreateCharacter(campaignID int64, name string) (int64, error) {

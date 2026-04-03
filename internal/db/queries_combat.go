@@ -6,11 +6,11 @@ import (
 )
 
 type CombatEncounter struct {
-	ID        int64
-	SessionID int64
-	Name      string
-	Active    bool
-	CreatedAt string
+	ID        int64  `json:"id"`
+	SessionID int64  `json:"session_id"`
+	Name      string `json:"name"`
+	Active    bool   `json:"active"`
+	CreatedAt string `json:"created_at"`
 }
 
 func (d *DB) CreateEncounter(sessionID int64, name string) (int64, error) {
@@ -62,15 +62,15 @@ func (d *DB) EndEncounter(id int64) error {
 // --- Combatants ---
 
 type Combatant struct {
-	ID             int64
-	EncounterID    int64
-	CharacterID    *int64
-	Name           string
-	Initiative     int
-	HPCurrent      int
-	HPMax          int
-	ConditionsJSON string
-	IsPlayer       bool
+	ID             int64  `json:"id"`
+	EncounterID    int64  `json:"encounter_id"`
+	CharacterID    *int64 `json:"character_id"`
+	Name           string `json:"name"`
+	Initiative     int    `json:"initiative"`
+	HPCurrent      int    `json:"hp_current"`
+	HPMax          int    `json:"hp_max"`
+	ConditionsJSON string `json:"conditions_json"`
+	IsPlayer       bool   `json:"is_player"`
 }
 
 func (d *DB) AddCombatant(encounterID int64, name string, initiative, hpMax int, isPlayer bool, characterID *int64) (int64, error) {
