@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"path"
+	"path/filepath"
 	"strconv"
 
 	"github.com/digitalghost404/inkandbone/internal/db"
@@ -147,6 +149,40 @@ type contextResponse struct {
 	Session        *db.Session            `json:"session"`
 	RecentMessages []db.Message           `json:"recent_messages"`
 	ActiveCombat   *contextCombatSnapshot `json:"active_combat"`
+}
+
+func (s *Server) handlePatchWorldNote(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid world note id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Title    string `json:"title"`
+		Content  string `json:"content"`
+		TagsJSON string `json:"tags_json"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if body.Title == "" || body.Content == "" {
+		http.Error(w, "title and content are required", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.UpdateWorldNote(id, body.Title, body.Content, body.TagsJSON); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventWorldNoteUpdated, Payload: map[string]any{"note_id": id}})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleServeFile(w http.ResponseWriter, r *http.Request) {
+	rawPath := r.PathValue("path")
+	// path.Clean prevents traversal: "/../.." resolves to "/" which stays under data/
+	safe := path.Clean("/" + rawPath)
+	http.ServeFile(w, r, filepath.Join("data", safe))
 }
 
 func (s *Server) handleGetContext(w http.ResponseWriter, _ *http.Request) {

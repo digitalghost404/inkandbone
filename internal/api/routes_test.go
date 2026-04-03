@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/digitalghost404/inkandbone/internal/db"
@@ -226,4 +227,73 @@ func TestGetContext_withActiveState(t *testing.T) {
 	require.NotNil(t, resp.Session)
 	assert.Equal(t, "S1", resp.Session.Title)
 	assert.Nil(t, resp.ActiveCombat)
+}
+
+func TestListWorldNotes_tagFilter(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	noteID, err := s.db.CreateWorldNote(campID, "Shrine", "Ancient shrine.", "location")
+	require.NoError(t, err)
+	require.NoError(t, s.db.UpdateWorldNote(noteID, "Shrine", "Ancient shrine.", `["dungeon"]`))
+	_, err = s.db.CreateWorldNote(campID, "Merchant", "Sells goods.", "npc")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/campaigns/"+strconv.FormatInt(campID, 10)+"/world-notes?tag=dungeon", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var notes []db.WorldNote
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &notes))
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Shrine", notes[0].Title)
+}
+
+func TestPatchWorldNote_updatesNote(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	noteID, err := s.db.CreateWorldNote(campID, "Old Title", "Old content", "npc")
+	require.NoError(t, err)
+
+	body := `{"title":"New Title","content":"New content","tags_json":"[\"ally\"]"}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/world-notes/"+strconv.FormatInt(noteID, 10), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	notes, err := s.db.SearchWorldNotes(campID, "New Title", "", "")
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	assert.Equal(t, "New content", notes[0].Content)
+	assert.Contains(t, notes[0].TagsJSON, "ally")
+}
+
+func TestPatchWorldNote_invalidID(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPatch, "/api/world-notes/abc", strings.NewReader(`{"title":"x","content":"y"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPatchWorldNote_missingTitle(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	noteID, err := s.db.CreateWorldNote(campID, "A Note", "Content.", "npc")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/world-notes/"+strconv.FormatInt(noteID, 10), strings.NewReader(`{"content":"y"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestServeFile_notFound(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/files/portraits/nonexistent.jpg", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }

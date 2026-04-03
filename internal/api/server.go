@@ -64,6 +64,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/sessions/{id}/dice-rolls", s.handleListDiceRolls)
 	s.mux.HandleFunc("GET /api/maps/{id}/pins", s.handleListMapPins)
 	s.mux.HandleFunc("GET /api/context", s.handleGetContext)
+	s.mux.HandleFunc("PATCH /api/world-notes/{id}", s.handlePatchWorldNote)
+	s.mux.HandleFunc("GET /api/files/{path...}", s.handleServeFile)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
