@@ -24,7 +24,9 @@ type contextSnapshot struct {
 }
 
 func (s *Server) handleGetContext(_ context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	snap := contextSnapshot{}
+	snap := contextSnapshot{
+		RecentMessages: []db.Message{},
+	}
 
 	// active campaign
 	if campIDStr, err := s.db.GetSetting("active_campaign_id"); err == nil && campIDStr != "" {
@@ -59,11 +61,13 @@ func (s *Server) handleGetContext(_ context.Context, _ mcplib.CallToolRequest) (
 		}
 	}
 
-	// publish event so the frontend can refresh
-	s.bus.Publish(api.Event{
-		Type:    api.EventSessionStarted,
-		Payload: snap,
-	})
+	// publish event so the frontend can refresh (only when a session is active)
+	if snap.Session != nil {
+		s.bus.Publish(api.Event{
+			Type:    api.EventSessionStarted,
+			Payload: snap,
+		})
+	}
 
 	b, err := json.Marshal(snap)
 	if err != nil {
