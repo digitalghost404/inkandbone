@@ -418,6 +418,72 @@ func TestPatchSession_ok(t *testing.T) {
 	assert.Equal(t, "Session went great", sess.Summary)
 }
 
+func TestDraftWorldNote_ok(t *testing.T) {
+	stub := &stubCompleter{response: "Title: Zara the Smith\nContent: A dwarven blacksmith known for fine steel."}
+	s := newTestServerWithAI(t, stub)
+	campID, _ := seedCampaign(t, s.db)
+
+	body := `{"hint":"Dwarven blacksmith NPC"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/campaigns/"+strconv.FormatInt(campID, 10)+"/world-notes/draft",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var note db.WorldNote
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &note))
+	assert.NotZero(t, note.ID)
+	assert.Equal(t, campID, note.CampaignID)
+	assert.Equal(t, "Zara the Smith", note.Title)
+}
+
+func TestDraftWorldNote_noAI(t *testing.T) {
+	s := newTestServer(t) // aiClient is nil
+	campID, _ := seedCampaign(t, s.db)
+	body := `{"hint":"test"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/campaigns/"+strconv.FormatInt(campID, 10)+"/world-notes/draft",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestGenerateRecap_ok(t *testing.T) {
+	stub := &stubCompleter{response: "The party defeated the goblin horde."}
+	s := newTestServerWithAI(t, stub)
+	_, sessID := seedCampaign(t, s.db)
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/sessions/"+strconv.FormatInt(sessID, 10)+"/recap",
+		nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Summary string `json:"summary"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "The party defeated the goblin horde.", resp.Summary)
+	// Verify DB was updated
+	sess, err := s.db.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "The party defeated the goblin horde.", sess.Summary)
+}
+
+func TestGenerateRecap_noAI(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/sessions/"+strconv.FormatInt(sessID, 10)+"/recap",
+		nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 func TestUploadMap_ok(t *testing.T) {
 	dir := t.TempDir()
 	s := newTestServerWithDir(t, dir)

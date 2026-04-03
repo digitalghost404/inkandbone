@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -325,12 +326,137 @@ func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) handleGenerateRecap(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+func (s *Server) handleDraftWorldNote(w http.ResponseWriter, r *http.Request) {
+	if s.aiClient == nil {
+		http.Error(w, "AI not configured — set ANTHROPIC_API_KEY", http.StatusServiceUnavailable)
+		return
+	}
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Hint string `json:"hint"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Hint == "" {
+		http.Error(w, "hint is required", http.StatusBadRequest)
+		return
+	}
+
+	prompt := fmt.Sprintf(
+		"Create a TTRPG world note for: %s\n\nRespond with exactly two lines:\nTitle: <short name>\nContent: <2-3 sentence description>",
+		body.Hint,
+	)
+	generated, err := s.aiClient.Generate(r.Context(), prompt)
+	if err != nil {
+		http.Error(w, "AI error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	title, content := parseGeneratedNote(generated)
+	if title == "" {
+		title = body.Hint
+	}
+	if content == "" {
+		content = generated
+	}
+
+	noteID, err := s.db.CreateWorldNote(id, title, content, "npc")
+	if err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	notes, err := s.db.SearchWorldNotes(id, "", "", "")
+	if err != nil {
+		http.Error(w, "fetch note: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var created *db.WorldNote
+	for i := range notes {
+		if notes[i].ID == noteID {
+			created = &notes[i]
+			break
+		}
+	}
+	if created == nil {
+		http.Error(w, "note not found after create", http.StatusInternalServerError)
+		return
+	}
+
+	s.bus.Publish(Event{Type: EventWorldNoteCreated, Payload: map[string]any{"note_id": noteID, "title": title}})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(created) //nolint:errcheck
 }
 
-func (s *Server) handleDraftWorldNote(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+// parseGeneratedNote extracts title and content from a "Title: ...\nContent: ..." response.
+func parseGeneratedNote(raw string) (title, content string) {
+	for _, line := range strings.Split(raw, "\n") {
+		if after, found := strings.CutPrefix(line, "Title: "); found {
+			title = strings.TrimSpace(after)
+		}
+		if after, found := strings.CutPrefix(line, "Content: "); found {
+			content = strings.TrimSpace(after)
+		}
+	}
+	return
+}
+
+func (s *Server) handleGenerateRecap(w http.ResponseWriter, r *http.Request) {
+	if s.aiClient == nil {
+		http.Error(w, "AI not configured — set ANTHROPIC_API_KEY", http.StatusServiceUnavailable)
+		return
+	}
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+
+	summary, err := s.buildRecap(r.Context(), id)
+	if err != nil {
+		http.Error(w, "recap: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.db.UpdateSessionSummary(id, summary); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
+		"session_id": id,
+		"summary":    summary,
+	}})
+	writeJSON(w, map[string]string{"summary": summary})
+}
+
+// buildRecap reads messages and dice rolls, builds a prompt, and calls the AI.
+func (s *Server) buildRecap(ctx context.Context, sessionID int64) (string, error) {
+	msgs, err := s.db.ListMessages(sessionID)
+	if err != nil {
+		return "", fmt.Errorf("list messages: %w", err)
+	}
+	rolls, err := s.db.ListDiceRolls(sessionID)
+	if err != nil {
+		return "", fmt.Errorf("list rolls: %w", err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Write a 2-3 sentence narrative recap of this TTRPG session.\n\nMessages:\n")
+	for _, m := range msgs {
+		fmt.Fprintf(&sb, "[%s]: %s\n", m.Role, m.Content)
+	}
+	sb.WriteString("\nDice rolls:\n")
+	for _, r := range rolls {
+		fmt.Fprintf(&sb, "%s = %d\n", r.Expression, r.Result)
+	}
+
+	return s.aiClient.Generate(ctx, sb.String())
 }
 
 func (s *Server) handleGetTimeline(w http.ResponseWriter, r *http.Request) {
