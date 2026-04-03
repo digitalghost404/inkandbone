@@ -35,3 +35,19 @@ func TestAddMapPin(t *testing.T) {
 	assert.Equal(t, "Ruins", pins[0].Label)
 	assert.InDelta(t, 0.42, pins[0].X, 0.0001)
 }
+
+func TestAddMapPin_missingLabel(t *testing.T) {
+	s := newTestMCP(t)
+	campID := setupActiveCampaign(t, s)
+	mapID, err := s.db.CreateMap(campID, "World Map", "/maps/world.png")
+	require.NoError(t, err)
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		"map_id": float64(mapID),
+		"x":      0.5,
+		"y":      0.5,
+	}
+	result, err := s.handleAddMapPin(context.Background(), req)
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+}
