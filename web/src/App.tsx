@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useWebSocket } from './useWebSocket'
-import { fetchContext } from './api'
+import { fetchContext, sendMessage } from './api'
 import type { GameContext, Message } from './types'
 import { CombatPanel } from './CombatPanel'
 import { WorldNotesPanel } from './WorldNotesPanel'
@@ -49,6 +49,9 @@ export default function App() {
   const [aiEnabled, setAiEnabled] = useState(false)
   const [mapOpen, setMapOpen] = useState(false)
   const [rightTab, setRightTab] = useState<'notes' | 'journal'>('notes')
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch('/api/health')
@@ -72,6 +75,26 @@ export default function App() {
 
   const handleEvent = useCallback((_data: unknown) => { loadContext() }, [loadContext])
   const { lastEvent } = useWebSocket(WS_URL, handleEvent)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages])
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim()
+    if (!text || !ctx?.session || sending) return
+    setSending(true)
+    setInput('')
+    try {
+      await sendMessage(ctx.session.id, text)
+    } catch {
+      setInput(text)
+    } finally {
+      setSending(false)
+    }
+  }, [input, ctx, sending])
 
   if (error) return <div className="error">{error}</div>
   if (!ctx) return <div className="loading">Loading…</div>
@@ -108,7 +131,7 @@ export default function App() {
 
         {/* Center Column */}
         <main className="story-center">
-          <div className="story-scroll">
+          <div className="story-scroll" ref={scrollRef}>
             {sessionTitle && (
               <>
                 <div className="session-title">✦ {sessionTitle} ✦</div>
@@ -117,6 +140,31 @@ export default function App() {
             )}
             {ctx.active_combat && <CombatPanel combat={ctx.active_combat} />}
             <ProseJournal messages={messages} characterName={ctx.character?.name ?? 'Player'} />
+          </div>
+
+          <div className="player-input-bar">
+            <textarea
+              className="player-input-field"
+              placeholder="What do you do?"
+              value={input}
+              disabled={sending || !ctx.session}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              rows={1}
+            />
+            <button
+              type="button"
+              className="player-input-send"
+              disabled={sending || !input.trim() || !ctx.session}
+              onClick={handleSend}
+            >
+              {sending ? '…' : '↵'}
+            </button>
           </div>
 
           <div className="map-drawer">

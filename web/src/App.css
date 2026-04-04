@@ -384,6 +384,74 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* Player Input Bar */
+
+.player-input-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+}
+
+.player-input-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--gold);
+  font-family: var(--serif);
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  padding: 0.2rem 0;
+  overflow: hidden;
+}
+
+.player-input-field::placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.player-input-field:focus {
+  border-bottom-color: var(--gold-dim);
+}
+
+.player-input-field:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.player-input-send {
+  background: none;
+  border: 1px solid var(--gold-dim);
+  border-radius: 3px;
+  color: var(--gold-dim);
+  font-size: 16px;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.player-input-send:hover:not(:disabled) {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+.player-input-send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* Map Drawer */
 
 .map-drawer {

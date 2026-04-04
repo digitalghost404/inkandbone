@@ -139,6 +139,15 @@ export async function uploadPortrait(characterId: number, file: File): Promise<{
   return res.json()
 }
 
+export async function sendMessage(sessionId: number, content: string): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'user', content }),
+  })
+  if (!res.ok) throw new Error(`sendMessage failed: ${res.status}`)
+}
+
 export async function ingestRulebook(rulesetId: number, text: string): Promise<{ chunks_created: number }> {
   const res = await fetch(`/api/rulesets/${rulesetId}/rulebook`, {
     method: 'POST',
