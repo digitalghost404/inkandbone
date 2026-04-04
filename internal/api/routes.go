@@ -946,6 +946,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	go s.autoGenerateMap(context.Background(), id, fullText)
 	go s.autoUpdateCharacterStats(context.Background(), id, lastPlayerMsg, fullText)
 	go s.autoUpdateRecap(context.Background(), id)
+	go s.autoDetectObjectives(context.Background(), id, fullText)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
@@ -971,21 +972,16 @@ func (s *Server) autoGenerateMap(ctx context.Context, sessionID int64, gmText st
 		existingNames[i] = m.Name
 	}
 
-	excludeClause := ""
-	if len(existingNames) > 0 {
-		excludeClause = fmt.Sprintf("\nDo NOT generate a map for these already-mapped locations: %s.", strings.Join(existingNames, ", "))
-	}
+	detectPrompt := fmt.Sprintf(`You are a TTRPG map assistant. Analyze this story passage.
 
-	detectPrompt := fmt.Sprintf(`Analyze this story passage. Has the player character moved to a distinctly new location that warrants its own map (a new building, room complex, district, facility, dungeon level, etc.)?%s
+Does this passage describe or establish a NAMED, visually distinct location? This includes: taverns, dungeons, caves, city streets, forests, ships, markets, ruins, castles, chambers, wilderness areas — any named place with atmosphere or layout details.
 
-If YES, return ONLY this JSON (no explanation, no markdown):
-{"new_location":true,"name":"The Research Facility","context":"Concise description for map generation: layout, atmosphere, key areas and features"}
-
-If NO (same location, vague movement, transition prose, or already mapped), return ONLY:
-{"new_location":false}
+Return ONLY JSON (no explanation, no markdown):
+- If a named location is clearly established: {"new_location":true,"name":"<exact location name>","context":"<50-word description: layout, atmosphere, key features for map generation>"}
+- If no named location or purely abstract/transitional text: {"new_location":false}
 
 Story passage:
-%s`, excludeClause, gmText)
+%s`, gmText)
 
 	raw, err := completer.Generate(ctx, detectPrompt)
 	if err != nil {
@@ -1006,6 +1002,13 @@ Story passage:
 	}
 	if err := json.Unmarshal([]byte(raw[start:end+1]), &loc); err != nil || !loc.NewLocation || loc.Name == "" {
 		return
+	}
+
+	locNameLower := strings.ToLower(loc.Name)
+	for _, name := range existingNames {
+		if strings.ToLower(name) == locNameLower {
+			return
+		}
 	}
 
 	mapPrompt := "Generate a map for this TTRPG setting:\n\n" + loc.Context
@@ -1589,4 +1592,188 @@ func (s *Server) handleDeleteNPC(w http.ResponseWriter, r *http.Request) {
 	}
 	s.bus.Publish(Event{Type: EventNPCUpdated, Payload: map[string]any{"npc_id": id}})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- Feature 10: Objectives Tracker ---
+
+func (s *Server) handleListObjectives(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	objectives, err := s.db.ListObjectives(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if objectives == nil {
+		objectives = []db.Objective{}
+	}
+	writeJSON(w, objectives)
+}
+
+func (s *Server) handleCreateObjective(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.Title == "" {
+		http.Error(w, "title is required", http.StatusBadRequest)
+		return
+	}
+	obj, err := s.db.CreateObjective(id, body.Title, body.Description)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventObjectiveUpdated, Payload: map[string]any{"campaign_id": id, "objective_id": obj.ID}})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(obj) //nolint:errcheck
+}
+
+func (s *Server) handlePatchObjective(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid objective id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.Status == "" {
+		http.Error(w, "status is required", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.UpdateObjectiveStatus(id, body.Status); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventObjectiveUpdated, Payload: map[string]any{"objective_id": id}})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleDeleteObjective(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid objective id", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.DeleteObjective(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventObjectiveUpdated, Payload: map[string]any{"objective_id": id}})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// autoDetectObjectives uses the AI to detect new objectives introduced in a GM
+// response and to resolve existing active objectives that were completed or failed.
+// Runs in a background goroutine.
+func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmText string) {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+
+	existing, err := s.db.ListObjectives(sess.CampaignID)
+	if err != nil {
+		return
+	}
+
+	type slimObjective struct {
+		ID     int64  `json:"id"`
+		Title  string `json:"title"`
+		Status string `json:"status"`
+	}
+	slim := make([]slimObjective, 0, len(existing))
+	for _, o := range existing {
+		slim = append(slim, slimObjective{ID: o.ID, Title: o.Title, Status: o.Status})
+	}
+	existingJSON, err := json.Marshal(slim)
+	if err != nil {
+		return
+	}
+
+	prompt := fmt.Sprintf(`You are a TTRPG quest tracker. Analyze this story passage.
+
+Existing objectives (JSON array): %s
+
+Story passage:
+%s
+
+Return ONLY a JSON object with two fields:
+- "new": array of {title, description} for brand-new objectives or goals introduced (quests given, tasks revealed, goals stated). Empty array if none.
+- "resolved": array of {id, status} for existing active objectives that were just completed or failed. Only include ones with clear story evidence. "status" must be "completed" or "failed".
+
+Example: {"new":[{"title":"Find the stolen data-chip","description":"Vex wants you to recover a data-chip from a House Valdris facility"}],"resolved":[{"id":3,"status":"completed"}]}
+
+If nothing changed: {"new":[],"resolved":[]}
+No explanation, no markdown.`, string(existingJSON), gmText)
+
+	raw, err := completer.Generate(ctx, prompt)
+	if err != nil {
+		return
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start < 0 || end <= start {
+		return
+	}
+
+	var result struct {
+		New []struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+		} `json:"new"`
+		Resolved []struct {
+			ID     int64  `json:"id"`
+			Status string `json:"status"`
+		} `json:"resolved"`
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &result); err != nil {
+		return
+	}
+
+	changed := 0
+	for _, n := range result.New {
+		if n.Title == "" {
+			continue
+		}
+		if _, err := s.db.CreateObjective(sess.CampaignID, n.Title, n.Description); err == nil {
+			changed++
+		}
+	}
+	for _, res := range result.Resolved {
+		if res.Status != "completed" && res.Status != "failed" {
+			continue
+		}
+		if err := s.db.UpdateObjectiveStatus(res.ID, res.Status); err == nil {
+			changed++
+		}
+	}
+	if changed > 0 {
+		s.bus.Publish(Event{Type: EventObjectiveUpdated, Payload: map[string]any{"campaign_id": sess.CampaignID}})
+	}
 }

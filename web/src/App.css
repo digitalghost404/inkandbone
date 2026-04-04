@@ -1157,6 +1157,166 @@ mark {
   padding-left: 0.5rem;
 }
 
+/* ── Objectives Panel ───────────────────────────────────── */
+
+.objectives-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.objectives-section-label {
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
+  border-bottom: 1px solid var(--gold-dim);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.objectives-section-label--dim {
+  color: var(--text-dim);
+  border-bottom-color: var(--border);
+}
+
+.objective-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: border-color 0.15s;
+}
+
+.objective-card.active {
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 0 1px rgba(201,168,76,0.08), inset 0 1px 0 rgba(201,168,76,0.06);
+}
+
+.objective-card.completed {
+  opacity: 0.5;
+}
+
+.objective-card.failed {
+  opacity: 0.5;
+  border-color: rgba(233,69,96,0.3);
+  background: rgba(233,69,96,0.04);
+}
+
+.objective-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.objective-title {
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.objective-card.completed .objective-title {
+  text-decoration: line-through;
+  color: var(--text-dim);
+}
+
+.objective-card.failed .objective-title {
+  text-decoration: line-through;
+  color: rgba(233,69,96,0.7);
+}
+
+.objective-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.objective-status {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: var(--serif);
+}
+
+.objective-status--active  { color: var(--gold); }
+.objective-status--completed { color: var(--health); }
+.objective-status--failed  { color: var(--accent); }
+
+.objective-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 0.1rem;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.objective-delete-btn:hover {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.objective-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.obj-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-size: 11px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  font-family: var(--serif);
+  letter-spacing: 0.04em;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  color: var(--text-dim);
+}
+
+.obj-btn--complete {
+  border-color: rgba(143,188,90,0.4);
+  color: var(--health);
+}
+
+.obj-btn--complete:hover {
+  background: rgba(143,188,90,0.15);
+  border-color: var(--health);
+}
+
+.obj-btn--fail {
+  border-color: rgba(233,69,96,0.35);
+  color: var(--accent);
+}
+
+.obj-btn--fail:hover {
+  background: rgba(233,69,96,0.15);
+  border-color: var(--accent);
+}
+
+.obj-btn--reopen {
+  border-color: var(--gold-dim);
+  color: var(--gold-dim);
+}
+
+.obj-btn--reopen:hover {
+  background: rgba(201,168,76,0.12);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
 /* ── Map Tabs ───────────────────────────────────────────── */
 
 .map-tab-bar {

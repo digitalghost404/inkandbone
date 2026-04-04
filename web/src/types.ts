@@ -99,3 +99,12 @@ export interface TimelineEntry {
   timestamp: string
   data: Record<string, unknown>
 }
+
+export interface Objective {
+  id: number
+  campaign_id: number
+  title: string
+  description: string
+  status: 'active' | 'completed' | 'failed'
+  created_at: string
+}

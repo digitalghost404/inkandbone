@@ -12,6 +12,7 @@ import { MapPanel } from './MapPanel'
 import { JournalPanel } from './JournalPanel'
 import { CharacterSheetPanel } from './CharacterSheetPanel'
 import { NPCRosterPanel } from './NPCRosterPanel'
+import { ObjectivesPanel } from './ObjectivesPanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -227,7 +228,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [mapOpen, setMapOpen] = useState(false)
-  const [rightTab, setRightTab] = useState<'notes' | 'journal' | 'npcs'>('notes')
+  const [rightTab, setRightTab] = useState<'notes' | 'journal' | 'npcs' | 'objectives'>('notes')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [gmResponding, setGmResponding] = useState(false)
@@ -552,6 +553,12 @@ export default function App() {
             >
               NPCs
             </button>
+            <button
+              className={`tab-btn${rightTab === 'objectives' ? ' active' : ''}`}
+              onClick={() => setRightTab('objectives')}
+            >
+              Objectives
+            </button>
           </div>
           <div className="tab-content">
             {rightTab === 'notes' && ctx.campaign && (
@@ -573,6 +580,9 @@ export default function App() {
                 sessionId={ctx?.session?.id ?? null}
                 lastEvent={lastEvent}
               />
+            )}
+            {rightTab === 'objectives' && (
+              <ObjectivesPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />
             )}
           </div>
         </aside>

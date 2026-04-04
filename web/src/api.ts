@@ -1,4 +1,4 @@
-import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC } from './types'
+import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC, Objective } from './types'
 
 export interface CampaignMap {
   id: number;
@@ -270,4 +270,34 @@ export async function ingestRulebook(rulesetId: number, text: string): Promise<{
   })
   if (!res.ok) throw new Error(`ingestRulebook failed: ${res.status}`)
   return res.json()
+}
+
+export async function fetchObjectives(campaignId: number): Promise<Objective[]> {
+  const res = await fetch(`/api/campaigns/${campaignId}/objectives`)
+  if (!res.ok) throw new Error(`fetchObjectives failed: ${res.status}`)
+  return res.json()
+}
+
+export async function createObjective(campaignId: number, title: string, description: string): Promise<Objective> {
+  const res = await fetch(`/api/campaigns/${campaignId}/objectives`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, description }),
+  })
+  if (!res.ok) throw new Error(`createObjective failed: ${res.status}`)
+  return res.json()
+}
+
+export async function patchObjective(id: number, status: string): Promise<void> {
+  const res = await fetch(`/api/objectives/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  if (!res.ok) throw new Error(`patchObjective failed: ${res.status}`)
+}
+
+export async function deleteObjective(id: number): Promise<void> {
+  const res = await fetch(`/api/objectives/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteObjective failed: ${res.status}`)
 }

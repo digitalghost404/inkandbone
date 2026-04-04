@@ -112,6 +112,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/npcs", s.handleCreateNPC)
 	s.mux.HandleFunc("PATCH /api/npcs/{id}", s.handlePatchNPC)
 	s.mux.HandleFunc("DELETE /api/npcs/{id}", s.handleDeleteNPC)
+	// Feature 10: Objectives tracker
+	s.mux.HandleFunc("GET /api/campaigns/{id}/objectives", s.handleListObjectives)
+	s.mux.HandleFunc("POST /api/campaigns/{id}/objectives", s.handleCreateObjective)
+	s.mux.HandleFunc("PATCH /api/objectives/{id}", s.handlePatchObjective)
+	s.mux.HandleFunc("DELETE /api/objectives/{id}", s.handleDeleteObjective)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
