@@ -743,33 +743,42 @@ body {
 
 .story-scroll,
 .sidebar-left,
-.tab-content {
+.tab-content,
+.map-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--gold-dim) transparent;
 }
 
+.map-scroll {
+  overflow: auto;
+}
+
 .story-scroll::-webkit-scrollbar,
 .sidebar-left::-webkit-scrollbar,
-.tab-content::-webkit-scrollbar {
+.tab-content::-webkit-scrollbar,
+.map-scroll::-webkit-scrollbar {
   width: 4px;
 }
 
 .story-scroll::-webkit-scrollbar-track,
 .sidebar-left::-webkit-scrollbar-track,
-.tab-content::-webkit-scrollbar-track {
+.tab-content::-webkit-scrollbar-track,
+.map-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .story-scroll::-webkit-scrollbar-thumb,
 .sidebar-left::-webkit-scrollbar-thumb,
-.tab-content::-webkit-scrollbar-thumb {
+.tab-content::-webkit-scrollbar-thumb,
+.map-scroll::-webkit-scrollbar-thumb {
   background: var(--gold-dim);
   border-radius: 4px;
 }
 
 .story-scroll::-webkit-scrollbar-thumb:hover,
 .sidebar-left::-webkit-scrollbar-thumb:hover,
-.tab-content::-webkit-scrollbar-thumb:hover {
+.tab-content::-webkit-scrollbar-thumb:hover,
+.map-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--gold);
 }
 

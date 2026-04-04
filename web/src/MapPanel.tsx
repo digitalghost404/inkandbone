@@ -89,7 +89,7 @@ export function MapPanel({ campaignId, lastEvent, onActiveMapChange }: MapPanelP
         </div>
       )}
       {activeMap && (
-        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
+        <div className="map-scroll" style={{ position: 'relative', flex: 1 }}>
           <img
             src={`/api/files/${activeMap.image_path}`}
             alt={activeMap.name}
