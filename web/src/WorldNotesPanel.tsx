@@ -50,17 +50,9 @@ export function WorldNotesPanel({ campaignId, lastEvent, aiEnabled }: Props) {
   }
 
   return (
-    <section className="panel world-notes">
-      <div className="panel-toolbar">
-        <h2>World Notes</h2>
-        {aiEnabled && (
-          <button disabled={drafting} onClick={handleDraftWithAI}>
-            Draft with AI
-          </button>
-        )}
-      </div>
+    <>
       <input
-        className="search"
+        className="notes-search"
         type="search"
         placeholder="Search notes…"
         value={query}
@@ -72,17 +64,14 @@ export function WorldNotesPanel({ campaignId, lastEvent, aiEnabled }: Props) {
         notes.map((n) => {
           const tags = parseTags(n.tags_json)
           return (
-            <div key={n.id} className="world-note">
-              <div className="note-header">
-                <span className="note-title">{n.title}</span>
-                {n.category && <span className="note-category">{n.category}</span>}
-              </div>
+            <div key={n.id} className="note-card">
+              <div className="note-title">{n.title}</div>
               {tags.length > 0 && (
-                <div className="tag-pills">
+                <div className="note-tags">
                   {tags.map((tag) => (
                     <button
                       key={tag}
-                      className={`tag-pill${activeTag === tag ? ' active' : ''}`}
+                      className={`note-tag${activeTag === tag ? ' active' : ''}`}
                       onClick={() => setActiveTag((t) => (t === tag ? null : tag))}
                     >
                       {tag}
@@ -95,6 +84,11 @@ export function WorldNotesPanel({ campaignId, lastEvent, aiEnabled }: Props) {
           )
         })
       )}
-    </section>
+      {aiEnabled && (
+        <button className="ai-text-btn" disabled={drafting} onClick={handleDraftWithAI}>
+          {drafting ? 'Drafting…' : 'Draft with AI'}
+        </button>
+      )}
+    </>
   )
 }
