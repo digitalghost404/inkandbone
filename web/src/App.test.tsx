@@ -142,6 +142,15 @@ describe('App', () => {
   })
 
   it('passes aiEnabled to WorldNotesPanel', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCtx) })
+      }
+      if (url === '/api/health') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ai_enabled: true }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
     render(<App />)
     await screen.findByText('Greyhawk')
     // aiEnabled=true means the "Draft with AI" button is visible

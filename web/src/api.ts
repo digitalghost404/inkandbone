@@ -3,6 +3,7 @@ import type { GameContext, WorldNote, DiceRoll, TimelineEntry } from './types'
 export interface CampaignMap {
   id: number;
   campaign_id: number;
+  name: string;
   image_path: string;
   created_at: string;
 }
@@ -105,14 +106,6 @@ export async function uploadMap(campaignId: number, file: File): Promise<Campaig
   return res.json()
 }
 
-export interface Character {
-  id: number;
-  name: string;
-  data_json: string;
-  campaign_id: number;
-  portrait_path: string;
-}
-
 export interface Ruleset {
   id: number;
   name: string;
@@ -135,7 +128,7 @@ export async function patchCharacter(characterId: number, updates: Record<string
   if (!res.ok) throw new Error(`patchCharacter failed: ${res.status}`)
 }
 
-export async function uploadPortrait(characterId: number, file: File): Promise<Character> {
+export async function uploadPortrait(characterId: number, file: File): Promise<{ portrait_path: string }> {
   const form = new FormData()
   form.append('portrait', file)
   const res = await fetch(`/api/characters/${characterId}/portrait`, {

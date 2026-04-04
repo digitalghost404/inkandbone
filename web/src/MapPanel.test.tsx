@@ -6,6 +6,7 @@ import type { CampaignMap, MapPin } from './api'
 const map: CampaignMap = {
   id: 42,
   campaign_id: 1,
+  name: 'Dungeon',
   image_path: 'maps/dungeon.png',
   created_at: '',
 }

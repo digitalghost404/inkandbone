@@ -53,7 +53,6 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
   async function handleGenerateRecap() {
     const result = await generateRecap(session!.id)
     setDraft(result.summary)
-    await patchSessionSummary(session!.id, result.summary).catch(console.error)
   }
 
   return (
