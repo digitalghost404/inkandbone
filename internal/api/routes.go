@@ -637,6 +637,12 @@ Write 2-4 paragraphs of immersive narrative in second person ("you"). Match the 
 
 End with "**What do you do?**"
 
+DICE ROLLS — follow these strictly:
+- If the [WORLD STATE] contains a [DICE ROLL] block, you MUST incorporate the result into the narrative. The outcome is fixed. Do not invent a different result.
+- Narrate success vividly. Narrate failure with consequences that still move the story forward.
+- Never say "you rolled a 14" or reference numbers in the prose. Translate the mechanical result into fiction: "Your grip holds" (success) or "Your fingers slip at the last moment" (failure).
+- Briefly and naturally explain why the roll mattered, in one sentence of in-world flavor, so new players understand: e.g. "Picking the lock needed a steady hand." Keep it light, never lecture.
+
 WRITING RULES — follow these strictly:
 - Vary sentence length drastically. Short sentences hit hard. Then a longer one draws the moment out, letting weight settle. Fragments work.
 - Use contractions naturally: don't, can't, it's, you're.
@@ -652,7 +658,8 @@ WRITING RULES — follow these strictly:
 - No academic hedges: "it is worth noting," "one could argue," "in light of."
 - No canned openers: "As the [noun] continues to..." or "In this world..."
 
-Do not break character. Do not summarize. Just continue the story.`
+Do not break character. Do not summarize. Just continue the story.
+CRITICAL: Begin your response immediately with story prose. Never output any preamble, meta-commentary, reasoning, or thinking. The player sees your first word. Make it story.`
 
 // buildWorldContext assembles a [WORLD STATE] block injected into the GM system prompt.
 func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string {
@@ -673,6 +680,14 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 		summary = "none"
 	}
 	fmt.Fprintf(&sb, "Session summary: %s\n", summary)
+
+	if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
+		if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
+			if char, err := s.db.GetCharacter(charID); err == nil && char != nil {
+				fmt.Fprintf(&sb, "Player character name: %s\n", char.Name)
+			}
+		}
+	}
 
 	notes, err := s.db.ListRecentWorldNotes(sess.CampaignID, 5)
 	if err == nil && len(notes) > 0 {
@@ -848,7 +863,26 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 		history = append(history, ai.ChatMessage{Role: m.Role, Content: m.Content})
 	}
 
+	// Check if the player's action requires a dice roll under the active ruleset.
+	// Do this before building the system prompt so the result can be injected.
+	lastPlayerMsg := msgs[len(msgs)-1].Content
+	roll := s.checkAndExecuteRoll(r.Context(), id, lastPlayerMsg)
+
 	worldCtx := s.buildWorldContext(r.Context(), id)
+	if roll != nil {
+		outcome := "FAILURE"
+		if roll.Success {
+			outcome = "SUCCESS"
+		}
+		dcNote := ""
+		if roll.DC > 0 {
+			dcNote = fmt.Sprintf(" against DC %d", roll.DC)
+		}
+		worldCtx += fmt.Sprintf(
+			"\n[DICE ROLL]\nAction required a %s check%s.\nReason: %s\nRoll: %s = %d — %s\n[/DICE ROLL]",
+			roll.Attribute, dcNote, roll.Reason, roll.Expression, roll.Total, outcome,
+		)
+	}
 	systemPrompt := worldCtx + "\n\n" + gmSystemPrompt
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -874,6 +908,201 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 		"message_id": msgID,
 		"role":       "assistant",
 	}})
+
+	go s.extractNPCs(context.Background(), id, fullText)
+}
+
+type rollCheckResult struct {
+	Expression string
+	Total      int
+	Attribute  string
+	DC         int
+	Success    bool
+	Reason     string
+}
+
+// checkAndExecuteRoll asks haiku whether the player's action requires a dice
+// roll under the active ruleset. If it does, the roll is executed, saved to
+// the DB, and the result is returned so the GM prompt can incorporate it.
+func (s *Server) checkAndExecuteRoll(ctx context.Context, sessionID int64, playerAction string) *rollCheckResult {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return nil
+	}
+
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return nil
+	}
+	camp, err := s.db.GetCampaign(sess.CampaignID)
+	if err != nil || camp == nil {
+		return nil
+	}
+	ruleset, err := s.db.GetRuleset(camp.RulesetID)
+	if err != nil || ruleset == nil {
+		return nil
+	}
+
+	charStats := "none"
+	if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
+		if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
+			if char, err := s.db.GetCharacter(charID); err == nil && char != nil {
+				charStats = char.DataJSON
+			}
+		}
+	}
+
+	schema := ruleset.SchemaJSON
+	if len(schema) > 800 {
+		schema = schema[:800]
+	}
+
+	prompt := fmt.Sprintf(`You are a TTRPG rules referee. Determine if the player action requires a dice roll under this ruleset.
+
+Ruleset: %s
+Rules schema (excerpt): %s
+Character stats: %s
+
+Player action: "%s"
+
+If a dice roll IS required, respond with ONLY this JSON (no explanation, no markdown):
+{"required":true,"expression":"1d20","attribute":"Strength","dc":15,"reason":"Forcing open a stuck door requires a Strength check (DC 15)"}
+
+If NO dice roll is required, respond with ONLY:
+{"required":false}`, ruleset.Name, schema, charStats, playerAction)
+
+	raw, err := completer.Generate(ctx, prompt)
+	if err != nil {
+		return nil
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start < 0 || end <= start {
+		return nil
+	}
+
+	var check struct {
+		Required   bool   `json:"required"`
+		Expression string `json:"expression"`
+		Attribute  string `json:"attribute"`
+		DC         int    `json:"dc"`
+		Reason     string `json:"reason"`
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &check); err != nil || !check.Required || check.Expression == "" {
+		return nil
+	}
+
+	expr := strings.ToLower(strings.TrimSpace(check.Expression))
+	count, sides := 1, 0
+	if idx := strings.Index(expr, "d"); idx >= 0 {
+		if idx > 0 {
+			if n, err := strconv.Atoi(expr[:idx]); err == nil && n >= 1 {
+				count = n
+			}
+		}
+		if s2, err := strconv.Atoi(expr[idx+1:]); err == nil && s2 >= 1 {
+			sides = s2
+		}
+	}
+	if sides == 0 {
+		return nil
+	}
+
+	rolls := make([]int, count)
+	total := 0
+	for i := range rolls {
+		r := mathrand.Intn(sides) + 1
+		rolls[i] = r
+		total += r
+	}
+
+	breakdownBytes, _ := json.Marshal(rolls)
+	_, _ = s.db.LogDiceRoll(sessionID, check.Expression, total, string(breakdownBytes))
+	s.bus.Publish(Event{Type: EventDiceRolled, Payload: map[string]any{
+		"session_id": sessionID,
+		"expression": check.Expression,
+		"result":     total,
+	}})
+
+	return &rollCheckResult{
+		Expression: check.Expression,
+		Total:      total,
+		Attribute:  check.Attribute,
+		DC:         check.DC,
+		Success:    check.DC == 0 || total >= check.DC,
+		Reason:     check.Reason,
+	}
+}
+
+// extractNPCs uses the AI to extract newly introduced named NPCs from a GM
+// response and adds any that don't already exist in the session roster.
+func (s *Server) extractNPCs(ctx context.Context, sessionID int64, gmText string) {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+
+	existing, err := s.db.ListSessionNPCs(sessionID)
+	if err != nil {
+		return
+	}
+
+	var exclude []string
+	if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
+		if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
+			if char, err := s.db.GetCharacter(charID); err == nil && char != nil {
+				exclude = append(exclude, char.Name)
+			}
+		}
+	}
+	for _, n := range existing {
+		exclude = append(exclude, n.Name)
+	}
+
+	excludeClause := ""
+	if len(exclude) > 0 {
+		excludeClause = fmt.Sprintf("\nDo NOT include these already-known names: %s.", strings.Join(exclude, ", "))
+	}
+
+	prompt := fmt.Sprintf(`Extract any newly introduced named NPCs from this story passage. Return ONLY a valid JSON array of objects with "name" and "note" fields. The note should be a one-sentence description of who this character is. If no new NPCs appear, return [].%s
+
+Story passage:
+%s`, excludeClause, gmText)
+
+	raw, err := completer.Generate(ctx, prompt)
+	if err != nil {
+		return
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "[")
+	end := strings.LastIndex(raw, "]")
+	if start < 0 || end <= start {
+		return
+	}
+
+	var npcs []struct {
+		Name string `json:"name"`
+		Note string `json:"note"`
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &npcs); err != nil {
+		return
+	}
+
+	added := 0
+	for _, npc := range npcs {
+		if npc.Name == "" {
+			continue
+		}
+		if _, err := s.db.CreateSessionNPC(sessionID, npc.Name, npc.Note); err == nil {
+			added++
+		}
+	}
+	if added > 0 {
+		s.bus.Publish(Event{Type: EventNPCUpdated, Payload: map[string]any{"session_id": sessionID}})
+	}
 }
 
 // --- Feature 4: In-Browser Dice Roller ---
