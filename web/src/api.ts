@@ -1,4 +1,4 @@
-import type { GameContext, WorldNote, DiceRoll, TimelineEntry } from './types'
+import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC } from './types'
 
 export interface CampaignMap {
   id: number;
@@ -139,11 +139,13 @@ export async function uploadPortrait(characterId: number, file: File): Promise<{
   return res.json()
 }
 
-export async function sendMessage(sessionId: number, content: string): Promise<void> {
+export async function sendMessage(sessionId: number, content: string, whisper?: boolean): Promise<void> {
+  const body: Record<string, unknown> = { role: 'user', content }
+  if (whisper) body['whisper'] = true
   const res = await fetch(`/api/sessions/${sessionId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'user', content }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`sendMessage failed: ${res.status}`)
 }
@@ -158,9 +160,106 @@ export async function generateMap(campaignId: number, name: string, context: str
   return res.json()
 }
 
-export async function gmRespond(sessionId: number): Promise<void> {
-  const res = await fetch(`/api/sessions/${sessionId}/gm-respond`, { method: 'POST' })
-  if (!res.ok) throw new Error(`gmRespond failed: ${res.status}`)
+export async function gmRespondStream(
+  sessionId: number,
+  onChunk: (text: string) => void,
+): Promise<string> {
+  const res = await fetch(`/api/sessions/${sessionId}/gm-respond-stream`, { method: 'POST' })
+  if (!res.ok) throw new Error(`gmRespondStream failed: ${res.status}`)
+  const reader = res.body?.getReader()
+  if (!reader) return ''
+  const decoder = new TextDecoder()
+  let accumulated = ''
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const chunk = line.slice(6)
+        accumulated += chunk
+        onChunk(chunk)
+      }
+    }
+  }
+  // flush remaining buffer
+  if (buffer.startsWith('data: ')) {
+    const chunk = buffer.slice(6)
+    accumulated += chunk
+    onChunk(chunk)
+  }
+  return accumulated
+}
+
+export async function rollDice(
+  sessionId: number,
+  expression: string,
+): Promise<{ expression: string; result: number; rolls: number[] }> {
+  const res = await fetch(`/api/sessions/${sessionId}/dice-rolls`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expression }),
+  })
+  if (!res.ok) throw new Error(`rollDice failed: ${res.status}`)
+  return res.json()
+}
+
+export async function patchCombatant(
+  combatantId: number,
+  updates: { conditions_json?: string; hp_current?: number },
+): Promise<void> {
+  const res = await fetch(`/api/combatants/${combatantId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) throw new Error(`patchCombatant failed: ${res.status}`)
+}
+
+export async function createMapPin(
+  mapId: number,
+  pin: { x: number; y: number; label: string; note: string; color: string },
+): Promise<MapPin> {
+  const res = await fetch(`/api/maps/${mapId}/pins`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(pin),
+  })
+  if (!res.ok) throw new Error(`createMapPin failed: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchNPCs(sessionId: number): Promise<SessionNPC[]> {
+  const res = await fetch(`/api/sessions/${sessionId}/npcs`)
+  if (!res.ok) throw new Error(`fetchNPCs failed: ${res.status}`)
+  return res.json()
+}
+
+export async function createNPC(sessionId: number, name: string, note: string): Promise<SessionNPC> {
+  const res = await fetch(`/api/sessions/${sessionId}/npcs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, note }),
+  })
+  if (!res.ok) throw new Error(`createNPC failed: ${res.status}`)
+  return res.json()
+}
+
+export async function patchNPC(npcId: number, note: string): Promise<void> {
+  const res = await fetch(`/api/npcs/${npcId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note }),
+  })
+  if (!res.ok) throw new Error(`patchNPC failed: ${res.status}`)
+}
+
+export async function deleteNPC(npcId: number): Promise<void> {
+  const res = await fetch(`/api/npcs/${npcId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteNPC failed: ${res.status}`)
 }
 
 export async function ingestRulebook(rulesetId: number, text: string): Promise<{ chunks_created: number }> {

@@ -326,7 +326,7 @@ func TestGetTimeline_empty(t *testing.T) {
 func TestGetTimeline_withData(t *testing.T) {
 	s := newTestServer(t)
 	_, sessID := seedCampaign(t, s.db)
-	_, err := s.db.CreateMessage(sessID, "user", "A brave move.")
+	_, err := s.db.CreateMessage(sessID, "user", "A brave move.", false)
 	require.NoError(t, err)
 	_, err = s.db.LogDiceRoll(sessID, "2d6", 9, "[4,5]")
 	require.NoError(t, err)

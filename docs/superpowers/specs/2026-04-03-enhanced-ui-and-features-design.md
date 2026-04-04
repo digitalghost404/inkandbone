@@ -1,5 +1,25 @@
 # Enhanced UI & Features Design
 
+## Status: Partially Implemented (2026-04-03)
+
+As of April 3, 2026, the following features have been implemented and released:
+- Streaming GM text (Feature 1)
+- In-browser dice roller (Feature 4)
+- Interactive condition badges (Feature 5)
+- Turn order strip (Feature 3)
+- Multiple maps with tabs (Feature 8a)
+- Map pins from chat (Feature 8b)
+- NPC roster (Feature 9)
+- Story search (Feature 6)
+- Session export (Feature 7)
+- Player action history (Feature 2)
+- Whisper mode (new)
+- Alternate themes (new)
+- GM memory injection (new)
+- Worn Grimoire UI redesign (Plan 8 UI layer)
+
+Still in development: character sheets, rulebook ingestion, session timeline, advanced world building features.
+
 ## Goal
 
 Transform inkandbone from a passive display companion into a fully reactive, immersive TTRPG session tool — live combat tracking, clickable world maps, session timelines, editable character sheets, and rulebook ingestion — all driven by a WebSocket-first React frontend.

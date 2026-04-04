@@ -45,9 +45,9 @@ func TestMessages(t *testing.T) {
 	sessID, err := d.CreateSession(campID, "S1", "2026-04-03")
 	require.NoError(t, err)
 
-	_, err = d.CreateMessage(sessID, "assistant", "You enter the dungeon")
+	_, err = d.CreateMessage(sessID, "assistant", "You enter the dungeon", false)
 	require.NoError(t, err)
-	_, err = d.CreateMessage(sessID, "user", "I draw my sword")
+	_, err = d.CreateMessage(sessID, "user", "I draw my sword", false)
 	require.NoError(t, err)
 
 	// ORDER BY created_at, id — id tiebreaker ensures determinism when timestamps share the same second

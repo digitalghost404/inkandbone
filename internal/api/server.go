@@ -99,6 +99,19 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/rulesets/{id}/rulebook", s.handleIngestRulebook)
 	s.mux.HandleFunc("PATCH /api/characters/{id}", s.handlePatchCharacter)
 	s.mux.HandleFunc("POST /api/characters/{id}/portrait", s.handleUploadPortrait)
+	// Feature 1: Streaming GM
+	s.mux.HandleFunc("POST /api/sessions/{id}/gm-respond-stream", s.handleGMRespondStream)
+	// Feature 4: Dice roller
+	s.mux.HandleFunc("POST /api/sessions/{id}/dice-rolls", s.handleRollDice)
+	// Feature 5: Condition badges
+	s.mux.HandleFunc("PATCH /api/combatants/{id}", s.handlePatchCombatant)
+	// Feature 8: Map pins
+	s.mux.HandleFunc("POST /api/maps/{id}/pins", s.handleCreateMapPin)
+	// Feature 9: NPC roster
+	s.mux.HandleFunc("GET /api/sessions/{id}/npcs", s.handleListNPCs)
+	s.mux.HandleFunc("POST /api/sessions/{id}/npcs", s.handleCreateNPC)
+	s.mux.HandleFunc("PATCH /api/npcs/{id}", s.handlePatchNPC)
+	s.mux.HandleFunc("DELETE /api/npcs/{id}", s.handleDeleteNPC)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

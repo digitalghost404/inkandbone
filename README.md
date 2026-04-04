@@ -85,45 +85,83 @@ Repeat. That's it. You play from Claude Code. The browser is your always-open re
 
 > Save your screenshot to `docs/ui-screenshot.png` to render the image above.
 
-The dashboard is a three-column layout built around an active play session. Here is what each part of the interface does.
+The dashboard is a three-column layout called the "Worn Grimoire" — a parchment-dark interface with warm candlelight gold accents and serif typography. It's built around an active play session. Here is what each part of the interface does.
 
-### Left Column — Character Sheet
+### Left Sidebar — Character Sheet
 
-The leftmost panel is your character's stat sheet, updated live as the game progresses. It shows:
+The leftmost column displays your character's stat sheet with live updates:
 
-- **Portrait area** — the circular image at the top. Click it to upload a JPG, PNG, GIF, or WebP portrait (up to 5 MB). If no portrait is uploaded, the character's initial is shown instead.
-- **All ruleset fields** — every field defined by the campaign's ruleset appears here as an editable input. For Wrath & Glory (shown above): Archetype (Cultist), Faction (Khorne), Rank, the seven characteristics (Strength, Agility, Toughness, Intellect, Willpower, Fellowship, Initiative), Wounds, Shock, Resilience, Determination, Defence, Resolve, Conviction, Wrath, Glory, Ruin, Keywords, and Notes.
+- **Portrait area** — a circular 80px image at the top. Click it to upload a JPG, PNG, GIF, or WebP portrait (up to 5 MB). If no portrait is uploaded, a placeholder with the character's initial is shown instead.
+- **Attributes (Ironsworn)** — for systems like Ironsworn, attributes appear as pip dots: 3 small circles per attribute. Filled (gold) = high, empty (dim) = low. Labels are small caps in dim gold text.
+- **Tracks (Ironsworn)** — bars showing health, spirit, supply, and momentum. Divided into segments matching the max value, with filled segments in green (health/spirit/supply) or gold (momentum).
+- **All ruleset fields** — every field defined by the campaign's ruleset appears here as an editable input. For systems with structured fields (D&D attributes, Cyberpunk skills, etc.), all are live-editable.
 - **Auto-rolled on creation** — when a character is created, every field is populated automatically. Numeric stats are rolled for the system; text fields (archetype, faction, clan, career, species, etc.) are chosen from the canonical options for that ruleset. Nothing is left blank.
 - **Live editing** — change any field directly in the browser. Changes save immediately without a page reload.
+
+Below the character sheet:
+
+- **Dice roller buttons** — six buttons (d4 d6 d8 d10 d12 d20) for quick in-browser dice rolling. Click to roll that die, see a brief result flash, and save to dice history.
+- **Dice history** — a compact list of the last 5 dice rolls in this session, showing the expression and result in gold text.
 
 ### Center Column — Session Transcript
 
 The main panel is the session log — a live, scrolling record of everything said in the current session:
 
-- **GM narration** (larger text blocks, unmarked) — the Game Master's responses describing what happens, written by Claude. Italic asterisks signal in-world emphasis (`*committed*`, `*perfect*`). The prose reflects the tone of the ruleset: Wrath & Glory narration is brutal and grimdark; Ironsworn narration is sparse and mythic.
-- **Player actions** (italic, indented, smaller) — what the player declared, shown verbatim under the label "XAVIER SPEAKS" (or whichever character is active). For example: *Stare at the woman intensely to try to determine what her objective is.*
+- **Session title** — centered ornamental header with the session name in all caps (e.g., "✦ WHISPERS IN THE MIST ✦").
+- **Session date** — appears below the title in small dim text.
+- **Turn order strip** — when combat is active, a horizontal strip at the top shows all combatants as chips with their initiative. The active combatant (highest initiative) is highlighted in accent color. Dead combatants (0 HP) appear dimmed with strikethrough.
+- **Story search bar** — an input field to filter messages by content. Matching text is highlighted in gold. Click the × button to clear the search.
+- **Combat panel** — appears when a combat encounter is active. Shows card for each combatant with name, HP bar (green/yellow/red by health %), initiative, and clickable condition badges.
+- **GM narration** (larger text blocks, unmarked) — the Game Master's responses describing what happens, written by Claude. Markdown is rendered (italics, bold, lists). The prose reflects the tone of the ruleset.
+- **Player actions** (italic, gold text, labeled) — what the player declared, shown under a small label like "KAEL SPEAKS" (character's name). A 🔒 lock icon appears next to whispered (private) messages. Whispers are rendered dim and italic, excluded from GM memory.
 - **Separator diamonds** (◆) — mark boundaries between turns.
-- **Session header** — shows the session number and date at the top of the log.
+- **Streaming GM text** — when the GM is responding, text streams character-by-character with a blinking cursor visible.
 - All messages are saved permanently and persist between sessions.
 
-### Right Column — Notes and Journal
+Below the story scroll:
 
-The right panel has two tabs:
+- **Player input bar** — a textarea where you type what your character does.
+  - **Whisper toggle (🔒)** — click to enable whisper mode. When active, your message is marked private, the GM won't respond, and it won't be included in session exports. The button highlights and the input placeholder changes.
+  - **Send button (↵)** — press Enter or click to send. Disabled if the session is inactive or input is empty.
 
-- **Notes** — the World Notes tab. Shows NPC, location, faction, and item notes for the active campaign. In the screenshot, "Blood Debt in the Underhive" is a world note summarizing Xavier's current situation — his obligation to a crime boss and the contract he's been given. Click any note to read the full text. Use the search bar to filter by keyword or category.
-- **Journal** — the session journal. Write a freeform summary, or click "Generate recap" to have Claude AI draft a summary of everything that happened in the session. The recap is saved permanently.
+At the bottom:
 
-### Bottom Bar
+- **Map drawer** — an expandable/collapsible section showing campaign maps. Collapsed state shows a thin bar reading `[ CAMPAIGN NAME ▾ ]`. Expanded state fills ~60% of the column height, showing the full map image with pins. Click a pin to see its label and notes. The 📍 button on GM messages opens a modal to place that message as a map pin.
+- **Generate Map button** — (visible when AI is enabled) click to generate a new map using Claude based on recent session context. Auto-selects the new map in the map drawer.
 
-The campaign tab strip at the very bottom shows your open campaigns. The active campaign (Dangerous Ambition, shown in the screenshot) is highlighted. Click a campaign tab to switch between them.
+### Right Sidebar — Notes, Journal, and NPCs
 
-### Header (Not Shown)
+The right column has three tabs showing different views of your campaign:
 
-Above the session log, the header shows: campaign name → character name → session title as a breadcrumb. Portraits appear here when uploaded.
+- **Notes tab** — the World Notes panel. Shows NPC, location, faction, and item notes for the active campaign. Features:
+  - Search bar to filter by keyword or category.
+  - Note cards with title in serif gold, content in body text, and tags as small dim pills.
+  - Click any note to read the full text.
+  - Click "Draft with AI" (visible when AI is enabled) to generate a new note from a hint prompt (e.g., "grizzled dwarf blacksmith").
+
+- **Journal tab** — the session journal. A textarea for freeform notes about what happened.
+  - Write your own summary, or click "Generate recap" to have Claude AI read the entire session and draft a summary.
+  - Changes auto-save on blur via PATCH.
+  - The AI recap captures the narrative arc, key decisions, and character growth from that session.
+
+- **NPCs tab** — a roster of named NPCs for this session. Each NPC has:
+  - A name label.
+  - An editable note field (auto-saves on blur).
+  - A delete button to remove the NPC.
+  - An `+ Add NPC` button at the bottom to create new entries.
+  - Live updates via WebSocket when NPCs are added/modified during play.
+
+### Header
+
+At the very top, a single-line breadcrumb reads: `Campaign Name › Character Name › Session Title`. Campaign name appears in gold. Character and session names appear in dim text. Separators (›) are in dim gold.
+
+- **Theme toggle (☀/🌙)** — top right. Click to switch between "Worn Grimoire" (dark theme) and "Parchment" (light theme). Preference is saved to localStorage.
+- **Your Actions button (⚔ Actions)** — opens a slide-in panel showing only your (player) messages in chronological order, excluding GM narration. Compact list format. Click the × to close.
+- **Export button (↓ Export)** — downloads the full session as a `.md` file with title, date, all GM narration and player actions. Whispers are excluded from the export.
 
 ### Live Updates
 
-The dashboard updates in real time via WebSocket — no manual refresh needed. When Claude calls a tool (rolls dice, creates a world note, updates your HP, posts a message), the relevant panel updates within milliseconds. The WebSocket reconnects automatically after a 2-second delay if the connection drops.
+The dashboard updates in real time via WebSocket — no manual refresh needed. When Claude calls a tool (rolls dice, creates a world note, updates your HP, posts a message), the relevant panel updates within milliseconds. The WebSocket reconnects automatically if the connection drops.
 
 ---
 
@@ -674,6 +712,26 @@ That's a full session: creation, play, combat, and recap. Everything was saved. 
 
 ---
 
+## What's New in This Release
+
+This release brings major UI enhancements and new gameplay features:
+
+- **Worn Grimoire aesthetic** — the dashboard now uses a parchment-dark theme with warm gold accents, serif headings, and a three-column "story scroll" layout. A "Parchment" light theme is also available.
+- **Streaming GM responses** — the GM's narration now appears character-by-character with a blinking cursor, making responses feel more alive. The old non-streaming endpoint still works as a fallback.
+- **In-browser dice roller** — six buttons (d4 d6 d8 d10 d12 d20) in the left sidebar for quick rolls. Results flash briefly and are saved to dice history.
+- **Combat UI overhaul** — condition badges are now interactive buttons. Click to remove a condition, or click the `+` button to add a standard condition (Poisoned, Prone, Stunned, Blinded, Exhausted, Frightened, Paralyzed, Invisible). The turn order strip at the top shows all combatants with initiative, with active turn highlighted.
+- **Whisper mode** — a 🔒 toggle marks messages as private. Whispered messages are rendered dim/italic with a lock icon, excluded from the GM's AI history, and omitted from session exports.
+- **Story search** — filter the session log by keyword with text highlight in gold. Useful for finding past events or NPC mentions.
+- **Session export** — download your session as a markdown file with title, date, and all narration/actions (whispers excluded).
+- **Player action history** — the ⚔ Actions button shows a compact chronological list of everything your character said (no GM narration).
+- **Multiple maps with tabs** — the map drawer now displays all campaign maps in a tab bar. Switch maps by clicking tabs. New maps from AI generation auto-select.
+- **Map pins from chat** — each GM message has a 📍 button. Click it to place that message as a labeled pin on the current map with an optional note.
+- **NPC roster** — a new "NPCs" tab in the right sidebar lists session NPCs with editable notes and delete buttons. Add new NPCs with the `+ Add NPC` button.
+- **Alternate theme** — toggle between the dark "Worn Grimoire" and warm light "Parchment" theme. Preference is saved.
+- **GM memory injection** — every GM prompt is automatically prefixed with a `[WORLD STATE]` block containing the session summary, recent world notes, and active combat state. No user action needed.
+
+---
+
 ## Things You Can Do (Complete Feature List)
 
 ### Managing Characters
@@ -732,11 +790,15 @@ Claude reads the entire session transcript and writes a summary. Requires an API
 Combat begins. We face three goblin archers and a goblin leader. All three archers have 7 HP. The leader has 20 HP.
 ```
 
+Claude sets up the encounter in the dashboard. The combat panel appears showing all combatants, the turn order strip highlights the active combatant, and you're ready to begin.
+
 **Update combatant health and conditions:**
 
 ```
 Archer 1 takes 8 damage. The leader is now poisoned and stunned.
 ```
+
+The combat panel updates live. You can also click condition badges in the dashboard to remove them, or click the `+` button to add conditions from a dropdown (Poisoned, Prone, Stunned, Blinded, Exhausted, Frightened, Paralyzed, Invisible).
 
 **End combat:**
 
@@ -744,7 +806,11 @@ Archer 1 takes 8 damage. The leader is now poisoned and stunned.
 We defeat the goblins. End combat.
 ```
 
+The combat panel disappears. The turn order strip closes.
+
 ### Dice Rolling
+
+**Roll via chat:**
 
 Roll any expression Claude understands:
 
@@ -756,7 +822,11 @@ Roll d100 for percentile.
 Roll 3d8 for damage.
 ```
 
-Every roll is saved. The Dice History shows all results.
+**Quick roll buttons:**
+
+In the left sidebar, click one of six buttons: `d4`, `d6`, `d8`, `d10`, `d12`, `d20`. The die rolls instantly, a result flash appears, and the roll is saved to dice history.
+
+Every roll is saved. The Dice History panel in the left sidebar shows the last 5 rolls with expression and result in gold text. Click any roll to see the breakdown (individual die results).
 
 ### World Notes (Your Campaign Wiki)
 
@@ -787,15 +857,25 @@ Search world notes in the NPC category.
 
 **Upload a map:**
 
-In the dashboard's Map Panel, click "Upload Map" and choose a JPG, PNG, GIF, or WebP file (up to 10 MB).
+In the dashboard's Map Drawer, click the "Upload Map" button or drag and drop a JPG, PNG, GIF, or WebP file (up to 10 MB).
+
+**Switch between multiple maps:**
+
+The map drawer now displays all campaign maps in a tab bar at the top. Click a tab to switch maps. When you generate a new map with AI, it automatically appears as a new tab and auto-selects.
 
 **Add pins to the map:**
+
+Two ways:
+
+1. **From chat** — each GM message has a 📍 button. Click it to open the pin placement modal. Click a spot on the map to place the pin; its label is pre-filled from the GM's message (e.g., the location mentioned). You can edit the label and add a note. Click "Place Pin" to save.
+
+2. **From the command line** — tell Claude:
 
 ```
 Add a pin at coordinates 0.25, 0.5 (left-center) labeled "The Tavern" with the note "Mira's base". Use color #e67e22.
 ```
 
-Pins use fractional coordinates where (0.0, 0.0) is the top-left corner and (1.0, 1.0) is the bottom-right. Click any pin in the dashboard to see its label and notes.
+Pins use fractional coordinates where (0.0, 0.0) is the top-left corner and (1.0, 1.0) is the bottom-right. Click any pin in the dashboard to see its label and notes in a popover.
 
 ### Rules Lookups
 
@@ -1028,15 +1108,31 @@ GET /api/sessions/{id}/messages
 → []Message
 
 POST /api/sessions/{id}/messages
-Body: { "role": "user" | "assistant", "content": "..." }
+Body: { "role": "user" | "assistant", "content": "...", "whisper": false }
 → 201 Created
-Inserts the message and fires a message_created WebSocket event — use this instead of writing directly to SQLite to get live UI updates.
+Inserts the message and fires a message_created WebSocket event. The whisper field (optional, defaults to false) marks private messages.
+
+POST /api/sessions/{id}/gm-respond-stream
+→ Server-Sent Events (SSE) stream
+Streams the GM response character-by-character. Each chunk is a JSON object with a "chunk" field. The connection closes when the response is complete.
+
+POST /api/sessions/{id}/dice-rolls
+Body: { "expression": "d20" }
+→ 201 { "id": N, "expression": "...", "total": N, "breakdown": [...] }
+Rolls a die expression and saves to history.
 
 GET /api/sessions/{id}/dice-rolls
 → []DiceRoll
 
 GET /api/sessions/{id}/timeline
 → []TimelineEntry
+
+GET /api/sessions/{id}/npcs
+→ []NPC
+
+POST /api/sessions/{id}/npcs
+Body: { "name": "Bort the Dwarf", "note": "Grumpy tavern keeper" }
+→ 201 { "id": N, "name": "...", "note": "..." }
 
 PATCH /api/sessions/{id}
 Body: { "summary": "..." }
@@ -1046,6 +1142,16 @@ POST /api/sessions/{id}/recap
 → { "summary": "..." }
 ```
 
+#### NPCs
+```
+PATCH /api/npcs/{id}
+Body: { "note": "Updated description" }
+→ 204 No Content
+
+DELETE /api/npcs/{id}
+→ 204 No Content
+```
+
 #### Maps & Pins
 ```
 GET /api/maps/{id}
@@ -1053,6 +1159,10 @@ GET /api/maps/{id}
 
 GET /api/maps/{id}/pins
 → []MapPin
+
+POST /api/maps/{id}/pins
+Body: { "x": 0.5, "y": 0.3, "label": "The Tavern", "note": "...", "color": "#c9a84c" }
+→ 201 MapPin
 ```
 
 #### World Notes
@@ -1060,6 +1170,14 @@ GET /api/maps/{id}/pins
 PATCH /api/world-notes/{id}
 Body: { "title": "...", "content": "...", "tags_json": "[\"tag1\"]" }
 → 204 No Content
+```
+
+#### Combatants
+```
+PATCH /api/combatants/{id}
+Body: { "hp_current": 25, "conditions_json": "[\"Poisoned\", \"Prone\"]" }
+→ 204 No Content
+Updates combatant HP and/or conditions. Only specified fields are updated.
 ```
 
 #### Characters
@@ -1110,6 +1228,35 @@ GET /api/files/{path}
 
 Used to serve portrait images and map images. Path traversal outside `~/.ttrpg/` is blocked.
 
+### Database Schema
+
+The app uses SQLite stored at `~/.ttrpg/ttrpg.db`. Key tables and recent changes:
+
+#### Messages Table
+```sql
+CREATE TABLE messages (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL,
+  role TEXT NOT NULL,           -- 'user' or 'assistant'
+  content TEXT NOT NULL,
+  whisper INTEGER NOT NULL DEFAULT 0,  -- NEW: 1 if private message
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+The `whisper` column is new in this release. Messages with `whisper=1` are excluded from the GM's AI history and session exports.
+
+#### Session NPCs Table
+```sql
+CREATE TABLE session_npcs (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+NEW table. Stores named NPCs for each session with optional notes. Accessed via `/api/sessions/{id}/npcs` endpoints.
+
 ### WebSocket Events
 
 Connect to `ws://localhost:7432/ws`. The server broadcasts JSON events on every state change.
@@ -1131,7 +1278,7 @@ Connect to `ws://localhost:7432/ws`. The server broadcasts JSON events on every 
 | `session_started` | Session created | `session_id`, `title` |
 | `session_ended` | Session closed | `session_id` |
 | `session_updated` | Session summary changed | `session_id`, `summary` |
-| `message_created` | Narrative logged to session | `session_id`, `message_id`, `role` |
+| `message_created` | Narrative logged to session | `session_id`, `message_id`, `role`, optionally `whisper` |
 | `dice_rolled` | Dice roll logged | `expression`, `total`, `breakdown` |
 | `combat_started` | Encounter created | `encounter_id`, `name` |
 | `combatant_updated` | Combatant HP or conditions changed | `combatant_id` |
@@ -1139,6 +1286,9 @@ Connect to `ws://localhost:7432/ws`. The server broadcasts JSON events on every 
 | `world_note_created` | World note created | `note_id`, `title` |
 | `world_note_updated` | World note edited | `note_id` |
 | `map_pin_added` | Pin added to map | `pin_id`, `map_id`, `label` |
+| `npc_created` | NPC added to session | `npc_id`, `session_id`, `name` |
+| `npc_updated` | NPC note changed | `npc_id`, `session_id` |
+| `npc_deleted` | NPC removed from session | `npc_id`, `session_id` |
 
 The frontend reconnects automatically after a 2-second delay on disconnect.
 

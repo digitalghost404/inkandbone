@@ -24,6 +24,7 @@ const (
 	EventCampaignReopened EventType = "campaign_reopened"
 	EventCharacterCreated EventType = "character_created"
 	EventSessionUpdated   EventType = "session_updated"
+	EventNPCUpdated       EventType = "npc_updated"
 )
 
 // Event is published by MCP tool handlers and broadcast to WebSocket clients.

@@ -100,6 +100,28 @@ func (d *DB) SearchWorldNotes(campaignID int64, query, category, tag string) ([]
 	return out, rows.Err()
 }
 
+// ListRecentWorldNotes returns the most recent n world notes for a campaign, ordered by created_at DESC.
+func (d *DB) ListRecentWorldNotes(campaignID int64, limit int) ([]WorldNote, error) {
+	rows, err := d.db.Query(
+		`SELECT id, campaign_id, title, content, category, tags_json, created_at
+		 FROM world_notes WHERE campaign_id = ? ORDER BY created_at DESC LIMIT ?`,
+		campaignID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []WorldNote
+	for rows.Next() {
+		var n WorldNote
+		if err := rows.Scan(&n.ID, &n.CampaignID, &n.Title, &n.Content, &n.Category, &n.TagsJSON, &n.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 // --- Maps ---
 
 type Map struct {

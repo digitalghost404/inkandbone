@@ -157,7 +157,7 @@ func TestDeleteCampaign(t *testing.T) {
 	require.NoError(t, err)
 	sessID, err := d.CreateSession(campID, "S1", "2026-04-01")
 	require.NoError(t, err)
-	_, err = d.CreateMessage(sessID, "user", "hello")
+	_, err = d.CreateMessage(sessID, "user", "hello", false)
 	require.NoError(t, err)
 
 	require.NoError(t, d.DeleteCampaign(campID))

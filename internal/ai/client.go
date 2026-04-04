@@ -1,12 +1,14 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -29,6 +31,12 @@ type ChatMessage struct {
 // Responder generates a reply from a system prompt and conversation history.
 type Responder interface {
 	Respond(ctx context.Context, system string, history []ChatMessage, maxTokens int) (string, error)
+}
+
+// Streamer streams a reply from the Anthropic API as SSE chunks, writing each
+// text delta directly to the ResponseWriter. Returns the full accumulated text.
+type Streamer interface {
+	StreamRespond(ctx context.Context, system string, history []ChatMessage, maxTokens int, w http.ResponseWriter) (string, error)
 }
 
 // Client calls the Anthropic Messages API over plain HTTP.
@@ -135,4 +143,75 @@ func (c *Client) Respond(ctx context.Context, system string, history []ChatMessa
 		return "", fmt.Errorf("empty response from Anthropic")
 	}
 	return result.Content[0].Text, nil
+}
+
+// StreamRespond sends a streaming request to the Anthropic Messages API and
+// writes each text delta as an SSE data line to w. It returns the full
+// accumulated response text so the caller can persist it.
+func (c *Client) StreamRespond(ctx context.Context, system string, history []ChatMessage, maxTokens int, w http.ResponseWriter) (string, error) {
+	msgs := make([]map[string]any, len(history))
+	for i, m := range history {
+		msgs[i] = map[string]any{"role": m.Role, "content": m.Content}
+	}
+	body, err := json.Marshal(map[string]any{
+		"model":      model,
+		"max_tokens": maxTokens,
+		"system":     system,
+		"messages":   msgs,
+		"stream":     true,
+	})
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("x-api-key", c.apiKey)
+	req.Header.Set("anthropic-version", anthropicVersion)
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body) //nolint:errcheck
+		return "", fmt.Errorf("anthropic API returned %d", resp.StatusCode)
+	}
+
+	flusher, canFlush := w.(http.Flusher)
+
+	var fullText strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		data, found := strings.CutPrefix(line, "data: ")
+		if !found {
+			continue
+		}
+		var event struct {
+			Type  string `json:"type"`
+			Delta struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"delta"`
+		}
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+		if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" && event.Delta.Text != "" {
+			fullText.WriteString(event.Delta.Text)
+			fmt.Fprintf(w, "data: %s\n\n", event.Delta.Text) //nolint:errcheck
+			if canFlush {
+				flusher.Flush()
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fullText.String(), fmt.Errorf("read stream: %w", err)
+	}
+	return fullText.String(), nil
 }

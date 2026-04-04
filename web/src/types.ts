@@ -31,6 +31,15 @@ export interface Message {
   role: string
   content: string
   created_at: string
+  whisper?: boolean
+}
+
+export interface SessionNPC {
+  id: number
+  session_id: number
+  name: string
+  note: string
+  created_at: string
 }
 
 export interface CombatEncounter {

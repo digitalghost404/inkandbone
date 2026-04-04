@@ -78,13 +78,14 @@ type Message struct {
 	SessionID int64  `json:"session_id"`
 	Role      string `json:"role"` // "user" or "assistant"
 	Content   string `json:"content"`
+	Whisper   bool   `json:"whisper"`
 	CreatedAt string `json:"created_at"`
 }
 
-func (d *DB) CreateMessage(sessionID int64, role, content string) (int64, error) {
+func (d *DB) CreateMessage(sessionID int64, role, content string, whisper bool) (int64, error) {
 	res, err := d.db.Exec(
-		"INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
-		sessionID, role, content,
+		"INSERT INTO messages (session_id, role, content, whisper) VALUES (?, ?, ?, ?)",
+		sessionID, role, content, boolToIntMsg(whisper),
 	)
 	if err != nil {
 		return 0, err
@@ -92,9 +93,16 @@ func (d *DB) CreateMessage(sessionID int64, role, content string) (int64, error)
 	return res.LastInsertId()
 }
 
+func boolToIntMsg(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 func (d *DB) ListMessages(sessionID int64) ([]Message, error) {
 	rows, err := d.db.Query(
-		"SELECT id, session_id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at, id",
+		"SELECT id, session_id, role, content, whisper, created_at FROM messages WHERE session_id = ? ORDER BY created_at, id",
 		sessionID,
 	)
 	if err != nil {
@@ -104,9 +112,11 @@ func (d *DB) ListMessages(sessionID int64) ([]Message, error) {
 	var out []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &m.CreatedAt); err != nil {
+		var whisper int
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &whisper, &m.CreatedAt); err != nil {
 			return nil, err
 		}
+		m.Whisper = whisper == 1
 		out = append(out, m)
 	}
 	return out, rows.Err()
@@ -114,7 +124,7 @@ func (d *DB) ListMessages(sessionID int64) ([]Message, error) {
 
 func (d *DB) RecentMessages(sessionID int64, limit int) ([]Message, error) {
 	rows, err := d.db.Query(
-		`SELECT id, session_id, role, content, created_at FROM messages
+		`SELECT id, session_id, role, content, whisper, created_at FROM messages
 		 WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
 		sessionID, limit,
 	)
@@ -125,9 +135,11 @@ func (d *DB) RecentMessages(sessionID int64, limit int) ([]Message, error) {
 	var out []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &m.CreatedAt); err != nil {
+		var whisper int
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &whisper, &m.CreatedAt); err != nil {
 			return nil, err
 		}
+		m.Whisper = whisper == 1
 		out = append(out, m)
 	}
 	// reverse to chronological order

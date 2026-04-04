@@ -1,8 +1,11 @@
 # UI Redesign: Worn Grimoire
 
 **Date:** 2026-04-03  
-**Status:** Approved  
+**Status:** Implemented  
 **Scope:** Frontend presentation layer only — no API, DB, or WebSocket logic changes
+
+**Implementation Notes (2026-04-03):**
+The Worn Grimoire aesthetic has been fully implemented and is now live in production. The three-column layout, parchment color palette, Cormorant Garamond serif headings, pip-dot attributes (for Ironsworn), segmented track bars, and Prose Journal message rendering are all in place. The "Parchment" light theme is also available via the theme toggle (☀/🌙) in the header. All existing component logic (WebSocket reactivity, debounce PATCH, portrait upload, AI features) has been preserved. Component-level CSS rewrites are complete (App.css, CharacterSheetPanel.css, DiceHistoryPanel.css, CombatPanel.css, WorldNotesPanel.css, JournalPanel.css).
 
 ---
 
