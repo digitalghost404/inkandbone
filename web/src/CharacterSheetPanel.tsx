@@ -35,12 +35,50 @@ function isCharacterUpdatedEvent(ev: unknown): ev is CharacterUpdatedEvent {
   return typeof (p as Record<string, unknown>)['id'] === 'number'
 }
 
+const ATTRIBUTE_KEYS = new Set(['edge', 'heart', 'iron', 'shadow', 'wits'])
+const TRACK_KEYS     = new Set(['health', 'spirit', 'supply', 'momentum'])
+
+function AttributePips({ value }: { value: number }) {
+  return (
+    <div className="attr-pips">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className={`pip ${i <= value ? 'filled' : 'empty'}`} />
+      ))}
+    </div>
+  )
+}
+
+function TrackBar({ fieldKey, value }: { fieldKey: string; value: number }) {
+  const isMomentum = fieldKey === 'momentum'
+  const max = isMomentum ? 10 : 5
+  const filled = Math.max(0, Math.min(max, value))
+  const colorClass = isMomentum ? 'filled-momentum' : 'filled-health'
+  const displayValue = isMomentum ? value : `${value}/${max}`
+
+  return (
+    <div className="track-row">
+      <div className="track-header">
+        <span className="track-label">{fieldKey}</span>
+        <span className="track-value">{displayValue}</span>
+      </div>
+      <div className="track-segments">
+        {Array.from({ length: max }, (_, i) => (
+          <div
+            key={i}
+            className={`track-seg ${i < filled ? colorClass : 'empty-seg'}`}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function CharacterSheetPanel({ character, rulesetId, lastEvent }: CharacterSheetPanelProps) {
   const [ruleset, setRuleset] = useState<Ruleset | null>(null)
   const [fields, setFields] = useState<Record<string, string>>({})
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load ruleset when rulesetId changes
   useEffect(() => {
     if (rulesetId === null) return
     fetchRuleset(rulesetId)
@@ -48,7 +86,6 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
       .catch(console.error)
   }, [rulesetId])
 
-  // Sync fields when character changes (reset on new character)
   useEffect(() => {
     if (!character) return
     try {
@@ -59,7 +96,6 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
     }
   }, [character?.id])
 
-  // Apply character_updated WS event
   useEffect(() => {
     if (!isCharacterUpdatedEvent(lastEvent)) return
     if (lastEvent.payload.id !== character?.id) return
@@ -76,7 +112,6 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
   const schema: SchemaField[] = (() => {
     try {
       const parsed = JSON.parse(ruleset?.schema_json ?? '[]') as unknown
-      // Legacy format: {"system":"dnd5e","fields":["hp","class",...]}
       if (!Array.isArray(parsed) && typeof parsed === 'object' && parsed !== null) {
         const legacy = parsed as Record<string, unknown>
         if (Array.isArray(legacy['fields'])) {
@@ -98,7 +133,6 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
     setFields(next)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      // Convert numeric fields back to numbers before patching
       const updates: Record<string, unknown> = {}
       schema.forEach((f) => {
         const v = next[f.key]
@@ -114,45 +148,82 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
     uploadPortrait(character!.id, file).catch(console.error)
   }
 
-  return (
-    <section className="panel character-sheet-panel">
-      <h2>Character Sheet — {character.name}</h2>
+  const attributeFields = schema.filter((f) => ATTRIBUTE_KEYS.has(f.key))
+  const trackFields     = schema.filter((f) => TRACK_KEYS.has(f.key))
+  const otherFields     = schema.filter((f) => !ATTRIBUTE_KEYS.has(f.key) && !TRACK_KEYS.has(f.key))
 
-      <div className="portrait-upload">
+  return (
+    <>
+      {/* Portrait */}
+      <div className="portrait-wrap">
         {character.portrait_path ? (
           <img
-            className="portrait-large"
+            className="portrait-circle"
             src={`/api/files/${character.portrait_path}`}
             alt={character.name}
           />
         ) : (
-          <div className="portrait-placeholder">No portrait</div>
+          <div className="portrait-placeholder-circle">{character.name[0]}</div>
         )}
-        <label>
-          <input type="file" accept="image/*" onChange={handlePortraitChange} style={{ display: 'none' }} />
+        <label className="portrait-change">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePortraitChange}
+            style={{ display: 'none' }}
+          />
           Change portrait
         </label>
       </div>
 
-      {schema.map((field) => (
-        <div key={field.key} className="field-row">
-          <label htmlFor={`field-${field.key}`}>{field.label}</label>
-          {field.type === 'textarea' ? (
-            <textarea
-              id={`field-${field.key}`}
-              value={fields[field.key] ?? ''}
-              onChange={(e) => handleChange(field.key, e.target.value)}
+      {/* Attributes — pip dots */}
+      {attributeFields.length > 0 && (
+        <div>
+          {attributeFields.map((f) => (
+            <div key={f.key} className="attr-row">
+              <span className="attr-label">{f.key}</span>
+              <AttributePips value={Number(fields[f.key] ?? 0)} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tracks — segmented bars */}
+      {trackFields.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {trackFields.map((f) => (
+            <TrackBar
+              key={f.key}
+              fieldKey={f.key}
+              value={Number(fields[f.key] ?? 0)}
             />
-          ) : (
-            <input
-              id={`field-${field.key}`}
-              type={field.type}
-              value={fields[field.key] ?? ''}
-              onChange={(e) => handleChange(field.key, e.target.value)}
-            />
-          )}
+          ))}
+        </div>
+      )}
+
+      {/* Other fields — plain inputs (non-Ironsworn rulesets) */}
+      {otherFields.map((field) => (
+        <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+          <label style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--gold-dim)', fontFamily: 'var(--serif)' }}>
+            {field.label}
+            {field.type === 'textarea' ? (
+              <textarea
+                value={fields[field.key] ?? ''}
+                onChange={(e) => handleChange(field.key, e.target.value)}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px', padding: '0.25rem', fontFamily: 'inherit', resize: 'vertical', minHeight: '3rem' }}
+              />
+            ) : (
+              <input
+                type={field.type}
+                value={fields[field.key] ?? ''}
+                onChange={(e) => handleChange(field.key, e.target.value)}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px', padding: '0.25rem 0.4rem' }}
+              />
+            )}
+          </label>
         </div>
       ))}
-    </section>
+    </>
   )
 }
