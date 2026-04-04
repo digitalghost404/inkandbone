@@ -190,7 +190,6 @@ func (s *Server) handleCloseCampaign(_ context.Context, req mcplib.CallToolReque
 
 	// Check if there is an active session belonging to this campaign.
 	sessIDStr, _ := s.db.GetSetting("active_session_id")
-	var activeSessionCampaignID int64
 	if sessIDStr != "" {
 		sessID, parseErr := strconv.ParseInt(sessIDStr, 10, 64)
 		if parseErr == nil && sessID > 0 {
@@ -198,15 +197,11 @@ func (s *Server) handleCloseCampaign(_ context.Context, req mcplib.CallToolReque
 			if sessErr != nil {
 				return mcplib.NewToolResultError("db error: " + sessErr.Error()), nil
 			}
-			if sess != nil && sess.CampaignID == id {
+			if sess != nil && sess.CampaignID == id && sess.Summary == "" {
 				return mcplib.NewToolResultError("end your current session before closing the campaign"), nil
-			}
-			if sess != nil {
-				activeSessionCampaignID = sess.CampaignID
 			}
 		}
 	}
-	_ = activeSessionCampaignID
 
 	// Close the campaign.
 	if err := s.db.CloseCampaign(id); err != nil {
@@ -217,6 +212,16 @@ func (s *Server) handleCloseCampaign(_ context.Context, req mcplib.CallToolReque
 	if campIDStr, _ := s.db.GetSetting("active_campaign_id"); campIDStr != "" {
 		if activeCampID, parseErr := strconv.ParseInt(campIDStr, 10, 64); parseErr == nil && activeCampID == id {
 			_ = s.db.SetSetting("active_campaign_id", "")
+		}
+	}
+
+	// Clear active_session_id if the session belongs to this campaign.
+	if sessIDStr != "" {
+		if sessID, parseErr := strconv.ParseInt(sessIDStr, 10, 64); parseErr == nil && sessID > 0 {
+			sess, sessErr := s.db.GetSession(sessID)
+			if sessErr == nil && sess != nil && sess.CampaignID == id {
+				_ = s.db.SetSetting("active_session_id", "")
+			}
 		}
 	}
 

@@ -113,6 +113,12 @@ func TestCloseCampaign_closesAndClearsSettings(t *testing.T) {
 	campID, _, _ := setupCampaign(t, s)
 	require.NoError(t, s.db.SetSetting("active_campaign_id", strconv.FormatInt(campID, 10)))
 
+	// Create an ended session (has summary) and simulate a stale active_session_id setting.
+	sessID, err := s.db.CreateSession(campID, "Test Session", "2026-01-01")
+	require.NoError(t, err)
+	require.NoError(t, s.db.UpdateSessionSummary(sessID, "recap"))
+	require.NoError(t, s.db.SetSetting("active_session_id", strconv.FormatInt(sessID, 10)))
+
 	req := mcplib.CallToolRequest{}
 	req.Params.Arguments = map[string]any{"campaign_id": float64(campID)}
 	result, err := s.handleCloseCampaign(context.Background(), req)
@@ -131,6 +137,10 @@ func TestCloseCampaign_closesAndClearsSettings(t *testing.T) {
 	// active_campaign_id should be cleared.
 	got, _ := s.db.GetSetting("active_campaign_id")
 	assert.Empty(t, got)
+
+	// active_session_id should be cleared.
+	sessIDSetting, _ := s.db.GetSetting("active_session_id")
+	assert.Empty(t, sessIDSetting)
 }
 
 func TestCloseCampaign_defaultsToActiveCampaign(t *testing.T) {
@@ -180,7 +190,7 @@ func TestDeleteCampaign_withoutConfirm(t *testing.T) {
 
 	tc, ok := result.Content[0].(mcplib.TextContent)
 	require.True(t, ok)
-	assert.Contains(t, tc.Text, "Campaign")
+	assert.Contains(t, tc.Text, "campaign")
 	assert.Contains(t, tc.Text, "permanently deleted")
 }
 
