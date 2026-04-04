@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import { fetchRuleset, patchCharacter, uploadPortrait } from './api'
 import type { Ruleset } from './api'
 import type { Character } from './types'
@@ -142,7 +142,7 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
     }, 500)
   }
 
-  function handlePortraitChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePortraitChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     uploadPortrait(character!.id, file).catch(console.error)
@@ -163,7 +163,7 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
             alt={character.name}
           />
         ) : (
-          <div className="portrait-placeholder-circle">{character.name[0]}</div>
+          <div className="portrait-placeholder-circle">{character.name[0] ?? '?'}</div>
         )}
         <label className="portrait-change">
           <input
