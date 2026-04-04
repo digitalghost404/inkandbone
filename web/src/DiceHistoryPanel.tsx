@@ -7,11 +7,6 @@ interface Props {
   lastEvent: unknown
 }
 
-function parseBreakdown(json: string): number[] {
-  try { return JSON.parse(json) as number[] }
-  catch { return [] }
-}
-
 export function DiceHistoryPanel({ sessionId, lastEvent }: Props) {
   const [rolls, setRolls] = useState<DiceRoll[]>([])
 
@@ -26,37 +21,23 @@ export function DiceHistoryPanel({ sessionId, lastEvent }: Props) {
   useEffect(() => {
     const ev = lastEvent as { type?: string } | null
     if (ev?.type === 'dice_rolled') {
-      fetchDiceRolls(sessionId)
-        .then(setRolls)
-        .catch(() => {})
+      fetchDiceRolls(sessionId).then(setRolls).catch(() => {})
     }
   }, [lastEvent, sessionId])
 
+  const recent = rolls.slice(0, 5)
+
+  if (recent.length === 0) return null
+
   return (
-    <section className="panel dice-history">
-      <h2>Dice History</h2>
-      {rolls.length === 0 ? (
-        <p className="empty">No rolls yet.</p>
-      ) : (
-        rolls.map((r) => {
-          const breakdown = parseBreakdown(r.breakdown_json)
-          return (
-            <div key={r.id} className="dice-roll">
-              <div className="roll-top">
-                <span className="expression">{r.expression}</span>
-                <span className="result">{r.result}</span>
-              </div>
-              {breakdown.length > 0 && (
-                <div className="breakdown">
-                  {breakdown.map((d, i) => (
-                    <span key={i} className="die-badge">[{d}]</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })
-      )}
-    </section>
+    <div className="dice-compact">
+      <div className="dice-compact-label">Dice</div>
+      {recent.map((r) => (
+        <div key={r.id} className="dice-compact-row">
+          <span className="dice-compact-expr">{r.expression}</span>
+          <span className="dice-compact-result">{r.result}</span>
+        </div>
+      ))}
+    </div>
   )
 }
