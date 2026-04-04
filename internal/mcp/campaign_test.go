@@ -46,6 +46,30 @@ func TestSetActive(t *testing.T) {
 	assert.Equal(t, strconv.FormatInt(sessID, 10), got)
 }
 
+func TestSetActive_reopensClosed(t *testing.T) {
+	s := newTestMCP(t)
+	campID, _, _ := setupCampaign(t, s)
+
+	require.NoError(t, s.db.CloseCampaign(campID))
+	c, err := s.db.GetCampaign(campID)
+	require.NoError(t, err)
+	assert.False(t, c.Active)
+
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{"campaign_id": float64(campID)}
+	result, err := s.handleSetActive(context.Background(), req)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	c, err = s.db.GetCampaign(campID)
+	require.NoError(t, err)
+	assert.True(t, c.Active)
+
+	v, err := s.db.GetSetting("active_campaign_id")
+	require.NoError(t, err)
+	assert.Equal(t, strconv.FormatInt(campID, 10), v)
+}
+
 func TestStartSession(t *testing.T) {
 	s := newTestMCP(t)
 	campID, _, _ := setupCampaign(t, s)
