@@ -70,6 +70,17 @@ func TestSetActive_reopensClosed(t *testing.T) {
 	assert.Equal(t, strconv.FormatInt(campID, 10), v)
 }
 
+func TestSetActive_campaignNotFound(t *testing.T) {
+	s := newTestMCP(t)
+
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{"campaign_id": float64(99999)}
+	result, err := s.handleSetActive(context.Background(), req)
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content[0].(mcplib.TextContent).Text, "not found")
+}
+
 func TestStartSession(t *testing.T) {
 	s := newTestMCP(t)
 	campID, _, _ := setupCampaign(t, s)

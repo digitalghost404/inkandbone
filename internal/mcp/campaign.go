@@ -15,13 +15,18 @@ func (s *Server) handleSetActive(_ context.Context, req mcplib.CallToolRequest) 
 		if err != nil {
 			return mcplib.NewToolResultError("get campaign: " + err.Error()), nil
 		}
+		if campaign == nil {
+			return mcplib.NewToolResultError(fmt.Sprintf("campaign %d not found", id)), nil
+		}
 		if !campaign.Active {
 			if err := s.db.ReopenCampaign(id); err != nil {
 				return mcplib.NewToolResultError("reopen campaign: " + err.Error()), nil
 			}
+			if err := s.db.SetSetting("active_campaign_id", strconv.FormatInt(id, 10)); err != nil {
+				return mcplib.NewToolResultError("set campaign: " + err.Error()), nil
+			}
 			s.bus.Publish(api.Event{Type: api.EventCampaignReopened, Payload: map[string]any{"campaign_id": id}})
-		}
-		if err := s.db.SetSetting("active_campaign_id", strconv.FormatInt(id, 10)); err != nil {
+		} else if err := s.db.SetSetting("active_campaign_id", strconv.FormatInt(id, 10)); err != nil {
 			return mcplib.NewToolResultError("set campaign: " + err.Error()), nil
 		}
 	}
