@@ -7,7 +7,7 @@ Star Wars: Edge of the Empire is a narrative RPG set at the fringes of the galax
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `starwars`. Name it after your crew or ship — "The Broken Hyperdrive", "Kessel Debts", "Far Edge of the Rim".
-2. **Create your character.** Choose your Species (Human, Twi'lek, Rodian, Wookiee, Bothan, etc.) and Career (Bounty Hunter, Smuggler, Colonist, Explorer, Hired Gun, Technician). Choose a Specialization. Set your six Characteristics (Brawn, Agility, Intellect, Cunning, Willpower, Presence) based on species + career. Note your Obligation — the debt or burden that ties you to the criminal underworld.
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically sets all six Characteristics (each at 2, with three randomly raised to 3), calculates Wound Threshold, Strain Threshold, Soak, and rolls starting Obligation. Tell the AI your Species, Career, and Specialization so it can shape your talents and role in the story. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the job — "The Nar Shaddaa Run", "Who Owns the Hyperdrive?", "One Last Job for Teemo".
 
 ## Suggested Opening Prompt

@@ -7,7 +7,7 @@ Vampire: The Masquerade is a gothic horror RPG in which you play the undead — 
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `vtm`. Name it after your city and coterie — "Chicago Nights", "The New Orleans Accord", "Ashes of London".
-2. **Create your character.** Choose your Clan (Brujah, Gangrel, Malkavian, Nosferatu, Toreador, Tremere, Ventrue, etc.), your Generation, and your Concept. Distribute your nine Attributes (Physical, Social, Mental) and Abilities. Set Humanity to 7 and Willpower to your starting pool. Note your Disciplines (two in-clan at 1, one out-of-clan at 1).
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically sets Generation to 13, Humanity to 7, Blood Pool to 10, and Willpower to 3. Tell the AI your Clan, Concept, and Disciplines so it can narrate your powers and social standing. Adjust any values with `update_character`.
 3. **Start a session.** Name it something atmospheric — "The Embrace Remembered", "Court of Blood".
 
 ## Suggested Opening Prompt

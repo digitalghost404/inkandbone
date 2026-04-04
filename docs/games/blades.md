@@ -7,7 +7,7 @@ Blades in the Dark is a heist RPG set in Duskwall — a gas-lit city sealed behi
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `blades`. Name it after your crew — "The Lampblack Accord", "Silver Knives of Crow's Foot", "The Forgotten Coin".
-2. **Create your character.** Choose your Playbook (Cutter, Lurk, Slide, Whisper, Leech, Spider, Hound). Distribute 4 points among your Action Ratings (the specific skills in your playbook). Set your Stress max to 9. Note your special ability (each playbook has a starting ability). Choose your Vice (pleasure, stupor, faith, etc.).
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically distributes 4 points among the 12 Action Ratings (each 0–2) and sets Stress, Coin, Load, and XP tracks. Tell the AI your Playbook and Vice so it can shape your abilities and the crew's style. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the job — "The Ironhook Score", "Blood in Barrowcleft", "What the Dimmer Twins Owe".
 
 ## Suggested Opening Prompt

@@ -7,7 +7,7 @@ Dungeons & Dragons 5th Edition is the world's most popular tabletop RPG. The AI 
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `dnd5e`. Name it something evocative — "The Sunken Coast", "Shattered Crown", "Embers of the Empire".
-2. **Create your character.** Fill in race, class, level (start at 1), and your six ability scores. Set HP to your class maximum + Constitution modifier. Leave AC, skills, and spells for the AI to help fill in.
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically rolls your six ability scores (4d6 drop lowest), sets level to 1, HP to 10, and AC to 10. Tell the AI your race, class, and background so it can narrate appropriately. Adjust any values with `update_character`.
 3. **Start a session.** Name your first session something like "The Road to Thornwall" or "A Stranger in Neverwinter".
 
 ## Suggested Opening Prompt

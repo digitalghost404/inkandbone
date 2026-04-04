@@ -7,7 +7,7 @@ The One Ring is a tabletop RPG set in Middle-earth after the events of The Hobbi
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `theonering`. Name it after your region or company — "The Wilderland Company", "Songs from the Misty Mountains", "East of the Anduin".
-2. **Create your character.** Choose your Culture (Bardings, Dwarves of Erebor, Elves of Mirkwood, Hobbits of the Shire, Men of the Lake, Woodmen of Wilderland, etc.). Set your three Attributes (Body, Heart, Wits) from culture templates. Record your starting skills, Endurance maximum, and Hope maximum. Choose your Calling (Scholar, Slayer, Wanderer, Warden, Treasure Hunter, Messenger).
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically rolls your three Attributes (Body, Heart, Wits, each 1d3+1) and derives Endurance maximum (20+Body) and Hope maximum (8+Heart). Tell the AI your Culture and Calling so it can shape your skills and place in Middle-earth. Adjust any values with `update_character`.
 3. **Start a session.** Name it after your first journey — "The Road to Dale", "Under the Eaves of Mirkwood", "A Gathering at the Inn of the Prancing Pony".
 
 ## Suggested Opening Prompt

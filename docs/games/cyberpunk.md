@@ -7,7 +7,7 @@ Cyberpunk Red is a tabletop RPG set in the Dark Future — a shattered world of 
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `cyberpunk_red`. Name it after your crew or current job — "Black Chrome Contract", "The Maelstrom Debt", "Midnight in Pacifica".
-2. **Create your character.** Choose your Role (Solo, Netrunner, Tech, Medtech, Media, Exec, Lawman, Fixer, Nomad, Rockerboy). Distribute your 62 points among Statistics (INT, REF, DEX, TECH, COOL, WILL, LUCK, MOVE, BODY, EMP). Set HP to (5 × BODY modifier) + 25. Note your Role Ability — it's free and uniquely powerful.
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically rolls all nine statistics (2d6+2 each) and calculates Humanity from your EMP score. Tell the AI your Role and background so it knows your specialty and how the city sees you. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the job — "Pick-Up in Heywood", "Who Burned the Aldecaldos".
 
 ## Suggested Opening Prompt

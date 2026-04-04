@@ -7,7 +7,7 @@ Legend of the Five Rings is a samurai drama RPG set in Rokugan — an empire of 
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `l5r`. Name it after your clan or setting — "The Crane's Court", "Winter in the Shadowlands", "The Lion's Gambit".
-2. **Create your character.** Choose your Clan (Crab, Crane, Dragon, Lion, Mantis, Phoenix, Scorpion, Unicorn), Family, and School. Set your five Rings (Air, Earth, Fire, Water, Void) — each starts at 1 and your clan/school adjusts them. Record your starting skills, techniques, and Honor, Glory, and Status values.
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically sets your five Rings (Air 2, Earth 2, Fire 2, Water 2, Void 1), School Rank to 1, and starting Honor, Glory, and Status values. Tell the AI your Clan, Family, and School so it can adjust your social standing and skills appropriately. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the dramatic framing — "The Winter Court Arrives", "A Letter Sealed in Black", "Duty Before Death".
 
 ## Suggested Opening Prompt

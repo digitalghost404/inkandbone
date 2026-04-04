@@ -9,7 +9,7 @@ The tone is darkly comic. Expect to die. You have six clones.
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `paranoia`. Name it after the mission briefing — "Troubleshooter Clearance: Green", "Malfunction in Sector KWK", "The Computer Is Your Friend".
-2. **Create your character.** Your full name includes your sector and clone number (e.g., `TOBY-R-KWK-4`). Choose your Security Clearance (always INFRARED to start — you will be told when you are upgraded). Assign your six stats (Violence, Treachery, Happiness, Straight, Moxie, Clout). Choose a secret society affiliation and a mutant power — both are treasonous, do not admit to them.
+2. **Create your character.** Use the `create_character` tool with just your character's name (include your sector and clone number, e.g., `TOBY-R-KWK-4`) — ink & bone automatically rolls your six stats (1d6 each), sets Clone Number to 1, Security Clearance to INFRARED, and assigns starting Credits. Tell the AI your secret society affiliation and mutant power — do not let The Computer hear about either. Adjust any values with `update_character`.
 3. **Start a session.** The Computer assigns your mission. It is never optional. Name the session after the mission — "Find the Missing Widget", "Investigate Happiness Shortfall in Sector JNK", "Terminate All Traitors (Including This Briefing)".
 
 ## Suggested Opening Prompt

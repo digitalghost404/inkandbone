@@ -7,7 +7,7 @@ Call of Cthulhu is a horror RPG in which ordinary people investigate the unknown
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `coc`. Set the era — 1920s is classic, but modern day or other periods work. Name it after the investigation — "The Haunting of Corbitt House", "Shadows Over Arkham".
-2. **Create your character.** Choose your Occupation (professor, journalist, private eye, antiquarian, etc.) to determine your skill allocation. Distribute 20 × EDU points among occupation skills and INT × 2 points among personal interest skills. Set HP to (STR + CON) / 10. Set Sanity to POW × 5.
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically rolls all attributes (3d6×5 for most, (2d6+6)×5 for INT/SIZ/EDU), calculates HP from CON and SIZ, and sets Sanity equal to your POW score. Tell the AI your Occupation so it knows which skills to develop through play. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the case — "A Client With Cold Hands", "The Letter from Miskatonic".
 
 ## Suggested Opening Prompt

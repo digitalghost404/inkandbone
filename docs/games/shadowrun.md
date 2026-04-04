@@ -7,7 +7,7 @@ Shadowrun is a cyberpunk-fantasy hybrid RPG set in 2080, where megacorporations 
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `shadowrun`. Name it after your crew or city — "Seattle After Dark", "The Aztlan Run", "Chrome and Bone".
-2. **Create your character.** Choose your metatype (Human, Elf, Dwarf, Ork, Troll) and priority spread (ABCDE assigned to Metatype, Attributes, Magic/Resonance, Skills, Resources). Distribute your attribute points and skill points. Note your starting nuyen for gear.
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically rolls your eight attributes (1d6 each) and sets Essence to 6. Tell the AI your metatype, archetype (Street Samurai, Decker, Mage, etc.), and background so it can shape the world around you. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the job — "Cold Delivery", "Ghost in the Foundation", "Mr. Johnson's Favor".
 
 ## Suggested Opening Prompt

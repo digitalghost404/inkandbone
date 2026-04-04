@@ -7,7 +7,7 @@ Ironsworn is a tabletop RPG set in a dark fantasy world called the Ironlands. It
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `ironsworn`. Name it after your home region or driving oath — "The Veiled Mountains", "Blood on the Reach", "A Name Worth Keeping".
-2. **Create your character.** Choose your name and set your five stats: Edge, Heart, Iron, Shadow, Wits (each rated 1–3, distribute 7 points). Set Health, Spirit, and Supply to 5. Set Momentum to 2 (base).
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically distributes 7 points among Edge, Heart, Iron, Shadow, and Wits (each 1–3), and sets Health, Spirit, Supply to 5 and Momentum to 2. Tell the AI your character concept to kick off the story. Adjust any values with `update_character`.
 3. **Start a session.** Name it something evocative — "The First Oath", "Leaving Cinderhaven".
 
 ## Suggested Opening Prompt

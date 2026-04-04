@@ -7,7 +7,7 @@ Warhammer Fantasy Roleplay is a grim, perilous RPG set in the Empire — a corru
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `wfrp`. Name it after your starting town or threat — "Troubles in Bögenhafen", "Death on the Reik", "The Ubersreik Five".
-2. **Create your character.** Choose your Species (Human, Dwarf, Halfling, High Elf, Wood Elf, Gnome) and roll or choose your Starting Career (Rat Catcher, Soldier, Physician's Student, Initiate, etc.). Set your eight Characteristics (WS, BS, S, T, Ag, I, Dex, Int, WP, Fel) from species averages + rolls. Set your Wounds from the formula (SB + 2×TB + WPB).
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically rolls all ten characteristics (2d10+20 each) and sets starting Wounds, Fate, Fortune, Resilience, and Resolve. Tell the AI your Species and Career so it can frame your place in the Empire. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the first episode — "A Fishy Business", "By Night in Ubersreik".
 
 ## Suggested Opening Prompt

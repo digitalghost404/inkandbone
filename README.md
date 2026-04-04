@@ -400,13 +400,13 @@ You've already done this, but here's what it looks like:
 ```
 User: Create an Ironsworn campaign called "The Ironlands" and create a character named Kael.
 
-Claude: I've created your campaign and character. Kael is an Ironsworn warrior ready for adventure.
+Claude: I've created your campaign and character. Kael is an Ironsworn warrior ready for adventure — stats rolled for ironsworn.
 ```
 
 Check the dashboard. You see:
 - Campaign name: "The Ironlands"
 - Character name: "Kael"
-- Character sheet with Kael's stats
+- Character sheet with Kael's stats already filled in (randomly rolled for the ruleset)
 
 ### Start a Session
 
@@ -712,7 +712,7 @@ All tools are available to Claude Code once the MCP server is registered.
 #### Characters
 | Tool | Required | Optional | Returns |
 |---|---|---|---|
-| `create_character` | `name` (string) | `campaign_id` | Character created, activated |
+| `create_character` | `name` (string) | `campaign_id` | Character created, activated, stats auto-rolled for the campaign's ruleset |
 | `list_characters` | — | `campaign_id` | JSON array of characters |
 | `get_character_sheet` | — | `character_id` | Full character JSON |
 | `update_character` | `updates` (JSON object as string, e.g. `{"hp":15}`) | `character_id`, `narrative` | Confirmation |

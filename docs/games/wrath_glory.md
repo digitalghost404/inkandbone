@@ -7,7 +7,7 @@ Wrath & Glory is a tabletop RPG set in the grim darkness of the 41st millennium 
 ## Setting Up Your Campaign
 
 1. **Create a campaign.** Use the `create_campaign` tool with ruleset `wrath_glory`. Name it after your mission or cell — "The Gilded Knife", "Purge at Hive Tertius", "The Warden's Reach".
-2. **Create your character.** Choose your Tier (1 = mundane agents, 2 = seasoned warriors, 3 = elite/Astartes-adjacent, 4 = legendary) and Archetype (Acolyte, Guardsman, Sister of Battle, Space Marine, Inquisitor, etc.). Set your seven Attributes (Strength, Agility, Toughness, Intellect, Willpower, Fellowship, Initiative). Note your Wounds, Shock, Resilience, Determination, and starting Keywords.
+2. **Create your character.** Use the `create_character` tool with just your character's name — ink & bone automatically rolls your seven Attributes (1d3+3 each), derives Initiative from Agility, Resilience from Toughness, Determination from Willpower, and sets starting Wounds and Shock. Tell the AI your Tier, Archetype, and Keywords so it can frame your role in the 41st Millennium. Adjust any values with `update_character`.
 3. **Start a session.** Name it after the briefing — "Throne Warrant 114-Sigma", "The Silence on Ferrus IV", "What the Pict-Feeds Missed".
 
 ## Suggested Opening Prompt
