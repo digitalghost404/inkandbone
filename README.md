@@ -1,8 +1,22 @@
 # ink & bone
 
-A tabletop RPG companion app where you tell stories with an AI that acts as your Game Master. Everything you need — the story engine, character tracking, combat, maps, notes — runs in one app on your computer. Open your browser at localhost:7432, chat with Claude, and watch your adventure unfold live.
+**A private, local AI Game Master for 13 tabletop RPG systems — no cloud, no subscriptions, no limits.**
 
-No cloud. No subscriptions. Just you, your stories, and an AI that keeps track of everything.
+You type. Claude narrates. Your browser updates live. That's the whole loop — and nothing else on the market does it like this.
+
+---
+
+## Why ink & bone?
+
+Every other AI GM tool is a SaaS product: cloud servers, token limits, monthly subscriptions, and a UI wrapper that constrains the AI so tightly it stops feeling intelligent. ink & bone is the opposite.
+
+**It runs on your machine.** Your campaigns, characters, and session logs live in a SQLite database on your computer. Nothing leaves unless you push it. No account required. No waiting room when your tokens run out at a critical moment in the story.
+
+**It uses the full Claude model, not a stripped-down wrapper.** Because ink & bone works through Claude Code's MCP tool layer, Claude reasons about rules, maintains context across the entire conversation history, and makes genuine GM judgment calls. Competitors constrain their AI so heavily to prevent hallucination that they also remove its capability. ink & bone grounds Claude in a structured database — so it remembers everything — without lobotomizing it.
+
+**It supports 13 game systems.** The rest of the field is almost entirely D&D 5e with a coat of paint. ink & bone ships with Ironsworn, Wrath & Glory, Blades in the Dark, Vampire: The Masquerade, Call of Cthulhu, Shadowrun, Warhammer Fantasy Roleplay, Star Wars Edge of the Empire, Legend of the Five Rings, The One Ring, Paranoia, and more — each with correct stats, correct mechanics, and a character sheet that matches the ruleset.
+
+**It costs fractions of a cent per message.** Using Claude Haiku, a full combat scene costs less than a penny. Competitors charge $10–30/month for token-gated access to a less capable model.
 
 ---
 
@@ -10,7 +24,7 @@ No cloud. No subscriptions. Just you, your stories, and an AI that keeps track o
 
 You sit down and tell Claude a story about your character. Claude plays everyone else — the shopkeeper, the dragon, the mysterious stranger. Claude describes what happens, rolls the dice when there's uncertainty, tracks your character's health and equipment, and remembers everything that came before.
 
-Your browser dashboard shows it all as it happens: your character's stats, the conversation transcript, dice rolls, combat, maps, NPCs, and world-building notes. Everything syncs live.
+Your browser dashboard shows it all as it happens: your character's stats, the conversation transcript, dice rolls, combat, maps, NPCs, and world-building notes. Everything syncs live — no refresh, no waiting, no cloud roundtrip.
 
 Think of it as a collaborative storytelling tool where the AI is the Game Master and you are the player. The browser is your character sheet and record keeper combined.
 
