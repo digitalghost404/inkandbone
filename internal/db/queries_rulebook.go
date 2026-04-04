@@ -9,9 +9,16 @@ import (
 type RulebookChunk struct {
 	ID        int64     `json:"id"`
 	RulesetID int64     `json:"ruleset_id"`
+	Source    string    `json:"source"`
 	Heading   string    `json:"heading"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// RulebookSource summarises one uploaded book for a ruleset.
+type RulebookSource struct {
+	Source string `json:"source"`
+	Chunks int    `json:"chunks"`
 }
 
 // GetRuleset returns a single ruleset by ID.
@@ -29,10 +36,37 @@ func (d *DB) GetRuleset(id int64) (*Ruleset, error) {
 	return &r, nil
 }
 
-// DeleteRulebookChunks removes all chunks for a ruleset, used before re-ingestion.
+// DeleteRulebookChunks removes all chunks for a ruleset.
 func (d *DB) DeleteRulebookChunks(rulesetID int64) error {
 	_, err := d.db.Exec("DELETE FROM rulebook_chunks WHERE ruleset_id = ?", rulesetID)
 	return err
+}
+
+// DeleteRulebookChunksBySource removes chunks for a specific source book within a ruleset.
+func (d *DB) DeleteRulebookChunksBySource(rulesetID int64, source string) error {
+	_, err := d.db.Exec("DELETE FROM rulebook_chunks WHERE ruleset_id = ? AND source = ?", rulesetID, source)
+	return err
+}
+
+// ListRulebookSources returns each distinct source uploaded for a ruleset with its chunk count.
+func (d *DB) ListRulebookSources(rulesetID int64) ([]RulebookSource, error) {
+	rows, err := d.db.Query(
+		`SELECT source, COUNT(*) FROM rulebook_chunks WHERE ruleset_id = ? GROUP BY source ORDER BY source`,
+		rulesetID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var sources []RulebookSource
+	for rows.Next() {
+		var s RulebookSource
+		if err := rows.Scan(&s.Source, &s.Chunks); err != nil {
+			return nil, err
+		}
+		sources = append(sources, s)
+	}
+	return sources, rows.Err()
 }
 
 // CreateRulebookChunks inserts multiple chunks for a ruleset in a single transaction.
@@ -43,28 +77,28 @@ func (d *DB) CreateRulebookChunks(rulesetID int64, chunks []RulebookChunk) error
 	}
 	defer tx.Rollback()
 	stmt, err := tx.Prepare(
-		"INSERT INTO rulebook_chunks (ruleset_id, heading, content) VALUES (?, ?, ?)",
+		"INSERT INTO rulebook_chunks (ruleset_id, source, heading, content) VALUES (?, ?, ?, ?)",
 	)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, c := range chunks {
-		if _, err := stmt.Exec(rulesetID, c.Heading, c.Content); err != nil {
+		if _, err := stmt.Exec(rulesetID, c.Source, c.Heading, c.Content); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
 }
 
-// SearchRulebookChunks returns up to 3 chunks matching query in heading or content (LIKE search).
+// SearchRulebookChunks returns up to 5 chunks matching query in heading or content (LIKE search).
 func (d *DB) SearchRulebookChunks(rulesetID int64, query string) ([]RulebookChunk, error) {
 	like := "%" + query + "%"
 	rows, err := d.db.Query(
-		`SELECT id, ruleset_id, heading, content, created_at
+		`SELECT id, ruleset_id, source, heading, content, created_at
 		 FROM rulebook_chunks
 		 WHERE ruleset_id = ? AND (heading LIKE ? OR content LIKE ?)
-		 LIMIT 3`,
+		 LIMIT 5`,
 		rulesetID, like, like,
 	)
 	if err != nil {
@@ -74,7 +108,7 @@ func (d *DB) SearchRulebookChunks(rulesetID int64, query string) ([]RulebookChun
 	var chunks []RulebookChunk
 	for rows.Next() {
 		var c RulebookChunk
-		if err := rows.Scan(&c.ID, &c.RulesetID, &c.Heading, &c.Content, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.RulesetID, &c.Source, &c.Heading, &c.Content, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		chunks = append(chunks, c)

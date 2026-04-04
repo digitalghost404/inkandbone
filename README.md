@@ -320,15 +320,140 @@ If your favorite game isn't on the list, you can add it:
 3. Create a campaign using your custom ruleset.
 4. When characters are created, they'll have exactly the fields you defined.
 
-### Uploading Rulebooks
+### Rulebooks and Supplemental Material
 
-If you own the official PDF or text of a rulebook, you can upload it:
+#### What You Can Do Without a Rulebook
 
+ink & bone ships with built-in character sheet schemas for all 13 supported systems. Without a rulebook uploaded, you can still:
+
+- Create characters, run sessions, and have Claude narrate the story
+- Track stats, health, inventory, combat, maps, and NPCs automatically
+- Roll dice with proper expressions (d4 through d100, pools, modifiers)
+- Get a competent AI GM that applies common-sense interpretations of the rules
+
+**What's missing without the rulebook:**
+
+- Claude cannot cite specific page references or exact rule text
+- Edge-case rules (unusual combat conditions, specific spell interactions, advanced abilities) rely on Claude's general knowledge rather than the actual book, and may be wrong or outdated
+- Class-specific abilities, feats, spells, and equipment tables are not indexed
+- Rules clarifications, errata, and system-specific edge cases are not available
+
+For casual play this is fine. For rules-precise, competitive, or rulebook-faithful play, uploading the PDF gives Claude the full text to search.
+
+---
+
+#### What Types of Books You Can Upload
+
+Every TTRPG line produces several categories of material. ink & bone treats them all the same — they're indexed and searched together — but labeling them keeps things organized.
+
+**Core Rules (label: `Core Rulebook`)**
+The foundation. Covers character creation, core resolution mechanics, combat rules, advancement, equipment, and basic world-building. This is the most important upload. Every table needs this.
+
+Examples: *Player's Handbook* (D&D), *Wrath & Glory Core Rulebook*, *Ironsworn*, *Blades in the Dark*, *Call of Cthulhu Keeper Rulebook*, *VtM 5th Edition Core*.
+
+**Game Master's Guide / Keeper's Guide (label: `GM Guide`)**
+Rules and advice for running the game: encounter design, NPC creation, loot tables, campaign structure, secret rules, and setting up adventures. Useful for Claude when adjudicating GM-side mechanics.
+
+Examples: *Dungeon Master's Guide*, *Call of Cthulhu Keeper's Guide*, *Blades in the Dark* (the book itself doubles as both).
+
+**Bestiary / Monster Manual (label: `Bestiary`)**
+Creature stat blocks, abilities, tactics, lore, and encounter suggestions. Upload this if you want Claude to reference accurate creature stats rather than improvising them.
+
+Examples: *Monster Manual* (D&D), *Wrath & Glory Threat Assessment: Xenos*, *VtM Anarch Cookbook*, *WFRP Bestiary*.
+
+**Player Options / Sourcebook (label: `Sourcebook: [name]`)**
+Expands character options: new classes, subclasses, archetypes, races, backgrounds, spells, feats, prestige paths, and equipment. Upload these when your character uses options from outside the core book.
+
+Examples: *Tasha's Cauldron of Everything*, *Xanathar's Guide*, *VtM Chicago By Night* (clans + coterie options), *Wrath & Glory Forsaken System Guide* (new archetypes), *Shadowrun Street Grimoire* (magic rules).
+
+**Campaign Setting (label: `Setting: [name]`)**
+World-building lore: geography, factions, history, politics, religions, and plot hooks specific to a setting. Gives Claude deep context for narrating the world accurately.
+
+Examples: *Forgotten Realms Campaign Setting*, *VtM Chicago By Night*, *Wrath & Glory Gilead System*, *Eberron: Rising from the Last War*.
+
+**Adventure Module / Campaign Book (label: `Adventure: [name]`)**
+Pre-written scenarios, dungeons, encounters, NPCs, and story beats. Upload the adventure you're running so Claude can reference the actual plot, maps, and encounter stats.
+
+Examples: *Curse of Strahd*, *Death on the Reik* (WFRP), *The Long Night* (IoS), *The Fall of Delta Green*.
+
+**Faction / Clan Book (label: `Faction: [name]`)**
+Deep lore and mechanical options for a specific faction, clan, or organization. Upload the ones your character belongs to.
+
+Examples: VtM Clanbooks (Brujah, Malkavian, etc.), *Wrath & Glory Talents of Chaos* (Chaos faction), Shadowrun runner archetype books.
+
+**Rules Supplement / Errata (label: `Supplement: [name]`)**
+Additional rules, optional subsystems, or official corrections. Combat rules expansions, social encounter frameworks, crafting systems, vehicle rules, etc.
+
+Examples: *WFRP Winds of Magic*, *Ironsworn Starforged*, *D&D Dungeon Master's Screen* (quick reference), official errata PDFs.
+
+---
+
+#### How to Upload a Rulebook
+
+**The first time — uploading the core rulebook:**
+
+1. Find your ruleset ID:
+   ```
+   GET /api/campaigns  → note the ruleset_id field
+   GET /api/rulesets/{id}  → confirms the system name
+   ```
+
+2. Upload a PDF (up to 50 MB):
+   ```bash
+   curl -X POST http://localhost:7432/api/rulesets/{id}/rulebook \
+     -F "rulebook=@/path/to/corebook.pdf" \
+     -F "source=Core Rulebook"
+   ```
+
+3. Upload plain text (up to 2 MB) — useful for SRDs and free rules:
+   ```bash
+   curl -X POST http://localhost:7432/api/rulesets/{id}/rulebook \
+     -H "Content-Type: text/plain" \
+     --data-binary @/path/to/rules.txt \
+     "?source=Core+Rulebook"
+   ```
+
+**Adding an expansion without overwriting the core book:**
+
+Each `source` label is stored independently. Uploading a new source only replaces chunks with that same label — all other books remain intact.
+
+```bash
+# Upload a bestiary — core book is untouched
+curl -X POST http://localhost:7432/api/rulesets/{id}/rulebook \
+  -F "rulebook=@/path/to/bestiary.pdf" \
+  -F "source=Bestiary"
+
+# Upload a campaign setting
+curl -X POST http://localhost:7432/api/rulesets/{id}/rulebook \
+  -F "rulebook=@/path/to/setting.pdf" \
+  -F "source=Setting: Gilead System"
+
+# Upload the adventure you're running
+curl -X POST http://localhost:7432/api/rulesets/{id}/rulebook \
+  -F "rulebook=@/path/to/adventure.pdf" \
+  -F "source=Adventure: The Long Night"
 ```
-POST /api/rulesets/{id}/rulebook
+
+**Re-uploading an updated edition:**
+
+Re-uploading with the same `source` name replaces only that source's chunks. Use this to update errata, fix a bad extraction, or swap editions.
+
+**Check what's been uploaded:**
+
+```bash
+GET /api/rulesets/{id}/rulebook
+# Returns: [{"source":"Core Rulebook","chunks":312},{"source":"Bestiary","chunks":180}]
 ```
 
-Claude will index the content and search it when answering rules questions during play. This ensures the GM cites actual rules, not guesses.
+---
+
+#### Tips for Better PDF Extraction
+
+- **Digital PDFs extract better than scanned books.** Scanned PDFs are images — pdfcpu can't read them. Use digitally-typeset PDFs (buy from DriveThruRPG or publisher websites for best results).
+- **If extraction returns 0 chunks**, the PDF may be image-only. Try a plain-text version instead (many publishers sell both).
+- **Large books may exceed 50 MB** — particularly art-heavy hardcovers. Try uploading just the rules chapters as separate files, or use a text export.
+- **Pre-format text files with `#` headings** to improve chunk quality. Each `#` line becomes a searchable section heading.
+- **Markdown and plain text SRDs** work perfectly. Systems like Ironsworn, Blades in the Dark, and many OSR games publish free SRDs as plain text.
 
 ---
 

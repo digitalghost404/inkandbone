@@ -18,6 +18,23 @@ import (
 
 var errInvalidPDF = errors.New("invalid or unreadable PDF")
 
+func (s *Server) handleListRulebookSources(w http.ResponseWriter, r *http.Request) {
+	rulesetID, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid ruleset id", http.StatusBadRequest)
+		return
+	}
+	sources, err := s.db.ListRulebookSources(rulesetID)
+	if err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if sources == nil {
+		sources = []db.RulebookSource{}
+	}
+	writeJSON(w, sources)
+}
+
 func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 	rulesetID, ok := parsePathID(r, "id")
 	if !ok {
@@ -28,10 +45,12 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 	ct := r.Header.Get("Content-Type")
 
 	var text string
+	var source string
 
 	switch {
 	case strings.HasPrefix(ct, "text/plain"):
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		source = r.URL.Query().Get("source")
+		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "read body: "+err.Error(), http.StatusBadRequest)
@@ -40,10 +59,11 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 		text = string(b)
 
 	case strings.HasPrefix(ct, "multipart/form-data"):
-		if err := r.ParseMultipartForm(10 << 20); err != nil {
+		if err := r.ParseMultipartForm(50 << 20); err != nil {
 			http.Error(w, "parse form: "+err.Error(), http.StatusBadRequest)
 			return
 		}
+		source = r.FormValue("source")
 		file, _, err := r.FormFile("rulebook")
 		if err != nil {
 			http.Error(w, "rulebook field is required: "+err.Error(), http.StatusBadRequest)
@@ -67,8 +87,13 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chunks := chunkByHeadings(text)
-	if err := s.db.DeleteRulebookChunks(rulesetID); err != nil {
+	if source == "" {
+		source = "Core Rulebook"
+	}
+
+	chunks := chunkByHeadingsWithSource(text, source)
+	// Replace only chunks for this source — other books are untouched.
+	if err := s.db.DeleteRulebookChunksBySource(rulesetID, source); err != nil {
 		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -77,37 +102,38 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, map[string]int{"chunks_created": len(chunks)})
+	writeJSON(w, map[string]interface{}{"chunks_created": len(chunks), "source": source})
 }
 
-// chunkByHeadings splits text into chunks delimited by lines starting with "#".
+// chunkByHeadingsWithSource splits text into chunks delimited by lines starting with "#",
+// tagging each chunk with the given source book name.
 // If no heading lines are found, the entire text becomes one chunk with an empty heading.
-func chunkByHeadings(text string) []db.RulebookChunk {
+func chunkByHeadingsWithSource(text, source string) []db.RulebookChunk {
 	var chunks []db.RulebookChunk
 	var currentHeading strings.Builder
 	var currentContent strings.Builder
 
+	flush := func() {
+		if currentHeading.Len() > 0 || currentContent.Len() > 0 {
+			chunks = append(chunks, db.RulebookChunk{
+				Source:  source,
+				Heading: strings.TrimSpace(strings.TrimLeft(currentHeading.String(), "#")),
+				Content: strings.TrimSpace(currentContent.String()),
+			})
+			currentHeading.Reset()
+			currentContent.Reset()
+		}
+	}
+
 	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, "#") {
-			if currentHeading.Len() > 0 {
-				chunks = append(chunks, db.RulebookChunk{
-					Heading: strings.TrimSpace(strings.TrimLeft(currentHeading.String(), "#")),
-					Content: strings.TrimSpace(currentContent.String()),
-				})
-				currentHeading.Reset()
-				currentContent.Reset()
-			}
+			flush()
 			currentHeading.WriteString(line)
 		} else {
 			currentContent.WriteString(line + "\n")
 		}
 	}
-	if currentHeading.Len() > 0 || currentContent.Len() > 0 {
-		chunks = append(chunks, db.RulebookChunk{
-			Heading: strings.TrimSpace(strings.TrimLeft(currentHeading.String(), "#")),
-			Content: strings.TrimSpace(currentContent.String()),
-		})
-	}
+	flush()
 	return chunks
 }
 
