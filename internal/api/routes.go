@@ -607,6 +607,39 @@ func (s *Server) handleGenerateRecap(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"summary": summary})
 }
 
+// autoUpdateRecap regenerates the session recap in the background every 4 GM
+// messages so the journal stays current without manual intervention.
+func (s *Server) autoUpdateRecap(ctx context.Context, sessionID int64) {
+	if s.aiClient == nil {
+		return
+	}
+	msgs, err := s.db.ListMessages(sessionID)
+	if err != nil {
+		return
+	}
+	// Count assistant messages — update on every 4th one (and always on the first).
+	gmCount := 0
+	for _, m := range msgs {
+		if m.Role == "assistant" {
+			gmCount++
+		}
+	}
+	if gmCount == 0 || gmCount%4 != 0 {
+		return
+	}
+	summary, err := s.buildRecap(ctx, sessionID)
+	if err != nil {
+		return
+	}
+	if err := s.db.UpdateSessionSummary(sessionID, summary); err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
+		"session_id": sessionID,
+		"summary":    summary,
+	}})
+}
+
 // buildRecap reads messages and dice rolls, builds a prompt, and calls the AI.
 func (s *Server) buildRecap(ctx context.Context, sessionID int64) (string, error) {
 	msgs, err := s.db.ListMessages(sessionID)
@@ -912,6 +945,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	go s.extractNPCs(context.Background(), id, fullText)
 	go s.autoGenerateMap(context.Background(), id, fullText)
 	go s.autoUpdateCharacterStats(context.Background(), id, lastPlayerMsg, fullText)
+	go s.autoUpdateRecap(context.Background(), id)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
