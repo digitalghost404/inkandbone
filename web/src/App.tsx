@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import type { ReactNode } from 'react'
 import { useWebSocket } from './useWebSocket'
 import { fetchContext } from './api'
 import type { GameContext, Message } from './types'
@@ -17,7 +18,7 @@ function ProseJournal({ messages, characterName }: { messages: Message[]; charac
     return <p className="empty">The story has not yet begun.</p>
   }
 
-  const nodes: React.ReactNode[] = []
+  const nodes: ReactNode[] = []
   messages.forEach((m, i) => {
     if (m.role === 'assistant') {
       nodes.push(
@@ -119,14 +120,15 @@ export default function App() {
           </div>
 
           <div className="map-drawer">
-            <div
+            <button
+              type="button"
               className="map-drawer-handle"
               onClick={() => setMapOpen((o) => !o)}
             >
               {mapOpen
                 ? '[ ▴ COLLAPSE ]'
                 : `[ ${ctx.campaign?.name?.toUpperCase() ?? 'THE IRONLANDS'} ▾ ]`}
-            </div>
+            </button>
             <div className={`map-drawer-content${mapOpen ? ' open' : ''}`}>
               <div className="map-drawer-inner">
                 <MapPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />
