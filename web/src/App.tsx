@@ -2,8 +2,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
 import { fetchContext } from './api'
 import type { GameContext, Message } from './types'
+import { CombatPanel } from './CombatPanel'
+import { SessionTimeline } from './SessionTimeline'
 import { WorldNotesPanel } from './WorldNotesPanel'
 import { DiceHistoryPanel } from './DiceHistoryPanel'
+import { MapPanel } from './MapPanel'
+import { JournalPanel } from './JournalPanel'
+import { CharacterSheetPanel } from './CharacterSheetPanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -33,7 +38,9 @@ export default function App() {
     [loadContext],
   )
 
-  useWebSocket(WS_URL, handleEvent)
+  const { lastEvent } = useWebSocket(WS_URL, handleEvent)
+
+  const aiEnabled = true
 
   if (error) return <div className="error">{error}</div>
   if (!ctx) return <div className="loading">Loading…</div>
@@ -43,6 +50,13 @@ export default function App() {
       <header className="state-bar">
         <span className="campaign">{ctx.campaign?.name ?? 'No campaign'}</span>
         <span className="separator">·</span>
+        {ctx.character?.portrait_path && (
+          <img
+            className="portrait"
+            src={`/api/files/${ctx.character.portrait_path}`}
+            alt={ctx.character.name}
+          />
+        )}
         <span className="character">{ctx.character?.name ?? 'No character'}</span>
         <span className="separator">·</span>
         <span className="session">{ctx.session?.title ?? 'No session'}</span>
@@ -63,35 +77,29 @@ export default function App() {
           )}
         </section>
 
-        {ctx.active_combat && (
-          <section className="panel combat">
-            <h2>Combat: {ctx.active_combat.encounter.name}</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Init</th>
-                  <th>HP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ctx.active_combat.combatants.map((c) => (
-                  <tr key={c.id} className={c.is_player ? 'player' : 'enemy'}>
-                    <td>{c.name}</td>
-                    <td>{c.initiative}</td>
-                    <td>
-                      {c.hp_current}/{c.hp_max}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+        {ctx.active_combat && <CombatPanel combat={ctx.active_combat} />}
+
+        {ctx.session && (
+          <SessionTimeline sessionId={ctx.session.id} lastEvent={lastEvent} />
         )}
 
-        {ctx.campaign && <WorldNotesPanel campaignId={ctx.campaign.id} />}
+        {ctx.campaign && (
+          <WorldNotesPanel campaignId={ctx.campaign.id} lastEvent={lastEvent} aiEnabled={aiEnabled} />
+        )}
 
-        {ctx.session && <DiceHistoryPanel sessionId={ctx.session.id} />}
+        <MapPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />
+
+        <JournalPanel session={ctx?.session ?? null} lastEvent={lastEvent} aiEnabled={aiEnabled} />
+
+        <CharacterSheetPanel
+          character={ctx?.character ?? null}
+          rulesetId={ctx?.campaign?.ruleset_id ?? null}
+          lastEvent={lastEvent}
+        />
+
+        {ctx.session && (
+          <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />
+        )}
       </main>
     </div>
   )

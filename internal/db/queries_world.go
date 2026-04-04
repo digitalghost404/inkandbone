@@ -28,11 +28,20 @@ func (d *DB) CreateWorldNote(campaignID int64, title, content, category string) 
 	return res.LastInsertId()
 }
 
-func (d *DB) UpdateWorldNote(id int64, title, content string) error {
-	res, err := d.db.Exec(
-		"UPDATE world_notes SET title = ?, content = ? WHERE id = ?",
-		title, content, id,
-	)
+func (d *DB) UpdateWorldNote(id int64, title, content, tagsJSON string) error {
+	var res sql.Result
+	var err error
+	if tagsJSON != "" {
+		res, err = d.db.Exec(
+			"UPDATE world_notes SET title = ?, content = ?, tags_json = ? WHERE id = ?",
+			title, content, tagsJSON, id,
+		)
+	} else {
+		res, err = d.db.Exec(
+			"UPDATE world_notes SET title = ?, content = ? WHERE id = ?",
+			title, content, id,
+		)
+	}
 	if err != nil {
 		return err
 	}
@@ -46,7 +55,19 @@ func (d *DB) UpdateWorldNote(id int64, title, content string) error {
 	return nil
 }
 
-func (d *DB) SearchWorldNotes(campaignID int64, query, category string) ([]WorldNote, error) {
+func (d *DB) GetWorldNote(id int64) (*WorldNote, error) {
+	var n WorldNote
+	err := d.db.QueryRow(
+		"SELECT id, campaign_id, title, content, category, tags_json, created_at FROM world_notes WHERE id = ?",
+		id,
+	).Scan(&n.ID, &n.CampaignID, &n.Title, &n.Content, &n.Category, &n.TagsJSON, &n.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &n, nil
+}
+
+func (d *DB) SearchWorldNotes(campaignID int64, query, category, tag string) ([]WorldNote, error) {
 	q := "SELECT id, campaign_id, title, content, category, tags_json, created_at FROM world_notes WHERE campaign_id = ?"
 	args := []any{campaignID}
 	if query != "" {
@@ -57,6 +78,10 @@ func (d *DB) SearchWorldNotes(campaignID int64, query, category string) ([]World
 	if category != "" {
 		q += " AND category = ?"
 		args = append(args, category)
+	}
+	if tag != "" {
+		q += " AND tags_json LIKE ?"
+		args = append(args, `%"`+tag+`"%`)
 	}
 	q += " ORDER BY title"
 	rows, err := d.db.Query(q, args...)
@@ -105,6 +130,26 @@ func (d *DB) GetMap(id int64) (*Map, error) {
 		return nil, nil
 	}
 	return m, err
+}
+
+func (d *DB) ListMaps(campaignID int64) ([]Map, error) {
+	rows, err := d.db.Query(
+		"SELECT id, campaign_id, name, image_path, created_at FROM maps WHERE campaign_id = ? ORDER BY created_at",
+		campaignID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Map
+	for rows.Next() {
+		var m Map
+		if err := rows.Scan(&m.ID, &m.CampaignID, &m.Name, &m.ImagePath, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }
 
 // --- Map Pins ---
