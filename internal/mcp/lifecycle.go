@@ -84,32 +84,30 @@ func (s *Server) handleCreateCharacter(_ context.Context, req mcplib.CallToolReq
 
 	msg := fmt.Sprintf("character %d created and activated: %s", charID, name)
 
-	if optBool(req, "random_stats") {
-		camp, err := s.db.GetCampaign(campID)
-		if err != nil || camp == nil {
-			return mcplib.NewToolResultError("could not load campaign for random_stats"), nil
+	camp, err := s.db.GetCampaign(campID)
+	if err != nil || camp == nil {
+		return mcplib.NewToolResultError("could not load campaign for random stats"), nil
+	}
+	rs, err := s.db.GetRuleset(camp.RulesetID)
+	if err != nil || rs == nil {
+		return mcplib.NewToolResultError("could not load ruleset for random stats"), nil
+	}
+	var schema struct {
+		System string `json:"system"`
+	}
+	if err := json.Unmarshal([]byte(rs.SchemaJSON), &schema); err != nil {
+		return mcplib.NewToolResultError("invalid ruleset schema: " + err.Error()), nil
+	}
+	stats := rollStats(schema.System)
+	if len(stats) > 0 {
+		dataJSON, err := json.Marshal(stats)
+		if err != nil {
+			return mcplib.NewToolResultError("marshal stats: " + err.Error()), nil
 		}
-		rs, err := s.db.GetRuleset(camp.RulesetID)
-		if err != nil || rs == nil {
-			return mcplib.NewToolResultError("could not load ruleset for random_stats"), nil
+		if err := s.db.UpdateCharacterData(charID, string(dataJSON)); err != nil {
+			return mcplib.NewToolResultError("save stats: " + err.Error()), nil
 		}
-		var schema struct {
-			System string `json:"system"`
-		}
-		if err := json.Unmarshal([]byte(rs.SchemaJSON), &schema); err != nil {
-			return mcplib.NewToolResultError("invalid ruleset schema: " + err.Error()), nil
-		}
-		stats := rollStats(schema.System)
-		if len(stats) > 0 {
-			dataJSON, err := json.Marshal(stats)
-			if err != nil {
-				return mcplib.NewToolResultError("marshal stats: " + err.Error()), nil
-			}
-			if err := s.db.UpdateCharacterData(charID, string(dataJSON)); err != nil {
-				return mcplib.NewToolResultError("save stats: " + err.Error()), nil
-			}
-			msg += fmt.Sprintf(" (stats rolled for %s)", schema.System)
-		}
+		msg += fmt.Sprintf(" (stats rolled for %s)", schema.System)
 	}
 
 	s.bus.Publish(api.Event{Type: api.EventCharacterCreated, Payload: map[string]any{"character_id": charID, "name": name}})

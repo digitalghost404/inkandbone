@@ -93,21 +93,18 @@ func TestRollStats_bladesPointTotal(t *testing.T) {
 	}
 }
 
-func TestCreateCharacter_randomStats(t *testing.T) {
+func TestCreateCharacter_rollsStatsAutomatically(t *testing.T) {
 	s := newTestMCP(t)
 	campID, _, _ := setupCampaign(t, s)
 	require.NoError(t, s.db.SetSetting("active_campaign_id", strconv.FormatInt(campID, 10)))
 
 	req := mcplib.CallToolRequest{}
-	req.Params.Arguments = map[string]any{
-		"name":         "Rollena",
-		"random_stats": true,
-	}
+	req.Params.Arguments = map[string]any{"name": "Rollena"}
 	result, err := s.handleCreateCharacter(context.Background(), req)
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
-	// Verify stats were actually stored on the character.
+	// Verify stats were automatically stored on the character.
 	charIDStr, _ := s.db.GetSetting("active_character_id")
 	charID, _ := strconv.ParseInt(charIDStr, 10, 64)
 	char, err := s.db.GetCharacter(charID)
@@ -116,28 +113,6 @@ func TestCreateCharacter_randomStats(t *testing.T) {
 
 	var data map[string]any
 	require.NoError(t, json.Unmarshal([]byte(char.DataJSON), &data))
-	// dnd5e should have str rolled
+	// setupCampaign uses dnd5e — str must be present
 	assert.Contains(t, data, "str")
-}
-
-func TestCreateCharacter_noRandomStats(t *testing.T) {
-	s := newTestMCP(t)
-	campID, _, _ := setupCampaign(t, s)
-	require.NoError(t, s.db.SetSetting("active_campaign_id", strconv.FormatInt(campID, 10)))
-
-	req := mcplib.CallToolRequest{}
-	req.Params.Arguments = map[string]any{"name": "Blank"}
-	result, err := s.handleCreateCharacter(context.Background(), req)
-	require.NoError(t, err)
-	require.False(t, result.IsError)
-
-	charIDStr, _ := s.db.GetSetting("active_character_id")
-	charID, _ := strconv.ParseInt(charIDStr, 10, 64)
-	char, err := s.db.GetCharacter(charID)
-	require.NoError(t, err)
-	require.NotNil(t, char)
-
-	var data map[string]any
-	require.NoError(t, json.Unmarshal([]byte(char.DataJSON), &data))
-	assert.Empty(t, data)
 }
