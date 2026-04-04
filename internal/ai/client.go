@@ -142,7 +142,18 @@ func (c *Client) Respond(ctx context.Context, system string, history []ChatMessa
 	if len(result.Content) == 0 {
 		return "", fmt.Errorf("empty response from Anthropic")
 	}
-	return result.Content[0].Text, nil
+	return stripEmDash(result.Content[0].Text), nil
+}
+
+// stripEmDash replaces em-dashes with context-appropriate punctuation so they
+// never appear in GM output regardless of model behaviour.
+// " — " (spaced) becomes ", "; bare "—" becomes ", ".
+func stripEmDash(s string) string {
+	s = strings.ReplaceAll(s, " — ", ", ")
+	s = strings.ReplaceAll(s, "— ", ", ")
+	s = strings.ReplaceAll(s, " —", ",")
+	s = strings.ReplaceAll(s, "—", ", ")
+	return s
 }
 
 // StreamRespond sends a streaming request to the Anthropic Messages API and
@@ -203,8 +214,9 @@ func (c *Client) StreamRespond(ctx context.Context, system string, history []Cha
 			continue
 		}
 		if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" && event.Delta.Text != "" {
-			fullText.WriteString(event.Delta.Text)
-			fmt.Fprintf(w, "data: %s\n\n", event.Delta.Text) //nolint:errcheck
+			text := stripEmDash(event.Delta.Text)
+			fullText.WriteString(text)
+			fmt.Fprintf(w, "data: %s\n\n", text) //nolint:errcheck
 			if canFlush {
 				flusher.Flush()
 			}
