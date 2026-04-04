@@ -102,6 +102,8 @@ func TestCloseCampaign(t *testing.T) {
 	c, err := d.GetCampaign(id)
 	require.NoError(t, err)
 	assert.False(t, c.Active)
+
+	assert.Error(t, d.CloseCampaign(99999))
 }
 
 func TestReopenCampaign(t *testing.T) {
@@ -111,9 +113,13 @@ func TestReopenCampaign(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, d.CloseCampaign(id))
 
+	c, err := d.GetCampaign(id)
+	require.NoError(t, err)
+	assert.False(t, c.Active)
+
 	require.NoError(t, d.ReopenCampaign(id))
 
-	c, err := d.GetCampaign(id)
+	c, err = d.GetCampaign(id)
 	require.NoError(t, err)
 	assert.True(t, c.Active)
 }
@@ -124,12 +130,16 @@ func TestGetCampaignStats(t *testing.T) {
 	campID, err := d.CreateCampaign(rs.ID, "Test", "")
 	require.NoError(t, err)
 
+	stats, err := d.GetCampaignStats(campID)
+	require.NoError(t, err)
+	assert.Equal(t, CampaignStats{}, stats)
+
 	_, err = d.CreateCharacter(campID, "Hero")
 	require.NoError(t, err)
 	_, err = d.CreateSession(campID, "S1", "2026-04-01")
 	require.NoError(t, err)
 
-	stats, err := d.GetCampaignStats(campID)
+	stats, err = d.GetCampaignStats(campID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.Sessions)
 	assert.Equal(t, 1, stats.Characters)

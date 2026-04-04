@@ -214,6 +214,9 @@ func (d *DB) ListCharacters(campaignID int64) ([]Character, error) {
 	return out, rows.Err()
 }
 
+// CloseCampaign sets active = 0 for the given campaign.
+// Returns an error if the campaign does not exist.
+// Idempotent: closing an already-closed campaign is a no-op.
 func (d *DB) CloseCampaign(id int64) error {
 	res, err := d.db.Exec("UPDATE campaigns SET active = 0 WHERE id = ?", id)
 	if err != nil {
@@ -229,6 +232,9 @@ func (d *DB) CloseCampaign(id int64) error {
 	return nil
 }
 
+// ReopenCampaign sets active = 1 for the given campaign.
+// Returns an error if the campaign does not exist.
+// Idempotent: reopening an already-open campaign is a no-op.
 func (d *DB) ReopenCampaign(id int64) error {
 	res, err := d.db.Exec("UPDATE campaigns SET active = 1 WHERE id = ?", id)
 	if err != nil {
@@ -253,20 +259,26 @@ type CampaignStats struct {
 }
 
 func (d *DB) GetCampaignStats(id int64) (CampaignStats, error) {
+	tx, err := d.db.Begin()
+	if err != nil {
+		return CampaignStats{}, err
+	}
+	defer tx.Rollback()
+
 	var s CampaignStats
-	if err := d.db.QueryRow("SELECT COUNT(*) FROM sessions WHERE campaign_id = ?", id).Scan(&s.Sessions); err != nil {
+	if err := tx.QueryRow("SELECT COUNT(*) FROM sessions WHERE campaign_id = ?", id).Scan(&s.Sessions); err != nil {
 		return s, err
 	}
-	if err := d.db.QueryRow("SELECT COUNT(*) FROM characters WHERE campaign_id = ?", id).Scan(&s.Characters); err != nil {
+	if err := tx.QueryRow("SELECT COUNT(*) FROM characters WHERE campaign_id = ?", id).Scan(&s.Characters); err != nil {
 		return s, err
 	}
-	if err := d.db.QueryRow("SELECT COUNT(*) FROM world_notes WHERE campaign_id = ?", id).Scan(&s.WorldNotes); err != nil {
+	if err := tx.QueryRow("SELECT COUNT(*) FROM world_notes WHERE campaign_id = ?", id).Scan(&s.WorldNotes); err != nil {
 		return s, err
 	}
-	if err := d.db.QueryRow("SELECT COUNT(*) FROM maps WHERE campaign_id = ?", id).Scan(&s.Maps); err != nil {
+	if err := tx.QueryRow("SELECT COUNT(*) FROM maps WHERE campaign_id = ?", id).Scan(&s.Maps); err != nil {
 		return s, err
 	}
-	return s, nil
+	return s, tx.Commit()
 }
 
 func (d *DB) DeleteCampaign(id int64) error {
