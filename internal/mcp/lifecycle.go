@@ -188,7 +188,7 @@ func (s *Server) handleCloseCampaign(_ context.Context, req mcplib.CallToolReque
 		return mcplib.NewToolResultError(fmt.Sprintf("campaign %d not found", id)), nil
 	}
 
-	// Check if there is an active session belonging to this campaign.
+	// Guard checks the active_session_id setting only; does not scan all sessions in the DB.
 	sessIDStr, _ := s.db.GetSetting("active_session_id")
 	if sessIDStr != "" {
 		sessID, parseErr := strconv.ParseInt(sessIDStr, 10, 64)
@@ -282,10 +282,24 @@ func (s *Server) handleDeleteCampaign(_ context.Context, req mcplib.CallToolRequ
 			_ = s.db.SetSetting("active_campaign_id", "")
 		}
 	}
-	// active_session_id — clear if the session was in this campaign (already deleted).
-	_ = s.db.SetSetting("active_session_id", "")
-	// active_character_id — clear if the character was in this campaign (already deleted).
-	_ = s.db.SetSetting("active_character_id", "")
+	// active_session_id — clear only if the session belonged to this campaign.
+	if sessIDStr, _ := s.db.GetSetting("active_session_id"); sessIDStr != "" {
+		if sessID, parseErr := strconv.ParseInt(sessIDStr, 10, 64); parseErr == nil && sessID > 0 {
+			sess, sessErr := s.db.GetSession(sessID)
+			if sessErr == nil && (sess == nil || sess.CampaignID == id) {
+				_ = s.db.SetSetting("active_session_id", "")
+			}
+		}
+	}
+	// active_character_id — clear only if the character belonged to this campaign.
+	if charIDStr, _ := s.db.GetSetting("active_character_id"); charIDStr != "" {
+		if charID, parseErr := strconv.ParseInt(charIDStr, 10, 64); parseErr == nil && charID > 0 {
+			char, charErr := s.db.GetCharacter(charID)
+			if charErr == nil && (char == nil || char.CampaignID == id) {
+				_ = s.db.SetSetting("active_character_id", "")
+			}
+		}
+	}
 
 	s.bus.Publish(api.Event{Type: api.EventCampaignDeleted, Payload: map[string]any{"campaign_id": id}})
 	return mcplib.NewToolResultText(fmt.Sprintf("campaign %d deleted", id)), nil

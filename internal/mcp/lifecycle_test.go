@@ -197,6 +197,7 @@ func TestDeleteCampaign_withoutConfirm(t *testing.T) {
 func TestDeleteCampaign_withConfirm(t *testing.T) {
 	s := newTestMCP(t)
 	campID, _, _ := setupCampaign(t, s)
+	require.NoError(t, s.db.SetSetting("active_campaign_id", strconv.FormatInt(campID, 10)))
 
 	req := mcplib.CallToolRequest{}
 	req.Params.Arguments = map[string]any{
@@ -216,6 +217,49 @@ func TestDeleteCampaign_withConfirm(t *testing.T) {
 	camp, err := s.db.GetCampaign(campID)
 	require.NoError(t, err)
 	assert.Nil(t, camp)
+
+	// active_campaign_id should be cleared.
+	v, _ := s.db.GetSetting("active_campaign_id")
+	assert.Empty(t, v)
+}
+
+func TestDeleteCampaign_doesNotClearOtherCampaignSettings(t *testing.T) {
+	s := newTestMCP(t)
+
+	// Create campA with a session and character.
+	campAID, charAID, sessAID := setupCampaign(t, s)
+
+	// Create campB (a second campaign).
+	rs, err := s.db.GetRulesetByName("dnd5e")
+	require.NoError(t, err)
+	require.NotNil(t, rs)
+	campBID, err := s.db.CreateCampaign(rs.ID, "Campaign B", "")
+	require.NoError(t, err)
+
+	// Point all active settings to campA's entities.
+	require.NoError(t, s.db.SetSetting("active_campaign_id", strconv.FormatInt(campAID, 10)))
+	require.NoError(t, s.db.SetSetting("active_session_id", strconv.FormatInt(sessAID, 10)))
+	require.NoError(t, s.db.SetSetting("active_character_id", strconv.FormatInt(charAID, 10)))
+
+	// Delete campB (not campA).
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		"campaign_id": float64(campBID),
+		"confirm":     true,
+	}
+	result, err := s.handleDeleteCampaign(context.Background(), req)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	// All settings should still point to campA's entities.
+	v, _ := s.db.GetSetting("active_campaign_id")
+	assert.Equal(t, strconv.FormatInt(campAID, 10), v)
+
+	v, _ = s.db.GetSetting("active_session_id")
+	assert.Equal(t, strconv.FormatInt(sessAID, 10), v)
+
+	v, _ = s.db.GetSetting("active_character_id")
+	assert.Equal(t, strconv.FormatInt(charAID, 10), v)
 }
 
 func TestDeleteCampaign_requiresCampaignID(t *testing.T) {
