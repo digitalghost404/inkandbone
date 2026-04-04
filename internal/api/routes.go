@@ -910,6 +910,97 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	}})
 
 	go s.extractNPCs(context.Background(), id, fullText)
+	go s.autoGenerateMap(context.Background(), id, fullText)
+}
+
+// autoGenerateMap detects if the GM response introduces a new location and, if
+// so, generates an SVG map for it automatically. Runs in a background goroutine.
+func (s *Server) autoGenerateMap(ctx context.Context, sessionID int64, gmText string) {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+	responder, ok2 := s.aiClient.(ai.Responder)
+	if !ok2 {
+		return
+	}
+
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+
+	existing, _ := s.db.ListMaps(sess.CampaignID)
+	existingNames := make([]string, len(existing))
+	for i, m := range existing {
+		existingNames[i] = m.Name
+	}
+
+	excludeClause := ""
+	if len(existingNames) > 0 {
+		excludeClause = fmt.Sprintf("\nDo NOT generate a map for these already-mapped locations: %s.", strings.Join(existingNames, ", "))
+	}
+
+	detectPrompt := fmt.Sprintf(`Analyze this story passage. Has the player character moved to a distinctly new location that warrants its own map (a new building, room complex, district, facility, dungeon level, etc.)?%s
+
+If YES, return ONLY this JSON (no explanation, no markdown):
+{"new_location":true,"name":"The Research Facility","context":"Concise description for map generation: layout, atmosphere, key areas and features"}
+
+If NO (same location, vague movement, transition prose, or already mapped), return ONLY:
+{"new_location":false}
+
+Story passage:
+%s`, excludeClause, gmText)
+
+	raw, err := completer.Generate(ctx, detectPrompt)
+	if err != nil {
+		return
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start < 0 || end <= start {
+		return
+	}
+
+	var loc struct {
+		NewLocation bool   `json:"new_location"`
+		Name        string `json:"name"`
+		Context     string `json:"context"`
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &loc); err != nil || !loc.NewLocation || loc.Name == "" {
+		return
+	}
+
+	mapPrompt := "Generate a map for this TTRPG setting:\n\n" + loc.Context
+	svgRaw, err := responder.Respond(ctx, mapSystemPrompt, []ai.ChatMessage{{Role: "user", Content: mapPrompt}}, 4096)
+	if err != nil {
+		return
+	}
+
+	svgContent := extractSVG(svgRaw)
+	if svgContent == "" {
+		return
+	}
+
+	destDir := filepath.Join(s.dataDir, "maps")
+	if err := os.MkdirAll(destDir, 0750); err != nil {
+		return
+	}
+	filename := "map_" + randomHex(8) + ".svg"
+	if err := os.WriteFile(filepath.Join(destDir, filename), []byte(svgContent), 0640); err != nil {
+		return
+	}
+
+	mapID, err := s.db.CreateMap(sess.CampaignID, loc.Name, "maps/"+filename)
+	if err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: EventMapCreated, Payload: map[string]any{
+		"campaign_id": sess.CampaignID,
+		"map_id":      mapID,
+	}})
 }
 
 type rollCheckResult struct {
