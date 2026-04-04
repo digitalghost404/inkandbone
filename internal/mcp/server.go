@@ -151,6 +151,17 @@ func (s *Server) registerTools() {
 		mcplib.WithDescription("List all campaigns."),
 	), s.handleListCampaigns)
 
+	s.srv.AddTool(mcplib.NewTool("close_campaign",
+		mcplib.WithDescription("Soft-close a campaign (marks inactive, preserves data). Errors if a session is currently open."),
+		mcplib.WithNumber("campaign_id", mcplib.Description("Campaign ID (defaults to active campaign)")),
+	), s.handleCloseCampaign)
+
+	s.srv.AddTool(mcplib.NewTool("delete_campaign",
+		mcplib.WithDescription("Permanently delete a campaign and all its data. Requires confirm: true."),
+		mcplib.WithNumber("campaign_id", mcplib.Required(), mcplib.Description("Campaign ID")),
+		mcplib.WithBoolean("confirm", mcplib.Required(), mcplib.Description("Must be true to proceed with deletion")),
+	), s.handleDeleteCampaign)
+
 	s.srv.AddTool(mcplib.NewTool("create_character",
 		mcplib.WithDescription("Create a new player character in the active campaign and make them active. Starting stats are automatically rolled for the campaign's ruleset."),
 		mcplib.WithString("name", mcplib.Required(), mcplib.Description("Character name")),

@@ -165,3 +165,123 @@ func (s *Server) handleListSessions(_ context.Context, req mcplib.CallToolReques
 	}
 	return mcplib.NewToolResultText(string(b)), nil
 }
+
+func (s *Server) handleCloseCampaign(_ context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+	// Resolve campaign ID.
+	var id int64
+	if paramID, ok := optInt64(req, "campaign_id"); ok && paramID > 0 {
+		id = paramID
+	} else {
+		var err error
+		id, err = s.activeCampaignID()
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+	}
+
+	// Load the campaign.
+	campaign, err := s.db.GetCampaign(id)
+	if err != nil {
+		return mcplib.NewToolResultError("db error: " + err.Error()), nil
+	}
+	if campaign == nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("campaign %d not found", id)), nil
+	}
+
+	// Check if there is an active session belonging to this campaign.
+	sessIDStr, _ := s.db.GetSetting("active_session_id")
+	var activeSessionCampaignID int64
+	if sessIDStr != "" {
+		sessID, parseErr := strconv.ParseInt(sessIDStr, 10, 64)
+		if parseErr == nil && sessID > 0 {
+			sess, sessErr := s.db.GetSession(sessID)
+			if sessErr != nil {
+				return mcplib.NewToolResultError("db error: " + sessErr.Error()), nil
+			}
+			if sess != nil && sess.CampaignID == id {
+				return mcplib.NewToolResultError("end your current session before closing the campaign"), nil
+			}
+			if sess != nil {
+				activeSessionCampaignID = sess.CampaignID
+			}
+		}
+	}
+	_ = activeSessionCampaignID
+
+	// Close the campaign.
+	if err := s.db.CloseCampaign(id); err != nil {
+		return mcplib.NewToolResultError("close campaign: " + err.Error()), nil
+	}
+
+	// Clear active_campaign_id if it points to this campaign.
+	if campIDStr, _ := s.db.GetSetting("active_campaign_id"); campIDStr != "" {
+		if activeCampID, parseErr := strconv.ParseInt(campIDStr, 10, 64); parseErr == nil && activeCampID == id {
+			_ = s.db.SetSetting("active_campaign_id", "")
+		}
+	}
+
+	// Clear active_character_id if the character belongs to this campaign.
+	if charIDStr, _ := s.db.GetSetting("active_character_id"); charIDStr != "" {
+		if charID, parseErr := strconv.ParseInt(charIDStr, 10, 64); parseErr == nil && charID > 0 {
+			char, charErr := s.db.GetCharacter(charID)
+			if charErr == nil && char != nil && char.CampaignID == id {
+				_ = s.db.SetSetting("active_character_id", "")
+			}
+		}
+	}
+
+	s.bus.Publish(api.Event{Type: api.EventCampaignClosed, Payload: map[string]any{"campaign_id": id}})
+	return mcplib.NewToolResultText(fmt.Sprintf("campaign %d closed: %s", id, campaign.Name)), nil
+}
+
+func (s *Server) handleDeleteCampaign(_ context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+	// campaign_id is required.
+	id, ok := optInt64(req, "campaign_id")
+	if !ok || id == 0 {
+		return mcplib.NewToolResultError("campaign_id is required"), nil
+	}
+
+	// Read confirm bool.
+	args := req.GetArguments()
+	confirm, _ := args["confirm"].(bool)
+
+	// Load the campaign.
+	campaign, err := s.db.GetCampaign(id)
+	if err != nil {
+		return mcplib.NewToolResultError("db error: " + err.Error()), nil
+	}
+	if campaign == nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("campaign %d not found", id)), nil
+	}
+
+	if !confirm {
+		stats, statsErr := s.db.GetCampaignStats(id)
+		if statsErr != nil {
+			return mcplib.NewToolResultError("db error: " + statsErr.Error()), nil
+		}
+		msg := fmt.Sprintf(
+			"campaign %d %q and all its data will be permanently deleted:\n  - %d sessions, %d characters, %d world notes, %d maps\ncall delete_campaign again with confirm: true to proceed",
+			id, campaign.Name, stats.Sessions, stats.Characters, stats.WorldNotes, stats.Maps,
+		)
+		return mcplib.NewToolResultError(msg), nil
+	}
+
+	// confirmed — delete.
+	if err := s.db.DeleteCampaign(id); err != nil {
+		return mcplib.NewToolResultError("delete campaign: " + err.Error()), nil
+	}
+
+	// Clear settings that belonged to this campaign.
+	if campIDStr, _ := s.db.GetSetting("active_campaign_id"); campIDStr != "" {
+		if activeCampID, parseErr := strconv.ParseInt(campIDStr, 10, 64); parseErr == nil && activeCampID == id {
+			_ = s.db.SetSetting("active_campaign_id", "")
+		}
+	}
+	// active_session_id — clear if the session was in this campaign (already deleted).
+	_ = s.db.SetSetting("active_session_id", "")
+	// active_character_id — clear if the character was in this campaign (already deleted).
+	_ = s.db.SetSetting("active_character_id", "")
+
+	s.bus.Publish(api.Event{Type: api.EventCampaignDeleted, Payload: map[string]any{"campaign_id": id}})
+	return mcplib.NewToolResultText(fmt.Sprintf("campaign %d deleted", id)), nil
+}
