@@ -10,11 +10,11 @@ build:
 	cd web && npm run build
 	go build -o ttrpg ./cmd/ttrpg
 
-# Install binary to ~/bin
+# Install binary to ~/bin (preserves the ttrpg wrapper script)
 install: build
 	mkdir -p ~/bin
-	cp ttrpg ~/bin/ttrpg
-	@echo "Installed to ~/bin/ttrpg"
+	cp ttrpg ~/bin/ttrpg-bin
+	@echo "Installed to ~/bin/ttrpg-bin"
 
 # Run all Go tests
 test:
