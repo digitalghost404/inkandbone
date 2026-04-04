@@ -303,6 +303,81 @@ func randomHex(n int) string {
 	return fmt.Sprintf("%x", b)
 }
 
+func (s *Server) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.Role != "user" && body.Role != "assistant" {
+		http.Error(w, "role must be user or assistant", http.StatusBadRequest)
+		return
+	}
+	if body.Content == "" {
+		http.Error(w, "content is required", http.StatusBadRequest)
+		return
+	}
+	msgID, err := s.db.CreateMessage(id, body.Role, body.Content)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventMessageCreated, Payload: map[string]any{
+		"session_id": id,
+		"message_id": msgID,
+		"role":       body.Role,
+	}})
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (s *Server) handlePatchCampaign(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Active *bool `json:"active"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.Active == nil {
+		http.Error(w, "active is required", http.StatusBadRequest)
+		return
+	}
+	var err error
+	if *body.Active {
+		err = s.db.ReopenCampaign(id)
+	} else {
+		err = s.db.CloseCampaign(id)
+		if err == nil {
+			// Clear active context settings so the UI resets to blank.
+			for _, key := range []string{"active_campaign_id", "active_character_id", "active_session_id"} {
+				_ = s.db.SetSetting(key, "")
+			}
+		}
+	}
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
 	id, ok := parsePathID(r, "id")
 	if !ok {

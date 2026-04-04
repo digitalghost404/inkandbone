@@ -65,11 +65,59 @@ Repeat. That's it. You play from Claude Code. The browser is your always-open re
 
 ---
 
+## The Dashboard
+
+![ink & bone UI — Dangerous Ambition campaign, Session 1](docs/ui-screenshot.png)
+
+> Save your screenshot to `docs/ui-screenshot.png` to render the image above.
+
+The dashboard is a three-column layout built around an active play session. Here is what each part of the interface does.
+
+### Left Column — Character Sheet
+
+The leftmost panel is your character's stat sheet, updated live as the game progresses. It shows:
+
+- **Portrait area** — the circular image at the top. Click it to upload a JPG, PNG, GIF, or WebP portrait (up to 5 MB). If no portrait is uploaded, the character's initial is shown instead.
+- **All ruleset fields** — every field defined by the campaign's ruleset appears here as an editable input. For Wrath & Glory (shown above): Archetype (Cultist), Faction (Khorne), Rank, the seven characteristics (Strength, Agility, Toughness, Intellect, Willpower, Fellowship, Initiative), Wounds, Shock, Resilience, Determination, Defence, Resolve, Conviction, Wrath, Glory, Ruin, Keywords, and Notes.
+- **Auto-rolled on creation** — when a character is created, every field is populated automatically. Numeric stats are rolled for the system; text fields (archetype, faction, clan, career, species, etc.) are chosen from the canonical options for that ruleset. Nothing is left blank.
+- **Live editing** — change any field directly in the browser. Changes save immediately without a page reload.
+
+### Center Column — Session Transcript
+
+The main panel is the session log — a live, scrolling record of everything said in the current session:
+
+- **GM narration** (larger text blocks, unmarked) — the Game Master's responses describing what happens, written by Claude. Italic asterisks signal in-world emphasis (`*committed*`, `*perfect*`). The prose reflects the tone of the ruleset: Wrath & Glory narration is brutal and grimdark; Ironsworn narration is sparse and mythic.
+- **Player actions** (italic, indented, smaller) — what the player declared, shown verbatim under the label "XAVIER SPEAKS" (or whichever character is active). For example: *Stare at the woman intensely to try to determine what her objective is.*
+- **Separator diamonds** (◆) — mark boundaries between turns.
+- **Session header** — shows the session number and date at the top of the log.
+- All messages are saved permanently and persist between sessions.
+
+### Right Column — Notes and Journal
+
+The right panel has two tabs:
+
+- **Notes** — the World Notes tab. Shows NPC, location, faction, and item notes for the active campaign. In the screenshot, "Blood Debt in the Underhive" is a world note summarizing Xavier's current situation — his obligation to a crime boss and the contract he's been given. Click any note to read the full text. Use the search bar to filter by keyword or category.
+- **Journal** — the session journal. Write a freeform summary, or click "Generate recap" to have Claude AI draft a summary of everything that happened in the session. The recap is saved permanently.
+
+### Bottom Bar
+
+The campaign tab strip at the very bottom shows your open campaigns. The active campaign (Dangerous Ambition, shown in the screenshot) is highlighted. Click a campaign tab to switch between them.
+
+### Header (Not Shown)
+
+Above the session log, the header shows: campaign name → character name → session title as a breadcrumb. Portraits appear here when uploaded.
+
+### Live Updates
+
+The dashboard updates in real time via WebSocket — no manual refresh needed. When Claude calls a tool (rolls dice, creates a world note, updates your HP, posts a message), the relevant panel updates within milliseconds. The WebSocket reconnects automatically after a 2-second delay if the connection drops.
+
+---
+
 ## Choose Your Game (Rulesets)
 
 A "ruleset" is the game system — the set of rules that govern how your story works, what abilities your character has, and how dice are used. Think of rulesets like different board games: each has different pieces, different rules, and a different feel.
 
-ink & bone comes with five built-in games. **Choose one before installing.** Each is designed for different types of stories.
+ink & bone comes with **13 built-in game systems**. **Choose one before installing.** Each is designed for different types of stories.
 
 ### Dungeons & Dragons 5th Edition (`dnd5e`)
 
@@ -132,6 +180,102 @@ ink & bone comes with five built-in games. **Choose one before installing.** Eac
 **Good for beginners?** No — fast-paced action requires quick decision-making and the setting assumes sci-fi familiarity.
 
 **Your character sheet has:** role (your archetype), nine core abilities (intelligence, reflexes, cool, technical ability, luck, attractiveness, movement allowance, empathy, body type), humanity (how much chrome you can have before losing yourself), eurodollars (money), skills, cyberware (implants), gear, and notes.
+
+---
+
+### Shadowrun 6th Edition (`shadowrun`)
+
+**What it's about:** Near-future dystopia where magic returned alongside megacorporations and cyberware. You're a "runner" — a deniable criminal operative taking jobs from fixers, stealing from corps, and surviving in the shadows of Seattle or other megaplexes.
+
+**Good for:** Fans of both fantasy and cyberpunk who want both at once. Complex, high-stakes stories where every run is a puzzle.
+
+**Good for beginners?** No — one of the most mechanically complex games on this list. Better as a second or third system.
+
+**Your character sheet has:** metatype (human/elf/dwarf/ork/troll), priority (character build allocation), six physical and mental attributes, edge, essence (lost when you install cyberware), physical/mental/social limits, nuyen (money), karma, reputation, notoriety, and notes.
+
+---
+
+### Warhammer Fantasy Roleplay 4th Edition (`wfrp`)
+
+**What it's about:** Grimdark low fantasy in the Old World — a crumbling empire beset by chaos, plague, and political rot. You're a rat-catcher, a soldier, a witch hunter, or a merchant trying to survive in a world that wants to kill you.
+
+**Good for:** Dark, grounded fantasy. Mortality is real — characters can die from infections. Stories about ordinary people in extraordinary (terrible) circumstances.
+
+**Good for beginners?** No — the tone is unforgiving and the rules reward system knowledge.
+
+**Your character sheet has:** species (human/halfling/dwarf/high elf/wood elf), career, career level, eight core characteristics (Weapon Skill, Ballistic Skill, Strength, Toughness, Agility, Intelligence, Willpower, Fellowship), wounds, fate/fortune points, resilience/resolve, experience, ambitions, and notes.
+
+---
+
+### Star Wars: Edge of the Empire (`starwars`)
+
+**What it's about:** The Star Wars universe from the margins — smugglers, bounty hunters, crime lords, and scoundrels operating in the Outer Rim, avoiding (or working for) Hutts, Imperials, and everyone in between. Not the saga of the Jedi.
+
+**Good for:** Players who want the feel of Han Solo, not Luke Skywalker. Great for heist-style adventures and moral ambiguity. The narrative dice system creates cinematic, story-driven play.
+
+**Good for beginners?** Yes for narrative-focused players — the dice tell you *how* things succeed or fail, not just whether. A bit abstract at first.
+
+**Your character sheet has:** species, career, specialization, six characteristics (Brawn/Agility/Intellect/Cunning/Willpower/Presence), wounds threshold/current, strain threshold/current, soak value, defense ratings, obligation (your debt to the galaxy), credits, Force rating, and notes.
+
+---
+
+### Legend of the Five Rings 5th Edition (`l5r`)
+
+**What it's about:** Feudal Japanese-inspired fantasy where you play a samurai in the Emerald Empire — navigating honor, clan politics, and supernatural threats. The tension between duty and desire is the heart of every story.
+
+**Good for:** Players who want deep roleplay, political intrigue, and morally complex choices. Every action has social consequences.
+
+**Good for beginners?** No — the honor mechanics and political layering require investment.
+
+**Your character sheet has:** clan (Crab/Crane/Dragon/Lion/Phoenix/Scorpion/Unicorn/Mantis), family, school, school rank, five rings (Air/Earth/Fire/Water/Void), endurance, composure, focus, vigilance, glory, honor, status, experience, and notes.
+
+---
+
+### The One Ring 2nd Edition (`theonering`)
+
+**What it's about:** Tolkien's Middle-earth — the world of *The Hobbit* and *The Lord of the Rings* — played as a fellowship of companions on journeys through the Wilderland, Rohan, or the shores of Númenor. Shadow and hope are mechanical forces.
+
+**Good for:** Tolkien fans who want an authentic Middle-earth feel, not a D&D reskin. The Fellowship Phase between adventures is as important as the adventuring phase.
+
+**Good for beginners?** Yes — the rules are elegant and the setting immediately familiar to most players.
+
+**Your character sheet has:** culture (Hobbit/Dwarf/Elf/Ranger/Rohan/etc.), calling (your character's purpose), Body/Heart/Wits, endurance, hope, Shadow Points and scars, Valour, Wisdom, standing, fellowship score, and notes.
+
+---
+
+### Warhammer 40,000: Wrath & Glory (`wrath_glory`)
+
+**What it's about:** The grimdark 41st millennium. Space marines, chaos cultists, inquisitors, and xenos fight for survival across a galaxy at war. There is only war. You can play heroes of the Imperium or its enemies.
+
+**Good for:** Warhammer 40K fans. High-lethality combat. Stories about conviction, sacrifice, and the horror of the far future.
+
+**Good for beginners?** No — the setting is dense and the tone is extreme.
+
+**Your character sheet has:** archetype (Acolyte/Psyker/Warrior/etc.), faction (Adeptus Astartes/Astra Militarum/Chaos/Tau/etc.), rank, seven characteristics (Strength/Agility/Toughness/Intellect/Willpower/Fellowship/Initiative), wounds, shock, resilience, determination, defence, Resolve, Conviction, Wrath, Glory, Ruin, keywords, and notes.
+
+---
+
+### Blades in the Dark (`blades`)
+
+**What it's about:** You're a crew of scoundrels in Doskvol, a Victorian-industrial city of canals, ghosts, and crime syndicates. You pull scores — heists, assassinations, cons — and manage the consequences. The city is always pushing back.
+
+**Good for:** Heist stories. Crew dynamics. A city that feels alive. The "flashback" mechanic lets you retroactively establish preparations you made before a score.
+
+**Good for beginners?** Yes — the fictional framing is flexible and the rules are designed around imperfect success rather than failure.
+
+**Your character sheet has:** playbook (your crew role), heritage, background, vice, twelve action ratings (Hunt/Study/Survey/Tinker/Finesse/Prowl/Skirmish/Wreck/Attune/Command/Consort/Sway), stress, trauma, coin, stash, load, experience clocks, and notes.
+
+---
+
+### Paranoia (`paranoia`)
+
+**What it's about:** A satirical dark comedy set in Alpha Complex — a dystopian underground city ruled by an insane AI called The Computer. You're a Troubleshooter tasked with eliminating threats to The Computer. Your fellow Troubleshooters are also threats to The Computer. Everyone is a traitor. Have fun, citizen.
+
+**Good for:** One-shots, comedy, absurdist adventures. Works best when everyone is playing for laughs and doesn't mind their character dying (repeatedly — you have six clones).
+
+**Good for beginners?** Yes for tone (no system mastery needed), no for group chemistry (requires the right table).
+
+**Your character sheet has:** full name, sector, security clearance, management style, power group, secret society, five personality ratings (Violence/Treachery/Happiness/Straight/Moxie), credits, clone number, treason points, and notes.
 
 ---
 
@@ -406,7 +550,7 @@ Claude: I've created your campaign and character. Kael is an Ironsworn warrior r
 Check the dashboard. You see:
 - Campaign name: "The Ironlands"
 - Character name: "Kael"
-- Character sheet with Kael's stats already filled in (randomly rolled for the ruleset)
+- Character sheet with Kael's stats already filled in — every field auto-generated for the ruleset. Numeric stats are rolled, text fields (race, class, archetype, faction, clan, career, species, etc.) are randomly picked from the canonical options for that system. Nothing is left blank.
 
 ### Start a Session
 
@@ -848,6 +992,11 @@ GET /api/campaigns/{id}/world-notes?q=text&category=npc&tag=mytag
 GET /api/campaigns/{id}/maps
 → []CampaignMap
 
+PATCH /api/campaigns/{id}
+Body: { "active": false }
+→ 204 No Content
+Clears active_campaign_id, active_character_id, active_session_id from settings when closing.
+
 POST /api/campaigns/{id}/maps
 Content-Type: multipart/form-data
 Fields: image (file), name (string)
@@ -863,6 +1012,11 @@ Body: { "hint": "mysterious fence in the docks district" }
 ```
 GET /api/sessions/{id}/messages
 → []Message
+
+POST /api/sessions/{id}/messages
+Body: { "role": "user" | "assistant", "content": "..." }
+→ 201 Created
+Inserts the message and fires a message_created WebSocket event — use this instead of writing directly to SQLite to get live UI updates.
 
 GET /api/sessions/{id}/dice-rolls
 → []DiceRoll
@@ -955,12 +1109,15 @@ Connect to `ws://localhost:7432/ws`. The server broadcasts JSON events on every 
 | `type` | Trigger | Payload keys |
 |---|---|---|
 | `campaign_created` | Campaign created | `campaign_id`, `name` |
+| `campaign_closed` | Campaign soft-closed | `campaign_id` |
+| `campaign_reopened` | Closed campaign reactivated | `campaign_id` |
+| `campaign_deleted` | Campaign permanently deleted | `campaign_id` |
 | `character_created` | Character created | `character_id`, `name` |
 | `character_updated` | Character data or portrait changed | `character_id`, optionally `portrait_path` |
 | `session_started` | Session created | `session_id`, `title` |
 | `session_ended` | Session closed | `session_id` |
 | `session_updated` | Session summary changed | `session_id`, `summary` |
-| `message_created` | Narrative logged to session | `session_id`, `content` |
+| `message_created` | Narrative logged to session | `session_id`, `message_id`, `role` |
 | `dice_rolled` | Dice roll logged | `expression`, `total`, `breakdown` |
 | `combat_started` | Encounter created | `encounter_id`, `name` |
 | `combatant_updated` | Combatant HP or conditions changed | `combatant_id` |
