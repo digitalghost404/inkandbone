@@ -202,28 +202,51 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
         </div>
       )}
 
-      {/* Other fields — plain inputs (non-Ironsworn rulesets) */}
-      {otherFields.map((field) => (
-        <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-          <label style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--gold-dim)', fontFamily: 'var(--serif)' }}>
-            {field.label}
-            {field.type === 'textarea' ? (
-              <textarea
-                value={fields[field.key] ?? ''}
-                onChange={(e) => handleChange(field.key, e.target.value)}
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px', padding: '0.25rem', fontFamily: 'inherit', resize: 'vertical', minHeight: '3rem' }}
-              />
-            ) : (
-              <input
-                type={field.type}
-                value={fields[field.key] ?? ''}
-                onChange={(e) => handleChange(field.key, e.target.value)}
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px', padding: '0.25rem 0.4rem' }}
-              />
+      {/* Other fields — number fields in 2-col grid, text/textarea full width */}
+      {(() => {
+        const numFields = otherFields.filter((f) => f.type === 'number')
+        const wideFields = otherFields.filter((f) => f.type !== 'number')
+        const labelStyle: React.CSSProperties = { fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--gold-dim)', fontFamily: 'var(--serif)', display: 'flex', flexDirection: 'column', gap: '2px' }
+        const inputStyle: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px', padding: '0.15rem 0.3rem', width: '100%' }
+        return (
+          <>
+            {numFields.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 0.5rem' }}>
+                {numFields.map((field) => (
+                  <label key={field.key} style={labelStyle}>
+                    {field.label}
+                    <input
+                      type="number"
+                      value={fields[field.key] ?? ''}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+                ))}
+              </div>
             )}
-          </label>
-        </div>
-      ))}
+            {wideFields.map((field) => (
+              <label key={field.key} style={{ ...labelStyle, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {field.label}
+                {field.type === 'textarea' ? (
+                  <textarea
+                    value={fields[field.key] ?? ''}
+                    onChange={(e) => handleChange(field.key, e.target.value)}
+                    style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical', minHeight: '3rem' }}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={fields[field.key] ?? ''}
+                    onChange={(e) => handleChange(field.key, e.target.value)}
+                    style={inputStyle}
+                  />
+                )}
+              </label>
+            ))}
+          </>
+        )
+      })()}
     </>
   )
 }
