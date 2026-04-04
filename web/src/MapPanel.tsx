@@ -40,8 +40,7 @@ export function MapPanel({ campaignId, lastEvent, onActiveMapChange }: MapPanelP
 
   useEffect(() => {
     setSelectedPin(null)
-    setActiveMapIdx(0)
-    loadMaps()
+    loadMaps(true)
   }, [campaignId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -90,11 +89,11 @@ export function MapPanel({ campaignId, lastEvent, onActiveMapChange }: MapPanelP
         </div>
       )}
       {activeMap && (
-        <div style={{ position: 'relative', flex: 1 }}>
+        <div style={{ position: 'relative', flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
           <img
             src={`/api/files/${activeMap.image_path}`}
             alt={activeMap.name}
-            style={{ width: '100%', display: 'block' }}
+            style={{ width: '100%', display: 'block', minWidth: '400px' }}
           />
           {pins.map((pin) => (
             <button
