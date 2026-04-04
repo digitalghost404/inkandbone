@@ -56,18 +56,19 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
   }
 
   return (
-    <section className="panel journal-panel">
-      <h2>Session Journal</h2>
+    <>
       <textarea
-        rows={6}
-        style={{ width: '100%' }}
+        className="journal-textarea"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={handleBlur}
+        placeholder="Your session journal…"
       />
-      <button disabled={!aiEnabled} onClick={handleGenerateRecap}>
-        Generate recap
-      </button>
-    </section>
+      {aiEnabled && (
+        <button className="ai-text-btn" onClick={handleGenerateRecap}>
+          Generate recap
+        </button>
+      )}
+    </>
   )
 }
