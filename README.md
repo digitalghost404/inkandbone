@@ -684,6 +684,46 @@ Set campaign 3 as active.
 
 You can run multiple campaigns and switch between them. Each has its own characters, sessions, and notes.
 
+**Close a campaign (soft-close):**
+
+Closing a campaign preserves all your data but marks it inactive so it won't appear in quick-access lists. To close the active campaign:
+
+```
+Close the campaign.
+```
+
+Or close a specific campaign:
+
+```
+Close campaign 2.
+```
+
+You can reopen a closed campaign anytime by setting it active again:
+
+```
+Set campaign 2 as active.
+```
+
+Switching to a closed campaign automatically reopens it — no separate command needed.
+
+**Delete a campaign (permanent):**
+
+Delete a campaign and all its data (sessions, characters, notes, maps, dice rolls). This cannot be undone.
+
+First, get a warning of what will be deleted:
+
+```
+Delete campaign 2.
+```
+
+Claude will show you exactly what will be lost. To actually delete, confirm:
+
+```
+Delete campaign 2 with confirm: true.
+```
+
+Only use delete if you're sure. Consider closing campaigns instead if you might want to revisit them later.
+
 ---
 
 ## For Developers
@@ -704,10 +744,20 @@ All tools are available to Claude Code once the MCP server is registered.
 |---|---|---|---|
 | `create_campaign` | `ruleset` (string), `name` (string) | `description` | Campaign created, activated |
 | `list_campaigns` | — | — | JSON array of campaigns |
-| `set_active` | At least one of `campaign_id`, `session_id`, `character_id` | — | Confirmation |
+| `set_active` | At least one of `campaign_id`, `session_id`, `character_id` | — | Confirmation; auto-reopens closed campaigns |
+| `close_campaign` | — | `campaign_id` (defaults to active) | Campaign soft-closed; data preserved |
+| `delete_campaign` | `campaign_id` (number), `confirm` (bool) | — | Campaign and all data permanently deleted (only if `confirm: true`) |
 | `start_session` | `title` (string), `date` (YYYY-MM-DD) | `narrative` | Session created, activated |
 | `end_session` | `summary` (string) | `narrative` | Session closed |
 | `list_sessions` | — | `campaign_id` | JSON array of sessions |
+
+**Campaign Lifecycle Details:**
+
+`set_active` has a special behavior: if you try to activate a closed campaign, it automatically reopens it (sets `active=1`). This means you never need to explicitly reopen campaigns — just set them active.
+
+`close_campaign` soft-closes a campaign by setting `active=0`. All data (sessions, characters, notes, maps, dice rolls) is preserved. The campaign will not appear in standard UI listings but can still be accessed by ID. Closing a campaign fails if a session is currently open in that campaign — you must `end_session` first.
+
+`delete_campaign` has a two-step safety mechanism: first call without `confirm` (or with `confirm: false`) returns a warning showing what will be deleted (number of sessions, characters, world notes, and maps). Only calling with `confirm: true` actually deletes. Deletion cascades: all child records (sessions, characters, messages, world notes, maps, dice rolls, timeline entries) are permanently removed. This cannot be undone.
 
 #### Characters
 | Tool | Required | Optional | Returns |
