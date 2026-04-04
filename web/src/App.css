@@ -1646,3 +1646,149 @@ mark {
   color: var(--gold);
   border-color: var(--gold-dim);
 }
+
+/* ── Inventory Panel ────────────────────────────────────── */
+
+.inventory-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.inventory-panel-label {
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.1rem;
+}
+
+.inventory-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  padding: 0.35rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  transition: border-left-color 0.15s, background 0.15s;
+}
+
+.inventory-item.equipped {
+  border-left-color: var(--gold);
+  background: color-mix(in srgb, var(--surface) 85%, var(--gold) 15%);
+}
+
+.inventory-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.inventory-equipped-icon {
+  color: var(--gold);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.inventory-item-name {
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-item.equipped .inventory-item-name {
+  color: var(--gold);
+}
+
+.inventory-item-qty {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.inventory-item-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  padding-left: 0.1rem;
+}
+
+.inventory-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.inventory-equip-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.12s;
+}
+
+.inventory-equip-btn:hover { color: var(--gold); }
+.inventory-equip-btn.active { color: var(--gold); }
+
+.inventory-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.12s;
+}
+
+.inventory-delete-btn:hover { color: var(--accent); }
+
+.inventory-add-form {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.1rem;
+}
+
+.inventory-add-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: 12px;
+  padding: 0.15rem 0;
+  outline: none;
+  min-width: 0;
+}
+
+.inventory-add-input:focus { border-bottom-color: var(--gold-dim); }
+.inventory-add-input::placeholder { color: var(--text-dim); }
+
+.inventory-add-btn {
+  background: none;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold);
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+
+.inventory-add-btn:hover:not(:disabled) { background: var(--gold-dim); color: var(--bg); }
+.inventory-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }

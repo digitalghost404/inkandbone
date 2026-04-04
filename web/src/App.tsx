@@ -13,6 +13,7 @@ import { JournalPanel } from './JournalPanel'
 import { CharacterSheetPanel } from './CharacterSheetPanel'
 import { NPCRosterPanel } from './NPCRosterPanel'
 import { ObjectivesPanel } from './ObjectivesPanel'
+import { InventoryPanel } from './InventoryPanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -411,6 +412,9 @@ export default function App() {
           />
           {ctx.session && (
             <DiceRoller sessionId={ctx.session.id} />
+          )}
+          {ctx.character && (
+            <InventoryPanel characterId={ctx.character.id} lastEvent={lastEvent} />
           )}
           <hr className="sidebar-rule" />
           {ctx.session && (

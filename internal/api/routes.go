@@ -947,6 +947,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	go s.autoUpdateCharacterStats(context.Background(), id, lastPlayerMsg, fullText)
 	go s.autoUpdateRecap(context.Background(), id)
 	go s.autoDetectObjectives(context.Background(), id, fullText)
+	go s.autoExtractItems(context.Background(), id, fullText)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
@@ -1775,5 +1776,228 @@ No explanation, no markdown.`, string(existingJSON), gmText)
 	}
 	if changed > 0 {
 		s.bus.Publish(Event{Type: EventObjectiveUpdated, Payload: map[string]any{"campaign_id": sess.CampaignID}})
+	}
+}
+
+// --- Feature 11: Player Inventory ---
+
+func (s *Server) handleListItems(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid character id", http.StatusBadRequest)
+		return
+	}
+	items, err := s.db.ListItems(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if items == nil {
+		items = []db.Item{}
+	}
+	writeJSON(w, items)
+}
+
+func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid character id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Quantity    *int   `json:"quantity"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	qty := 1
+	if body.Quantity != nil {
+		qty = *body.Quantity
+	}
+	item, err := s.db.CreateItem(id, body.Name, body.Description, qty)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventItemUpdated, Payload: map[string]any{"character_id": id, "item_id": item.ID}})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(item) //nolint:errcheck
+}
+
+func (s *Server) handlePatchItem(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+	existing, err := s.db.GetItem(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		http.Error(w, "item not found", http.StatusNotFound)
+		return
+	}
+	var body struct {
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
+		Quantity    *int    `json:"quantity"`
+		Equipped    *bool   `json:"equipped"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	// Apply only provided fields.
+	name := existing.Name
+	description := existing.Description
+	quantity := existing.Quantity
+	equipped := existing.Equipped
+	if body.Name != nil {
+		name = *body.Name
+	}
+	if body.Description != nil {
+		description = *body.Description
+	}
+	if body.Quantity != nil {
+		quantity = *body.Quantity
+	}
+	if body.Equipped != nil {
+		equipped = *body.Equipped
+	}
+	if err := s.db.UpdateItem(id, name, description, quantity, equipped); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventItemUpdated, Payload: map[string]any{"character_id": existing.CharacterID, "item_id": id}})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+	existing, err := s.db.GetItem(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		http.Error(w, "item not found", http.StatusNotFound)
+		return
+	}
+	if err := s.db.DeleteItem(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventItemUpdated, Payload: map[string]any{"character_id": existing.CharacterID, "item_id": id}})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// autoExtractItems analyzes a GM response for items explicitly gained or lost
+// by the player and updates the active character's inventory accordingly.
+// Runs in a background goroutine.
+func (s *Server) autoExtractItems(ctx context.Context, sessionID int64, gmText string) {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+
+	// Resolve active character.
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return
+	}
+
+	prompt := fmt.Sprintf(`You are a TTRPG inventory tracker. Analyze this GM story passage.
+
+Identify items that were EXPLICITLY given to, found by, or picked up by the player character. Also identify items that were EXPLICITLY lost, destroyed, or taken from the player character.
+
+Rules:
+- Only include items with clear, direct story evidence.
+- Do NOT infer items from combat (e.g. do NOT add "enemy's sword" unless the player explicitly picks it up).
+- Do NOT add items that are merely mentioned or seen — only items the player character actually acquires or loses.
+
+Return ONLY a JSON object (no explanation, no markdown):
+{"gained":[{"name":"...","description":"...","quantity":1}],"lost":["item name","item name"]}
+
+If nothing changed: {"gained":[],"lost":[]}
+
+Story passage:
+%s`, gmText)
+
+	raw, err := completer.Generate(ctx, prompt)
+	if err != nil {
+		return
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start < 0 || end <= start {
+		return
+	}
+
+	var result struct {
+		Gained []struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Quantity    int    `json:"quantity"`
+		} `json:"gained"`
+		Lost []string `json:"lost"`
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &result); err != nil {
+		return
+	}
+
+	changed := 0
+
+	for _, g := range result.Gained {
+		if g.Name == "" {
+			continue
+		}
+		qty := g.Quantity
+		if qty <= 0 {
+			qty = 1
+		}
+		if _, err := s.db.CreateItem(charID, g.Name, g.Description, qty); err == nil {
+			changed++
+		}
+	}
+
+	if len(result.Lost) > 0 {
+		existing, err := s.db.ListItems(charID)
+		if err == nil {
+			for _, lostName := range result.Lost {
+				lostLower := strings.ToLower(lostName)
+				for _, item := range existing {
+					if strings.ToLower(item.Name) == lostLower {
+						if err := s.db.DeleteItem(item.ID); err == nil {
+							changed++
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if changed > 0 {
+		s.bus.Publish(Event{Type: EventItemUpdated, Payload: map[string]any{"character_id": charID}})
 	}
 }

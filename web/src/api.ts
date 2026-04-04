@@ -1,4 +1,4 @@
-import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC, Objective } from './types'
+import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC, Objective, Item } from './types'
 
 export interface CampaignMap {
   id: number;
@@ -300,4 +300,42 @@ export async function patchObjective(id: number, status: string): Promise<void> 
 export async function deleteObjective(id: number): Promise<void> {
   const res = await fetch(`/api/objectives/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`deleteObjective failed: ${res.status}`)
+}
+
+export async function fetchItems(characterId: number): Promise<Item[]> {
+  const res = await fetch(`/api/characters/${characterId}/items`)
+  if (!res.ok) throw new Error(`fetchItems failed: ${res.status}`)
+  return res.json()
+}
+
+export async function createItem(
+  characterId: number,
+  name: string,
+  description: string,
+  quantity: number,
+): Promise<Item> {
+  const res = await fetch(`/api/characters/${characterId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description, quantity }),
+  })
+  if (!res.ok) throw new Error(`createItem failed: ${res.status}`)
+  return res.json()
+}
+
+export async function patchItem(
+  id: number,
+  updates: { name?: string; description?: string; quantity?: number; equipped?: boolean },
+): Promise<void> {
+  const res = await fetch(`/api/items/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) throw new Error(`patchItem failed: ${res.status}`)
+}
+
+export async function deleteItem(id: number): Promise<void> {
+  const res = await fetch(`/api/items/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteItem failed: ${res.status}`)
 }

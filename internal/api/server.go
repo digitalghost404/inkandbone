@@ -117,6 +117,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/campaigns/{id}/objectives", s.handleCreateObjective)
 	s.mux.HandleFunc("PATCH /api/objectives/{id}", s.handlePatchObjective)
 	s.mux.HandleFunc("DELETE /api/objectives/{id}", s.handleDeleteObjective)
+	// Feature 11: Player inventory
+	s.mux.HandleFunc("GET /api/characters/{id}/items", s.handleListItems)
+	s.mux.HandleFunc("POST /api/characters/{id}/items", s.handleCreateItem)
+	s.mux.HandleFunc("PATCH /api/items/{id}", s.handlePatchItem)
+	s.mux.HandleFunc("DELETE /api/items/{id}", s.handleDeleteItem)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

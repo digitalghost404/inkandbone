@@ -108,3 +108,13 @@ export interface Objective {
   status: 'active' | 'completed' | 'failed'
   created_at: string
 }
+
+export interface Item {
+  id: number
+  character_id: number
+  name: string
+  description: string
+  quantity: number
+  equipped: boolean
+  created_at: string
+}
