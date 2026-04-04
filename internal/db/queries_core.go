@@ -213,3 +213,85 @@ func (d *DB) ListCharacters(campaignID int64) ([]Character, error) {
 	}
 	return out, rows.Err()
 }
+
+func (d *DB) CloseCampaign(id int64) error {
+	res, err := d.db.Exec("UPDATE campaigns SET active = 0 WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("campaign %d not found", id)
+	}
+	return nil
+}
+
+func (d *DB) ReopenCampaign(id int64) error {
+	res, err := d.db.Exec("UPDATE campaigns SET active = 1 WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("campaign %d not found", id)
+	}
+	return nil
+}
+
+// CampaignStats holds row counts for the confirmation message in delete_campaign.
+type CampaignStats struct {
+	Sessions   int
+	Characters int
+	WorldNotes int
+	Maps       int
+}
+
+func (d *DB) GetCampaignStats(id int64) (CampaignStats, error) {
+	var s CampaignStats
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM sessions WHERE campaign_id = ?", id).Scan(&s.Sessions); err != nil {
+		return s, err
+	}
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM characters WHERE campaign_id = ?", id).Scan(&s.Characters); err != nil {
+		return s, err
+	}
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM world_notes WHERE campaign_id = ?", id).Scan(&s.WorldNotes); err != nil {
+		return s, err
+	}
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM maps WHERE campaign_id = ?", id).Scan(&s.Maps); err != nil {
+		return s, err
+	}
+	return s, nil
+}
+
+func (d *DB) DeleteCampaign(id int64) error {
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmts := []string{
+		`DELETE FROM dice_rolls WHERE session_id IN (SELECT id FROM sessions WHERE campaign_id = ?)`,
+		`DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE campaign_id = ?)`,
+		`DELETE FROM combatants WHERE encounter_id IN (SELECT id FROM combat_encounters WHERE session_id IN (SELECT id FROM sessions WHERE campaign_id = ?))`,
+		`DELETE FROM combat_encounters WHERE session_id IN (SELECT id FROM sessions WHERE campaign_id = ?)`,
+		`DELETE FROM sessions WHERE campaign_id = ?`,
+		`DELETE FROM world_notes WHERE campaign_id = ?`,
+		`DELETE FROM map_pins WHERE map_id IN (SELECT id FROM maps WHERE campaign_id = ?)`,
+		`DELETE FROM maps WHERE campaign_id = ?`,
+		`DELETE FROM characters WHERE campaign_id = ?`,
+		`DELETE FROM campaigns WHERE id = ?`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt, id); err != nil {
+			return fmt.Errorf("delete campaign %d: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}

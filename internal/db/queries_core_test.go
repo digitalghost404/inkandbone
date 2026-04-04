@@ -90,3 +90,77 @@ func TestCharacters(t *testing.T) {
 	list, _ := d.ListCharacters(campID)
 	assert.Len(t, list, 1)
 }
+
+func TestCloseCampaign(t *testing.T) {
+	d := newTestDB(t)
+	rs, _ := d.GetRulesetByName("dnd5e")
+	id, err := d.CreateCampaign(rs.ID, "Test", "")
+	require.NoError(t, err)
+
+	require.NoError(t, d.CloseCampaign(id))
+
+	c, err := d.GetCampaign(id)
+	require.NoError(t, err)
+	assert.False(t, c.Active)
+}
+
+func TestReopenCampaign(t *testing.T) {
+	d := newTestDB(t)
+	rs, _ := d.GetRulesetByName("dnd5e")
+	id, err := d.CreateCampaign(rs.ID, "Test", "")
+	require.NoError(t, err)
+	require.NoError(t, d.CloseCampaign(id))
+
+	require.NoError(t, d.ReopenCampaign(id))
+
+	c, err := d.GetCampaign(id)
+	require.NoError(t, err)
+	assert.True(t, c.Active)
+}
+
+func TestGetCampaignStats(t *testing.T) {
+	d := newTestDB(t)
+	rs, _ := d.GetRulesetByName("dnd5e")
+	campID, err := d.CreateCampaign(rs.ID, "Test", "")
+	require.NoError(t, err)
+
+	_, err = d.CreateCharacter(campID, "Hero")
+	require.NoError(t, err)
+	_, err = d.CreateSession(campID, "S1", "2026-04-01")
+	require.NoError(t, err)
+
+	stats, err := d.GetCampaignStats(campID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.Sessions)
+	assert.Equal(t, 1, stats.Characters)
+	assert.Equal(t, 0, stats.WorldNotes)
+	assert.Equal(t, 0, stats.Maps)
+}
+
+func TestDeleteCampaign(t *testing.T) {
+	d := newTestDB(t)
+	rs, _ := d.GetRulesetByName("dnd5e")
+	campID, err := d.CreateCampaign(rs.ID, "Test", "")
+	require.NoError(t, err)
+
+	charID, err := d.CreateCharacter(campID, "Hero")
+	require.NoError(t, err)
+	sessID, err := d.CreateSession(campID, "S1", "2026-04-01")
+	require.NoError(t, err)
+	_, err = d.CreateMessage(sessID, "user", "hello")
+	require.NoError(t, err)
+
+	require.NoError(t, d.DeleteCampaign(campID))
+
+	c, err := d.GetCampaign(campID)
+	require.NoError(t, err)
+	assert.Nil(t, c)
+
+	ch, err := d.GetCharacter(charID)
+	require.NoError(t, err)
+	assert.Nil(t, ch)
+
+	sess, err := d.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Nil(t, sess)
+}
