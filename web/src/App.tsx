@@ -89,12 +89,13 @@ export default function App() {
     setInput('')
     try {
       await sendMessage(ctx.session.id, text)
+      loadContext()
     } catch {
       setInput(text)
     } finally {
       setSending(false)
     }
-  }, [input, ctx, sending])
+  }, [input, ctx, sending, loadContext])
 
   if (error) return <div className="error">{error}</div>
   if (!ctx) return <div className="loading">Loading…</div>
