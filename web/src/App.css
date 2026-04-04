@@ -384,6 +384,23 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* GM Thinking Indicator */
+
+.gm-thinking {
+  color: var(--text-dim);
+  font-family: var(--serif);
+  font-size: 13px;
+  font-style: italic;
+  letter-spacing: 1px;
+  animation: pulse 1.4s ease-in-out infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1; }
+}
+
 /* Player Input Bar */
 
 .player-input-bar {

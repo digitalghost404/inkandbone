@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useWebSocket } from './useWebSocket'
-import { fetchContext, sendMessage } from './api'
+import { fetchContext, sendMessage, gmRespond } from './api'
 import type { GameContext, Message } from './types'
 import { CombatPanel } from './CombatPanel'
 import { WorldNotesPanel } from './WorldNotesPanel'
@@ -51,6 +51,7 @@ export default function App() {
   const [rightTab, setRightTab] = useState<'notes' | 'journal'>('notes')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [gmResponding, setGmResponding] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -90,10 +91,14 @@ export default function App() {
     try {
       await sendMessage(ctx.session.id, text)
       loadContext()
+      setGmResponding(true)
+      await gmRespond(ctx.session.id)
+      loadContext()
     } catch {
       setInput(text)
     } finally {
       setSending(false)
+      setGmResponding(false)
     }
   }, [input, ctx, sending, loadContext])
 
@@ -141,6 +146,7 @@ export default function App() {
             )}
             {ctx.active_combat && <CombatPanel combat={ctx.active_combat} />}
             <ProseJournal messages={messages} characterName={ctx.character?.name ?? 'Player'} />
+            {gmResponding && <p className="gm-thinking">▸ The GM is narrating…</p>}
           </div>
 
           <div className="player-input-bar">

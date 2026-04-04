@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/digitalghost404/inkandbone/internal/ai"
 	"github.com/digitalghost404/inkandbone/internal/db"
 )
 
@@ -531,6 +532,65 @@ func (s *Server) buildRecap(ctx context.Context, sessionID int64) (string, error
 	}
 
 	return s.aiClient.Generate(ctx, sb.String())
+}
+
+const gmSystemPrompt = `You are the Game Master of a tabletop roleplaying game. Your role is to continue the story in response to the player's most recent action.
+
+Write 2-4 paragraphs of immersive, atmospheric narrative in second person ("you"). Match the tone, style, and vocabulary established by previous GM messages. Stay consistent with the world, characters, and events already described.
+
+End your response with "**What do you do?**" to prompt the player for their next action.
+
+Do not break character. Do not summarize. Just continue the story.`
+
+func (s *Server) handleGMRespond(w http.ResponseWriter, r *http.Request) {
+	if s.aiClient == nil {
+		http.Error(w, "AI not configured — set ANTHROPIC_API_KEY", http.StatusServiceUnavailable)
+		return
+	}
+	gmResponder, ok := s.aiClient.(ai.Responder)
+	if !ok {
+		http.Error(w, "AI client does not support chat", http.StatusServiceUnavailable)
+		return
+	}
+
+	id, ok2 := parsePathID(r, "id")
+	if !ok2 {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+
+	msgs, err := s.db.ListMessages(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(msgs) == 0 || msgs[len(msgs)-1].Role != "user" {
+		http.Error(w, "no player message to respond to", http.StatusBadRequest)
+		return
+	}
+
+	history := make([]ai.ChatMessage, len(msgs))
+	for i, m := range msgs {
+		history[i] = ai.ChatMessage{Role: m.Role, Content: m.Content}
+	}
+
+	response, err := gmResponder.Respond(r.Context(), gmSystemPrompt, history)
+	if err != nil {
+		http.Error(w, "AI error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	msgID, err := s.db.CreateMessage(id, "assistant", response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventMessageCreated, Payload: map[string]any{
+		"session_id": id,
+		"message_id": msgID,
+		"role":       "assistant",
+	}})
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *Server) handleGetTimeline(w http.ResponseWriter, r *http.Request) {

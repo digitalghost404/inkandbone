@@ -148,6 +148,11 @@ export async function sendMessage(sessionId: number, content: string): Promise<v
   if (!res.ok) throw new Error(`sendMessage failed: ${res.status}`)
 }
 
+export async function gmRespond(sessionId: number): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}/gm-respond`, { method: 'POST' })
+  if (!res.ok) throw new Error(`gmRespond failed: ${res.status}`)
+}
+
 export async function ingestRulebook(rulesetId: number, text: string): Promise<{ chunks_created: number }> {
   const res = await fetch(`/api/rulesets/${rulesetId}/rulebook`, {
     method: 'POST',
