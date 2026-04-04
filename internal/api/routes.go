@@ -911,6 +911,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 
 	go s.extractNPCs(context.Background(), id, fullText)
 	go s.autoGenerateMap(context.Background(), id, fullText)
+	go s.autoUpdateCharacterStats(context.Background(), id, lastPlayerMsg, fullText)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
@@ -1000,6 +1001,109 @@ Story passage:
 	s.bus.Publish(Event{Type: EventMapCreated, Payload: map[string]any{
 		"campaign_id": sess.CampaignID,
 		"map_id":      mapID,
+	}})
+}
+
+// autoUpdateCharacterStats checks whether the story events require any
+// character stat changes under the active ruleset (XP, wounds, level-ups,
+// stress, etc.) and applies them automatically.
+func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, playerAction, gmText string) {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+
+	// Resolve active character.
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return
+	}
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil || char.DataJSON == "" || char.DataJSON == "{}" {
+		return
+	}
+
+	// Resolve ruleset via session → campaign.
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+	camp, err := s.db.GetCampaign(sess.CampaignID)
+	if err != nil || camp == nil {
+		return
+	}
+	ruleset, err := s.db.GetRuleset(camp.RulesetID)
+	if err != nil || ruleset == nil {
+		return
+	}
+
+	schema := ruleset.SchemaJSON
+	if len(schema) > 1200 {
+		schema = schema[:1200]
+	}
+
+	prompt := fmt.Sprintf(`You are a TTRPG rules engine. Based on what just happened in the story, determine which character stats need to change according to the ruleset rules.
+
+Ruleset: %s
+Rules schema (excerpt): %s
+
+Current character stats (JSON):
+%s
+
+What just happened:
+Player: %s
+GM: %s
+
+Return ONLY a JSON object with the fields that must change and their new values. Rules to follow:
+- Only update fields that already exist in the current stats JSON above.
+- Apply all relevant ruleset mechanics: HP/wound changes from combat outcomes, XP gains from significant events, level-ups when thresholds are met, stress or corruption changes, resources spent or gained.
+- When leveling up, also update all derived stats that change with the new level per the ruleset.
+- If nothing needs to change, return {}.
+- No explanation, no markdown — just the JSON object.`, ruleset.Name, schema, char.DataJSON, playerAction, gmText)
+
+	raw, err := completer.Generate(ctx, prompt)
+	if err != nil {
+		return
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start < 0 || end <= start {
+		return
+	}
+
+	var patch map[string]any
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &patch); err != nil || len(patch) == 0 {
+		return
+	}
+
+	// Merge patch into existing data_json.
+	var current map[string]any
+	if err := json.Unmarshal([]byte(char.DataJSON), &current); err != nil {
+		return
+	}
+	for k, v := range patch {
+		if _, exists := current[k]; exists {
+			current[k] = v
+		}
+	}
+
+	updated, err := json.Marshal(current)
+	if err != nil {
+		return
+	}
+
+	if err := s.db.UpdateCharacterData(charID, string(updated)); err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{
+		"id":        charID,
+		"data_json": string(updated),
 	}})
 }
 
