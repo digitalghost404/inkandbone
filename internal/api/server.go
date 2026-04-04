@@ -87,6 +87,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/files/{path...}", s.handleServeFile)
 	s.mux.HandleFunc("GET /api/campaigns/{id}/maps", s.handleListMaps)
 	s.mux.HandleFunc("POST /api/campaigns/{id}/maps", s.handleUploadMap)
+	s.mux.HandleFunc("POST /api/campaigns/{id}/maps/generate", s.handleGenerateMap)
 	s.mux.HandleFunc("GET /api/maps/{id}", s.handleGetMap)
 	s.mux.HandleFunc("PATCH /api/campaigns/{id}", s.handlePatchCampaign)
 	s.mux.HandleFunc("PATCH /api/sessions/{id}", s.handlePatchSession)

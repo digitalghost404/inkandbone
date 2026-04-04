@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useWebSocket } from './useWebSocket'
-import { fetchContext, sendMessage, gmRespond } from './api'
+import { fetchContext, sendMessage, gmRespond, generateMap } from './api'
 import type { GameContext, Message } from './types'
 import { CombatPanel } from './CombatPanel'
 import { WorldNotesPanel } from './WorldNotesPanel'
@@ -52,6 +52,7 @@ export default function App() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [gmResponding, setGmResponding] = useState(false)
+  const [generatingMap, setGeneratingMap] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -101,6 +102,20 @@ export default function App() {
       setGmResponding(false)
     }
   }, [input, ctx, sending, loadContext])
+
+  const handleGenerateMap = useCallback(async () => {
+    if (!ctx?.campaign || !aiEnabled || generatingMap) return
+    setGeneratingMap(true)
+    setMapOpen(true)
+    const recentText = messages.slice(-6).map(m => `[${m.role}]: ${m.content}`).join('\n')
+    const context = `Campaign: ${ctx.campaign.name}\n\n${recentText}`
+    const mapName = ctx.session?.title ?? ctx.campaign.name
+    try {
+      await generateMap(ctx.campaign.id, mapName, context)
+    } finally {
+      setGeneratingMap(false)
+    }
+  }, [ctx, aiEnabled, generatingMap, messages, setMapOpen])
 
   if (error) return <div className="error">{error}</div>
   if (!ctx) return <div className="loading">Loading…</div>
@@ -162,7 +177,7 @@ export default function App() {
                   handleSend()
                 }
               }}
-              rows={1}
+              rows={3}
             />
             <button
               type="button"
@@ -175,15 +190,28 @@ export default function App() {
           </div>
 
           <div className="map-drawer">
-            <button
-              type="button"
-              className="map-drawer-handle"
-              onClick={() => setMapOpen((o) => !o)}
-            >
-              {mapOpen
-                ? '[ ▴ COLLAPSE ]'
-                : `[ ${ctx.campaign?.name?.toUpperCase() ?? 'THE IRONLANDS'} ▾ ]`}
-            </button>
+            <div className="map-drawer-handle-row">
+              <button
+                type="button"
+                className="map-drawer-handle"
+                onClick={() => setMapOpen((o) => !o)}
+              >
+                {mapOpen
+                  ? '[ ▴ COLLAPSE ]'
+                  : `[ ${ctx.campaign?.name?.toUpperCase() ?? 'THE IRONLANDS'} ▾ ]`}
+              </button>
+              {aiEnabled && (
+                <button
+                  type="button"
+                  className="map-generate-btn"
+                  onClick={handleGenerateMap}
+                  disabled={generatingMap}
+                  title="Generate a map with AI"
+                >
+                  {generatingMap ? '…' : '✦ Generate Map'}
+                </button>
+              )}
+            </div>
             <div className={`map-drawer-content${mapOpen ? ' open' : ''}`}>
               <div className="map-drawer-inner">
                 <MapPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />

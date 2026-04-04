@@ -11,6 +11,10 @@ function isMapPinAddedEvent(e: unknown): e is { type: string; payload: { map_id:
   )
 }
 
+function isMapCreatedEvent(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as any).type === 'map_created'
+}
+
 interface MapPanelProps {
   campaignId: number | null
   lastEvent: unknown
@@ -26,6 +30,12 @@ export function MapPanel({ campaignId, lastEvent }: MapPanelProps) {
     if (campaignId === null) return
     fetchMaps(campaignId).then(maps => setMap(maps[0] ?? null)).catch(console.error)
   }, [campaignId])
+
+  useEffect(() => {
+    if (isMapCreatedEvent(lastEvent) && campaignId !== null) {
+      fetchMaps(campaignId).then(maps => setMap(maps[0] ?? null)).catch(console.error)
+    }
+  }, [lastEvent, campaignId])
 
   useEffect(() => {
     if (!map) return

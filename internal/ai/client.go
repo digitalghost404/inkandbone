@@ -28,7 +28,7 @@ type ChatMessage struct {
 
 // Responder generates a reply from a system prompt and conversation history.
 type Responder interface {
-	Respond(ctx context.Context, system string, history []ChatMessage) (string, error)
+	Respond(ctx context.Context, system string, history []ChatMessage, maxTokens int) (string, error)
 }
 
 // Client calls the Anthropic Messages API over plain HTTP.
@@ -90,14 +90,14 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 	return result.Content[0].Text, nil
 }
 
-func (c *Client) Respond(ctx context.Context, system string, history []ChatMessage) (string, error) {
+func (c *Client) Respond(ctx context.Context, system string, history []ChatMessage, maxTokens int) (string, error) {
 	msgs := make([]map[string]any, len(history))
 	for i, m := range history {
 		msgs[i] = map[string]any{"role": m.Role, "content": m.Content}
 	}
 	body, err := json.Marshal(map[string]any{
 		"model":      model,
-		"max_tokens": 2048,
+		"max_tokens": maxTokens,
 		"system":     system,
 		"messages":   msgs,
 	})

@@ -420,13 +420,13 @@ body {
   border-bottom: 1px solid var(--border);
   color: var(--gold);
   font-family: var(--serif);
-  font-size: 15px;
+  font-size: 16px;
   font-style: italic;
-  line-height: 1.5;
+  line-height: 1.6;
   resize: none;
   outline: none;
-  padding: 0.2rem 0;
-  overflow: hidden;
+  padding: 0.3rem 0;
+  overflow-y: auto;
 }
 
 .player-input-field::placeholder {
@@ -471,13 +471,37 @@ body {
 
 /* Map Drawer */
 
-.map-drawer {
-  flex-shrink: 0;
+.map-drawer-handle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface2);
   border-top: 1px solid var(--border);
 }
 
+.map-generate-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 11px;
+  color: var(--gold-dim);
+  letter-spacing: 1px;
+  padding: 0.4rem 1rem;
+  transition: color 0.15s;
+}
+
+.map-generate-btn:hover:not(:disabled) { color: var(--gold); }
+.map-generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.map-drawer {
+  flex-shrink: 0;
+}
+
 .map-drawer-handle {
-  background: var(--surface2);
+  flex: 1;
+  background: none;
+  border: none;
   padding: 0.4rem 1rem;
   text-align: center;
   font-family: var(--serif);

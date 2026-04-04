@@ -466,6 +466,101 @@ func (s *Server) handleDraftWorldNote(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(created) //nolint:errcheck
 }
 
+const mapSystemPrompt = `You are a cartographer creating SVG tactical maps for tabletop roleplaying games. Generate a complete, valid SVG map based on the story context provided.
+
+Rules:
+- Output ONLY the SVG markup. Start with <svg and end with </svg>. No prose, no code fences.
+- Use: viewBox="0 0 800 600" width="800" height="600"
+- Background rectangle: fill="#0f0e0a"
+- Walls, borders, and structural lines: stroke="#3a3020" or "#c9a84c" fill="none"
+- Area fills: semi-transparent darks like fill="#1a1710" or fill="#141208"
+- Text labels: fill="#d4c5a0" font-family="serif" font-size="11"
+- Include 5-10 named locations relevant to the story
+- Connect areas with corridors or paths
+- Add simple decorative shapes: pillars (circles), doors (rectangles), etc.
+- Keep it readable and atmospheric`
+
+func (s *Server) handleGenerateMap(w http.ResponseWriter, r *http.Request) {
+	if s.aiClient == nil {
+		http.Error(w, "AI not configured — set ANTHROPIC_API_KEY", http.StatusServiceUnavailable)
+		return
+	}
+	responder, ok := s.aiClient.(ai.Responder)
+	if !ok {
+		http.Error(w, "AI client does not support chat", http.StatusServiceUnavailable)
+		return
+	}
+
+	id, ok2 := parsePathID(r, "id")
+	if !ok2 {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		Name    string `json:"name"`
+		Context string `json:"context"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if body.Name == "" {
+		body.Name = "Generated Map"
+	}
+
+	prompt := "Generate a map for this TTRPG setting:\n\n" + body.Context
+	history := []ai.ChatMessage{{Role: "user", Content: prompt}}
+
+	svgRaw, err := responder.Respond(r.Context(), mapSystemPrompt, history, 4096)
+	if err != nil {
+		http.Error(w, "AI error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	svgContent := extractSVG(svgRaw)
+	if svgContent == "" {
+		http.Error(w, "AI did not return valid SVG", http.StatusInternalServerError)
+		return
+	}
+
+	destDir := filepath.Join(s.dataDir, "maps")
+	if err := os.MkdirAll(destDir, 0750); err != nil {
+		http.Error(w, "mkdir: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	filename := "map_" + randomHex(8) + ".svg"
+	if err := os.WriteFile(filepath.Join(destDir, filename), []byte(svgContent), 0640); err != nil {
+		http.Error(w, "write file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	mapID, err := s.db.CreateMap(id, body.Name, "maps/"+filename)
+	if err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	m, err := s.db.GetMap(mapID)
+	if err != nil || m == nil {
+		http.Error(w, "fetch created map", http.StatusInternalServerError)
+		return
+	}
+
+	s.bus.Publish(Event{Type: EventMapCreated, Payload: map[string]any{"campaign_id": id, "map_id": mapID}})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(m) //nolint:errcheck
+}
+
+func extractSVG(s string) string {
+	start := strings.Index(s, "<svg")
+	end := strings.LastIndex(s, "</svg>")
+	if start == -1 || end == -1 || end < start {
+		return ""
+	}
+	return s[start : end+6]
+}
+
 // parseGeneratedNote extracts title and content from a "Title: ...\nContent: ..." response.
 func parseGeneratedNote(raw string) (title, content string) {
 	for _, line := range strings.Split(raw, "\n") {
@@ -574,7 +669,7 @@ func (s *Server) handleGMRespond(w http.ResponseWriter, r *http.Request) {
 		history[i] = ai.ChatMessage{Role: m.Role, Content: m.Content}
 	}
 
-	response, err := gmResponder.Respond(r.Context(), gmSystemPrompt, history)
+	response, err := gmResponder.Respond(r.Context(), gmSystemPrompt, history, 2048)
 	if err != nil {
 		http.Error(w, "AI error: "+err.Error(), http.StatusInternalServerError)
 		return

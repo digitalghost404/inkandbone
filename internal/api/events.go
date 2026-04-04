@@ -14,6 +14,7 @@ const (
 	EventWorldNoteCreated EventType = "world_note_created"
 	EventWorldNoteUpdated EventType = "world_note_updated"
 	EventMapPinAdded      EventType = "map_pin_added"
+	EventMapCreated       EventType = "map_created"
 	EventDiceRolled       EventType = "dice_rolled"
 	EventSessionStarted   EventType = "session_started"
 	EventSessionEnded     EventType = "session_ended"
