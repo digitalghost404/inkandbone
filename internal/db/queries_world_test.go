@@ -15,22 +15,67 @@ func TestWorldNotes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Positive(t, id)
 
-	results, err := d.SearchWorldNotes(campID, "Gareth", "")
+	results, err := d.SearchWorldNotes(campID, "Gareth", "", "")
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
 
-	results, err = d.SearchWorldNotes(campID, "", "npc")
+	results, err = d.SearchWorldNotes(campID, "", "npc", "")
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
 
-	results, err = d.SearchWorldNotes(campID, "", "location")
+	results, err = d.SearchWorldNotes(campID, "", "location", "")
 	require.NoError(t, err)
 	assert.Empty(t, results)
 
-	require.NoError(t, d.UpdateWorldNote(id, "Gareth the Guard", "A surly but kind dwarf"))
-	results, err = d.SearchWorldNotes(campID, "kind", "")
+	require.NoError(t, d.UpdateWorldNote(id, "Gareth the Guard", "A surly but kind dwarf", ""))
+	results, err = d.SearchWorldNotes(campID, "kind", "", "")
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
+}
+
+func TestSearchWorldNotes_tagFilter(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+
+	id1, err := d.CreateWorldNote(campID, "Goblin Den", "Dark cave", "location")
+	require.NoError(t, err)
+	id2, err := d.CreateWorldNote(campID, "Orc Warlord", "Fierce enemy", "npc")
+	require.NoError(t, err)
+
+	require.NoError(t, d.UpdateWorldNote(id1, "Goblin Den", "Dark cave", `["dungeon","encounter"]`))
+	require.NoError(t, d.UpdateWorldNote(id2, "Orc Warlord", "Fierce enemy", `["encounter","boss"]`))
+
+	results, err := d.SearchWorldNotes(campID, "", "", "dungeon")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, id1, results[0].ID)
+
+	results, err = d.SearchWorldNotes(campID, "", "", "encounter")
+	require.NoError(t, err)
+	assert.Len(t, results, 2)
+
+	results, err = d.SearchWorldNotes(campID, "", "", "boss")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, id2, results[0].ID)
+
+	results, err = d.SearchWorldNotes(campID, "", "", "")
+	require.NoError(t, err)
+	assert.Len(t, results, 2)
+}
+
+func TestUpdateWorldNote_setsTagsJSON(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+
+	id, err := d.CreateWorldNote(campID, "Mira", "A merchant.", "npc")
+	require.NoError(t, err)
+
+	require.NoError(t, d.UpdateWorldNote(id, "Mira", "A merchant.", `["npc","ally"]`))
+	results, err := d.SearchWorldNotes(campID, "", "", "ally")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Contains(t, results[0].TagsJSON, "ally")
 }
 
 func TestMapsAndPins(t *testing.T) {
@@ -52,6 +97,27 @@ func TestMapsAndPins(t *testing.T) {
 	assert.Len(t, pins, 1)
 	assert.InDelta(t, 0.25, pins[0].X, 0.001)
 	assert.Equal(t, "Entrance", pins[0].Label)
+}
+
+func TestListMaps(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+
+	maps, err := d.ListMaps(campID)
+	require.NoError(t, err)
+	assert.Empty(t, maps)
+
+	id1, err := d.CreateMap(campID, "World Map", "maps/abc.jpg")
+	require.NoError(t, err)
+	_, err = d.CreateMap(campID, "Dungeon", "maps/def.jpg")
+	require.NoError(t, err)
+
+	maps, err = d.ListMaps(campID)
+	require.NoError(t, err)
+	require.Len(t, maps, 2)
+	assert.Equal(t, id1, maps[0].ID)
+	assert.Equal(t, "World Map", maps[0].Name)
+	assert.Equal(t, "maps/abc.jpg", maps[0].ImagePath)
 }
 
 func TestDiceRolls(t *testing.T) {

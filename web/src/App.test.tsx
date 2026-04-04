@@ -69,4 +69,112 @@ describe('App', () => {
     await screen.findByText('Greyhawk')
     expect(screen.getByText('Dice History')).toBeInTheDocument()
   })
+
+  it('renders portrait img when portrait_path is set', async () => {
+    const ctxWithPortrait = {
+      ...mockCtx,
+      character: { ...mockCtx.character!, portrait_path: 'portraits/zara.jpg' },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(ctxWithPortrait) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    // Both the state-bar portrait and the character sheet panel render an img with name "Zara"
+    const imgs = await screen.findAllByRole('img', { name: 'Zara' })
+    expect(imgs.length).toBeGreaterThanOrEqual(1)
+    expect(imgs[0]).toHaveAttribute('src', '/api/files/portraits/zara.jpg')
+  })
+
+  it('does not render portrait img when portrait_path is empty', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCtx) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    expect(screen.queryByRole('img')).toBeNull()
+  })
+
+  it('renders combat panel when active_combat is set', async () => {
+    const ctxWithCombat: GameContext = {
+      ...mockCtx,
+      active_combat: {
+        encounter: { id: 1, session_id: 1, name: 'Dragon Fight', active: true, created_at: '' },
+        combatants: [
+          { id: 1, encounter_id: 1, character_id: null, name: 'Zara', initiative: 20, hp_current: 40, hp_max: 40, conditions_json: '[]', is_player: true },
+        ],
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(ctxWithCombat) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    expect(await screen.findByText('Combat: Dragon Fight')).toBeInTheDocument()
+    expect(screen.getAllByText('Zara').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders session timeline heading', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    expect(screen.getByText('Session Timeline')).toBeInTheDocument()
+  })
+
+  it('renders MapPanel', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    // MapPanel fetches maps and gets [] back, so it shows "No map uploaded."
+    expect(screen.getByText('No map uploaded.')).toBeInTheDocument()
+  })
+
+  it('renders JournalPanel', async () => {
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    // JournalPanel renders a textarea when session is present
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('passes aiEnabled to WorldNotesPanel', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCtx) })
+      }
+      if (url === '/api/health') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ai_enabled: true }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    // aiEnabled=true means the "Draft with AI" button is visible
+    expect(screen.getByRole('button', { name: 'Draft with AI' })).toBeInTheDocument()
+  })
+
+  it('renders character sheet panel when character is present', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/context') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockCtx) })
+      }
+      if (url === '/api/rulesets/1') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: 1, name: 'dnd5e',
+            schema_json: JSON.stringify([{ key: 'hp', label: 'HP', type: 'number' }]),
+          }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    }))
+    render(<App />)
+    await screen.findByText('Greyhawk')
+    expect(await screen.findByText(/Character Sheet/)).toBeInTheDocument()
+  })
 })

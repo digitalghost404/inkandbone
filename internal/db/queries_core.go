@@ -179,6 +179,21 @@ func (d *DB) UpdateCharacterData(id int64, dataJSON string) error {
 	return nil
 }
 
+func (d *DB) UpdateCharacterPortrait(id int64, portraitPath string) error {
+	res, err := d.db.Exec("UPDATE characters SET portrait_path = ? WHERE id = ?", portraitPath, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("character %d not found", id)
+	}
+	return nil
+}
+
 func (d *DB) ListCharacters(campaignID int64) ([]Character, error) {
 	rows, err := d.db.Query(
 		"SELECT id, campaign_id, name, data_json, portrait_path, created_at FROM characters WHERE campaign_id = ? ORDER BY name",

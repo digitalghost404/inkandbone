@@ -1,10 +1,16 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/digitalghost404/inkandbone/internal/db"
@@ -226,4 +232,283 @@ func TestGetContext_withActiveState(t *testing.T) {
 	require.NotNil(t, resp.Session)
 	assert.Equal(t, "S1", resp.Session.Title)
 	assert.Nil(t, resp.ActiveCombat)
+}
+
+func TestListWorldNotes_tagFilter(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	noteID, err := s.db.CreateWorldNote(campID, "Shrine", "Ancient shrine.", "location")
+	require.NoError(t, err)
+	require.NoError(t, s.db.UpdateWorldNote(noteID, "Shrine", "Ancient shrine.", `["dungeon"]`))
+	_, err = s.db.CreateWorldNote(campID, "Merchant", "Sells goods.", "npc")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/campaigns/"+strconv.FormatInt(campID, 10)+"/world-notes?tag=dungeon", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var notes []db.WorldNote
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &notes))
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Shrine", notes[0].Title)
+}
+
+func TestPatchWorldNote_updatesNote(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	noteID, err := s.db.CreateWorldNote(campID, "Old Title", "Old content", "npc")
+	require.NoError(t, err)
+
+	body := `{"title":"New Title","content":"New content","tags_json":"[\"ally\"]"}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/world-notes/"+strconv.FormatInt(noteID, 10), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	notes, err := s.db.SearchWorldNotes(campID, "New Title", "", "")
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	assert.Equal(t, "New content", notes[0].Content)
+	assert.Contains(t, notes[0].TagsJSON, "ally")
+}
+
+func TestPatchWorldNote_invalidID(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPatch, "/api/world-notes/abc", strings.NewReader(`{"title":"x","content":"y"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPatchWorldNote_missingTitle(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	noteID, err := s.db.CreateWorldNote(campID, "A Note", "Content.", "npc")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/world-notes/"+strconv.FormatInt(noteID, 10), strings.NewReader(`{"content":"y"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestServeFile_notFound(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/files/portraits/nonexistent.jpg", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestServeFile_traversalBlocked(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/files/../../etc/passwd", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.NotEqual(t, http.StatusOK, w.Code)
+}
+
+func TestGetTimeline_empty(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/"+strconv.FormatInt(sessID, 10)+"/timeline", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var entries []db.TimelineEntry
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entries))
+	assert.Empty(t, entries)
+}
+
+func TestGetTimeline_withData(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	_, err := s.db.CreateMessage(sessID, "user", "A brave move.")
+	require.NoError(t, err)
+	_, err = s.db.LogDiceRoll(sessID, "2d6", 9, "[4,5]")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/"+strconv.FormatInt(sessID, 10)+"/timeline", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var entries []db.TimelineEntry
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &entries))
+	assert.Len(t, entries, 2)
+}
+
+func TestGetTimeline_invalidID(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/abc/timeline", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestServeFile_ok(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("world"), 0600))
+	s := newTestServerWithDir(t, dir)
+	req := httptest.NewRequest(http.MethodGet, "/api/files/hello.txt", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "world", w.Body.String())
+}
+
+func TestServeFile_traversal(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/files/../etc/passwd", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestListMaps_empty(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	req := httptest.NewRequest(http.MethodGet, "/api/campaigns/"+strconv.FormatInt(campID, 10)+"/maps", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var maps []db.Map
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &maps))
+	assert.Empty(t, maps)
+}
+
+func TestGetMap_found(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	mapID, err := s.db.CreateMap(campID, "World", "maps/test.jpg")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/api/maps/"+strconv.FormatInt(mapID, 10), nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var m db.Map
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &m))
+	assert.Equal(t, mapID, m.ID)
+	assert.Equal(t, "World", m.Name)
+}
+
+func TestGetMap_notFound(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/maps/9999", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestPatchSession_ok(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	body := `{"summary":"Session went great"}`
+	req := httptest.NewRequest(http.MethodPatch,
+		"/api/sessions/"+strconv.FormatInt(sessID, 10),
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	sess, err := s.db.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "Session went great", sess.Summary)
+}
+
+func TestDraftWorldNote_ok(t *testing.T) {
+	stub := &stubCompleter{response: "Title: Zara the Smith\nContent: A dwarven blacksmith known for fine steel."}
+	s := newTestServerWithAI(t, stub)
+	campID, _ := seedCampaign(t, s.db)
+
+	body := `{"hint":"Dwarven blacksmith NPC"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/campaigns/"+strconv.FormatInt(campID, 10)+"/world-notes/draft",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var note db.WorldNote
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &note))
+	assert.NotZero(t, note.ID)
+	assert.Equal(t, campID, note.CampaignID)
+	assert.Equal(t, "Zara the Smith", note.Title)
+}
+
+func TestDraftWorldNote_noAI(t *testing.T) {
+	s := newTestServer(t) // aiClient is nil
+	campID, _ := seedCampaign(t, s.db)
+	body := `{"hint":"test"}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/campaigns/"+strconv.FormatInt(campID, 10)+"/world-notes/draft",
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestGenerateRecap_ok(t *testing.T) {
+	stub := &stubCompleter{response: "The party defeated the goblin horde."}
+	s := newTestServerWithAI(t, stub)
+	_, sessID := seedCampaign(t, s.db)
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/sessions/"+strconv.FormatInt(sessID, 10)+"/recap",
+		nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Summary string `json:"summary"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "The party defeated the goblin horde.", resp.Summary)
+	// Verify DB was updated
+	sess, err := s.db.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "The party defeated the goblin horde.", sess.Summary)
+}
+
+func TestGenerateRecap_noAI(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/sessions/"+strconv.FormatInt(sessID, 10)+"/recap",
+		nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestUploadMap_ok(t *testing.T) {
+	dir := t.TempDir()
+	s := newTestServerWithDir(t, dir)
+	campID, _ := seedCampaign(t, s.db)
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("image", "map.png")
+	require.NoError(t, err)
+	_, err = io.WriteString(fw, "fake-image-data")
+	require.NoError(t, err)
+	require.NoError(t, mw.WriteField("name", "World Map"))
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/campaigns/"+strconv.FormatInt(campID, 10)+"/maps",
+		&body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var m db.Map
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &m))
+	assert.Equal(t, campID, m.CampaignID)
+	assert.Equal(t, "World Map", m.Name)
+	assert.True(t, strings.HasPrefix(m.ImagePath, "maps/"))
+	assert.FileExists(t, filepath.Join(dir, "maps", filepath.Base(m.ImagePath)))
 }

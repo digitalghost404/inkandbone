@@ -4,9 +4,15 @@ import type { DiceRoll } from './types'
 
 interface Props {
   sessionId: number
+  lastEvent: unknown
 }
 
-export function DiceHistoryPanel({ sessionId }: Props) {
+function parseBreakdown(json: string): number[] {
+  try { return JSON.parse(json) as number[] }
+  catch { return [] }
+}
+
+export function DiceHistoryPanel({ sessionId, lastEvent }: Props) {
   const [rolls, setRolls] = useState<DiceRoll[]>([])
 
   useEffect(() => {
@@ -17,18 +23,39 @@ export function DiceHistoryPanel({ sessionId }: Props) {
     return () => { ignored = true }
   }, [sessionId])
 
+  useEffect(() => {
+    const ev = lastEvent as { type?: string } | null
+    if (ev?.type === 'dice_rolled') {
+      fetchDiceRolls(sessionId)
+        .then(setRolls)
+        .catch(() => {})
+    }
+  }, [lastEvent, sessionId])
+
   return (
     <section className="panel dice-history">
       <h2>Dice History</h2>
       {rolls.length === 0 ? (
         <p className="empty">No rolls yet.</p>
       ) : (
-        rolls.map((r) => (
-          <div key={r.id} className="dice-roll">
-            <span className="expression">{r.expression}</span>
-            <span className="result">{r.result}</span>
-          </div>
-        ))
+        rolls.map((r) => {
+          const breakdown = parseBreakdown(r.breakdown_json)
+          return (
+            <div key={r.id} className="dice-roll">
+              <div className="roll-top">
+                <span className="expression">{r.expression}</span>
+                <span className="result">{r.result}</span>
+              </div>
+              {breakdown.length > 0 && (
+                <div className="breakdown">
+                  {breakdown.map((d, i) => (
+                    <span key={i} className="die-badge">[{d}]</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })
       )}
     </section>
   )

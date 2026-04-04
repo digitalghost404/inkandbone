@@ -72,4 +72,11 @@ describe('useWebSocket', () => {
     unmount()
     expect(instances[0].close).toHaveBeenCalled()
   })
+
+  it('returns lastEvent after receiving a message', () => {
+    const { result } = renderHook(() => useWebSocket('/ws', vi.fn()))
+    act(() => instances[0].open())
+    act(() => instances[0].receive({ type: 'dice_rolled', payload: { total: 15 } }))
+    expect(result.current.lastEvent).toEqual({ type: 'dice_rolled', payload: { total: 15 } })
+  })
 })

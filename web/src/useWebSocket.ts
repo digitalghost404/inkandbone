@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-export function useWebSocket(url: string, onMessage: (data: unknown) => void): void {
+export function useWebSocket(url: string, onMessage: (data: unknown) => void): { lastEvent: unknown } {
+  const [lastEvent, setLastEvent] = useState<unknown>(null)
   const onMessageRef = useRef(onMessage)
   onMessageRef.current = onMessage
 
@@ -14,7 +15,9 @@ export function useWebSocket(url: string, onMessage: (data: unknown) => void): v
 
       ws.onmessage = (e) => {
         try {
-          onMessageRef.current(JSON.parse(e.data as string))
+          const parsed = JSON.parse(e.data as string)
+          setLastEvent(parsed)
+          onMessageRef.current(parsed)
         } catch {
           // ignore malformed messages
         }
@@ -35,4 +38,6 @@ export function useWebSocket(url: string, onMessage: (data: unknown) => void): v
       ws.close()
     }
   }, [url])
+
+  return { lastEvent }
 }
