@@ -18,6 +18,9 @@ const (
 	EventSessionStarted   EventType = "session_started"
 	EventSessionEnded     EventType = "session_ended"
 	EventCampaignCreated  EventType = "campaign_created"
+	EventCampaignClosed   EventType = "campaign_closed"
+	EventCampaignDeleted  EventType = "campaign_deleted"
+	EventCampaignReopened EventType = "campaign_reopened"
 	EventCharacterCreated EventType = "character_created"
 	EventSessionUpdated   EventType = "session_updated"
 )
