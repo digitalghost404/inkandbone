@@ -155,6 +155,7 @@ func (s *Server) registerTools() {
 		mcplib.WithDescription("Create a new player character in the active campaign and make them active."),
 		mcplib.WithString("name", mcplib.Required(), mcplib.Description("Character name")),
 		mcplib.WithNumber("campaign_id", mcplib.Description("Campaign ID (defaults to active campaign)")),
+		mcplib.WithBoolean("random_stats", mcplib.Description("If true, randomly roll starting stats appropriate for the campaign's ruleset")),
 	), s.handleCreateCharacter)
 
 	s.srv.AddTool(mcplib.NewTool("list_characters",

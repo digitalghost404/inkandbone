@@ -44,7 +44,7 @@ func TestRulesets(t *testing.T) {
 
 	list, err := d.ListRulesets()
 	require.NoError(t, err)
-	assert.Len(t, list, 5)
+	assert.Len(t, list, 13)
 }
 
 func TestCampaigns(t *testing.T) {

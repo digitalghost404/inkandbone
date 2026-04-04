@@ -38,6 +38,17 @@ func optInt64(req mcplib.CallToolRequest, key string) (int64, bool) {
 	return int64(f), ok
 }
 
+// optBool returns a boolean argument value, or false if absent.
+func optBool(req mcplib.CallToolRequest, key string) bool {
+	args := req.GetArguments()
+	v, ok := args[key]
+	if !ok || v == nil {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
+}
+
 // optFloat64 returns a numeric argument as float64, or (0, false) if absent.
 func optFloat64(req mcplib.CallToolRequest, key string) (float64, bool) {
 	args := req.GetArguments()
