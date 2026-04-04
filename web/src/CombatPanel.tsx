@@ -23,8 +23,8 @@ function parseConditions(json: string): string[] {
 export function CombatPanel({ combat }: Props) {
   const { encounter, combatants } = combat
   return (
-    <section className="panel combat-panel">
-      <h2>Combat: {encounter.name}</h2>
+    <div className="combat-grimoire">
+      <h2>⚔ {encounter.name}</h2>
       {combatants.map((c, idx) => {
         const pct = c.hp_max > 0 ? Math.max(0, Math.round((c.hp_current / c.hp_max) * 100)) : 0
         const colorClass = hpBarClass(c.hp_current, c.hp_max)
@@ -48,15 +48,13 @@ export function CombatPanel({ combat }: Props) {
             {conditions.length > 0 && (
               <div className="conditions">
                 {conditions.map((cond) => (
-                  <span key={cond} className="condition-badge">
-                    {cond}
-                  </span>
+                  <span key={cond} className="condition-badge">{cond}</span>
                 ))}
               </div>
             )}
           </div>
         )
       })}
-    </section>
+    </div>
   )
 }
