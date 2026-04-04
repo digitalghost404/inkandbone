@@ -45,7 +45,7 @@ func (s *Server) handlePatchCharacter(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": id}})
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": id, "data_json": body.DataJSON}})
 	w.WriteHeader(http.StatusNoContent)
 }
 

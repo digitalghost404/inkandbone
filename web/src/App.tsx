@@ -17,6 +17,14 @@ export default function App() {
   const [ctx, setCtx] = useState<GameContext | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [aiEnabled, setAiEnabled] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((data: { ai_enabled: boolean }) => setAiEnabled(data.ai_enabled))
+      .catch(() => setAiEnabled(false))
+  }, [])
 
   const loadContext = useCallback(() => {
     fetchContext()
@@ -39,8 +47,6 @@ export default function App() {
   )
 
   const { lastEvent } = useWebSocket(WS_URL, handleEvent)
-
-  const aiEnabled = true
 
   if (error) return <div className="error">{error}</div>
   if (!ctx) return <div className="loading">Loading…</div>

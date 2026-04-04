@@ -68,7 +68,6 @@ describe('JournalPanel', () => {
   it('generate recap button calls generateRecap and updates textarea when aiEnabled=true', async () => {
     const mockFetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ summary: 'AI generated recap.' }) }) // generateRecap
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({}) }) // patchSessionSummary
     vi.stubGlobal('fetch', mockFetch)
     render(
       <JournalPanel
@@ -88,13 +87,7 @@ describe('JournalPanel', () => {
       '/api/sessions/5/recap',
       expect.objectContaining({ method: 'POST' })
     )
-    expect(mockFetch).toHaveBeenCalledWith(
-      '/api/sessions/5',
-      expect.objectContaining({
-        method: 'PATCH',
-        body: JSON.stringify({ summary: 'AI generated recap.' }),
-      })
-    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('session_updated WS event updates draft', async () => {

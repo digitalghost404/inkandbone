@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchRuleset, patchCharacter, uploadPortrait } from './api'
-import type { Character, Ruleset } from './api'
+import type { Ruleset } from './api'
+import type { Character } from './types'
 
 interface SchemaField {
   key: string

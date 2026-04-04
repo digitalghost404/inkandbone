@@ -16,6 +16,7 @@ const mockCharacter = {
   data_json: JSON.stringify({ hp: 10, level: 1, notes: 'brave' }),
   campaign_id: 1,
   portrait_path: '',
+  created_at: '',
 }
 
 const mockRuleset = {
