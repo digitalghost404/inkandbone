@@ -64,7 +64,7 @@ function CombatantRow({ c, isActive }: { c: Combatant; isActive: boolean }) {
       <div className="hp-label">
         {c.hp_current} / {c.hp_max} HP
       </div>
-      {(conditions.length > 0 || true) && (
+      {(conditions.length > 0 || available.length > 0) && (
         <div className="conditions">
           {conditions.map((cond) => (
             <button
@@ -115,10 +115,12 @@ export function CombatPanel({ combat }: Props) {
     }
   }
 
+  const sorted = [...combatants].sort((a, b) => b.initiative - a.initiative)
+
   return (
     <div className="combat-grimoire">
       <h2>⚔ {encounter.name}</h2>
-      {combatants.map((c, idx) => (
+      {sorted.map((c, idx) => (
         <CombatantRow
           key={c.id}
           c={c}
