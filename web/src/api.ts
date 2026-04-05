@@ -66,6 +66,15 @@ export async function fetchMapPins(mapId: number): Promise<MapPin[]> {
   return res.json()
 }
 
+export async function patchSession(sessionId: number, updates: { scene_tags?: string; summary?: string; notes?: string }): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) throw new Error(`patchSession failed: ${res.status}`)
+}
+
 export async function patchSessionSummary(sessionId: number, summary: string): Promise<void> {
   const res = await fetch(`/api/sessions/${sessionId}`, {
     method: 'PATCH',

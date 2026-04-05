@@ -2340,3 +2340,66 @@ mark {
   background: var(--gold-dim);
   color: var(--bg);
 }
+
+/* Audio Controls */
+.audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.4rem;
+}
+
+.audio-mute-btn {
+  background: none;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold-dim);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0.15rem 0.4rem;
+  transition: background 0.12s, color 0.12s;
+}
+
+.audio-mute-btn:hover {
+  background: var(--gold-dim);
+  color: var(--bg);
+}
+
+.audio-volume-slider {
+  width: 60px;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
+/* Scene Tag Picker */
+.scene-tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+  margin: 0.5rem auto 0.75rem;
+  max-width: 560px;
+}
+
+.scene-tag {
+  background: none;
+  border: 1px solid var(--gold-dim);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  padding: 0.15rem 0.5rem;
+  text-transform: uppercase;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.scene-tag:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.scene-tag.active {
+  background: var(--gold-dim);
+  border-color: var(--gold);
+  color: var(--bg);
+}

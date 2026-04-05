@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useWebSocket } from './useWebSocket'
-import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin } from './api'
-import type { GameContext, Message } from './types'
+import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin, patchSession } from './api'
+import type { GameContext, Message, Session } from './types'
 import { CombatPanel } from './CombatPanel'
 import { WorldNotesPanel } from './WorldNotesPanel'
 import { DiceHistoryPanel } from './DiceHistoryPanel'
@@ -17,6 +17,9 @@ import { InventoryPanel } from './InventoryPanel'
 import { ManagePanel } from './ManagePanel'
 import { OraclePanel } from './OraclePanel'
 import { RelationshipsPanel } from './RelationshipsPanel'
+import AudioControls, { getAudioMuted } from './AudioControls'
+import { playDiceRoll, playNotification, playCombatStart } from './audio/sounds'
+import { setAmbientTrack } from './audio/ambient'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -224,6 +227,48 @@ function ProseJournal({
   )
 }
 
+// ── Scene Tag Picker ────────────────────────────────────────
+
+const SCENE_TAGS = ['tavern', 'dungeon', 'forest', 'city', 'ocean', 'cave', 'castle', 'rain', 'night', 'battle', 'market', 'temple', 'ruins']
+
+interface SceneTagPickerProps {
+  session: Session
+  onUpdate: (tags: string) => void
+}
+
+function SceneTagPicker({ session, onUpdate }: SceneTagPickerProps) {
+  const activeTags = session.scene_tags ? session.scene_tags.split(',').filter(Boolean) : []
+
+  async function toggleTag(tag: string) {
+    const newTags = activeTags.includes(tag)
+      ? activeTags.filter(t => t !== tag)
+      : [...activeTags, tag]
+    const tagsStr = newTags.join(',')
+    try {
+      await patchSession(session.id, { scene_tags: tagsStr })
+      onUpdate(tagsStr)
+      setAmbientTrack(newTags[0] ?? null)
+    } catch (err) {
+      console.error('Failed to update scene tags:', err)
+    }
+  }
+
+  return (
+    <div className="scene-tag-picker">
+      {SCENE_TAGS.map(tag => (
+        <button
+          key={tag}
+          className={`scene-tag${activeTags.includes(tag) ? ' active' : ''}`}
+          onClick={() => toggleTag(tag)}
+          title={tag}
+        >
+          {tag}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ── App ────────────────────────────────────────────────────
 
 export default function App() {
@@ -254,6 +299,12 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
+    const tags = ctx?.session?.scene_tags ?? ''
+    const firstTag = tags.split(',').filter(Boolean)[0] ?? null
+    setAmbientTrack(firstTag)
+  }, [ctx?.session?.scene_tags])
+
+  useEffect(() => {
     fetch('/api/health')
       .then((r) => r.json())
       .then((data: { ai_enabled: boolean }) => setAiEnabled(data.ai_enabled))
@@ -273,7 +324,15 @@ export default function App() {
     loadContext()
   }, [loadContext])
 
-  const handleEvent = useCallback((_data: unknown) => { loadContext() }, [loadContext])
+  const handleEvent = useCallback((data: unknown) => {
+    loadContext()
+    const event = data as { type?: string }
+    if (!getAudioMuted()) {
+      if (event?.type === 'dice_rolled') playDiceRoll()
+      else if (event?.type === 'message_created') playNotification()
+      else if (event?.type === 'combat_started') playCombatStart()
+    }
+  }, [loadContext])
   const { lastEvent } = useWebSocket(WS_URL, handleEvent)
 
   useEffect(() => {
@@ -394,6 +453,7 @@ export default function App() {
         >
           ⚙ Manage
         </button>
+        <AudioControls />
       </header>
 
       {manageOpen && (
@@ -469,6 +529,17 @@ export default function App() {
               <>
                 <div className="session-title">✦ {sessionTitle} ✦</div>
                 {sessionDate && <div className="session-date">{sessionDate}</div>}
+                {ctx.session && (
+                  <SceneTagPicker
+                    session={ctx.session}
+                    onUpdate={(tags) => {
+                      setCtx(prev => prev && prev.session
+                        ? { ...prev, session: { ...prev.session, scene_tags: tags } }
+                        : prev
+                      )
+                    }}
+                  />
+                )}
               </>
             )}
             {ctx.active_combat && <CombatPanel combat={ctx.active_combat} />}

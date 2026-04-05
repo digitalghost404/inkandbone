@@ -23,6 +23,7 @@ export interface Session {
   date: string
   summary: string
   notes: string
+  scene_tags: string
   created_at: string
 }
 
