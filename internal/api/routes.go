@@ -1427,6 +1427,8 @@ If NO dice roll is required, respond with ONLY:
 
 // extractNPCs uses the AI to extract newly introduced named NPCs from a GM
 // response and adds any that don't already exist in the session roster.
+// It also removes NPCs that are dead, captured, permanently gone, or otherwise
+// no longer relevant to the story.
 func (s *Server) extractNPCs(ctx context.Context, sessionID int64, gmText string) {
 	completer, ok := s.aiClient.(ai.Completer)
 	if !ok {
@@ -1438,60 +1440,131 @@ func (s *Server) extractNPCs(ctx context.Context, sessionID int64, gmText string
 		return
 	}
 
-	var exclude []string
+	var charName string
 	if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
 		if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
 			if char, err := s.db.GetCharacter(charID); err == nil && char != nil {
-				exclude = append(exclude, char.Name)
+				charName = char.Name
 			}
 		}
 	}
-	for _, n := range existing {
-		exclude = append(exclude, n.Name)
+
+	// Build existing NPC list for the prompt (with IDs so AI can reference them for removal).
+	type npcEntry struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
 	}
+	knownNames := make([]string, 0, len(existing))
+	knownEntries := make([]npcEntry, 0, len(existing))
+	for _, n := range existing {
+		knownNames = append(knownNames, n.Name)
+		knownEntries = append(knownEntries, npcEntry{ID: n.ID, Name: n.Name})
+	}
+	knownJSON, _ := json.Marshal(knownEntries)
 
 	excludeClause := ""
-	if len(exclude) > 0 {
-		excludeClause = fmt.Sprintf("\nDo NOT include these already-known names: %s.", strings.Join(exclude, ", "))
+	if charName != "" {
+		excludeClause = fmt.Sprintf("\nNever add the player character \"%s\" as an NPC.", charName)
 	}
 
-	prompt := fmt.Sprintf(`Extract any newly introduced named NPCs from this story passage. Return ONLY a valid JSON array of objects with "name" and "note" fields. The note should be a one-sentence description of who this character is. If no new NPCs appear, return [].%s
+	prompt := fmt.Sprintf(`You are a TTRPG NPC roster manager. Analyze this story passage.
+
+Already-tracked NPCs (JSON array with id and name): %s%s
 
 Story passage:
-%s`, excludeClause, gmText)
+%s
 
-	raw, err := completer.Generate(ctx, prompt, 256)
+Return ONLY a JSON object with two fields:
+- "add": array of {name, note} for brand-new named NPCs that appear in this passage and are NOT already tracked. note = one sentence describing who they are. Empty array if none.
+- "remove": array of ids from the tracked list for NPCs that are now definitively gone — dead, killed, permanently fled, captured offscreen, dissolved, destroyed, or otherwise will never interact with the player again. Be confident but not trigger-happy: only remove when the story clearly confirms they are gone. Empty array if none.
+
+Example: {"add":[{"name":"Torvan","note":"A scarred mercenary guarding the gate"}],"remove":[12,7]}
+If nothing changed: {"add":[],"remove":[]}
+No explanation, no markdown.`, string(knownJSON), excludeClause, gmText)
+
+	raw, err := completer.Generate(ctx, prompt, 384)
 	if err != nil {
 		return
 	}
 
 	raw = strings.TrimSpace(raw)
-	start := strings.Index(raw, "[")
-	end := strings.LastIndex(raw, "]")
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
 	if start < 0 || end <= start {
+		// Fallback: try legacy array format
+		start = strings.Index(raw, "[")
+		end = strings.LastIndex(raw, "]")
+		if start < 0 || end <= start {
+			return
+		}
+		var npcs []struct {
+			Name string `json:"name"`
+			Note string `json:"note"`
+		}
+		if err := json.Unmarshal([]byte(raw[start:end+1]), &npcs); err != nil {
+			return
+		}
+		changed := 0
+		for _, npc := range npcs {
+			if npc.Name == "" || npc.Name == charName {
+				continue
+			}
+			if _, err := s.db.CreateSessionNPC(sessionID, npc.Name, npc.Note); err == nil {
+				changed++
+			}
+		}
+		if changed > 0 {
+			s.bus.Publish(Event{Type: EventNPCUpdated, Payload: map[string]any{"session_id": sessionID}})
+		}
 		return
 	}
 
-	var npcs []struct {
-		Name string `json:"name"`
-		Note string `json:"note"`
+	var result struct {
+		Add []struct {
+			Name string `json:"name"`
+			Note string `json:"note"`
+		} `json:"add"`
+		Remove []int64 `json:"remove"`
 	}
-	if err := json.Unmarshal([]byte(raw[start:end+1]), &npcs); err != nil {
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &result); err != nil {
 		return
 	}
 
-	added := 0
-	for _, npc := range npcs {
-		if npc.Name == "" {
+	// Build a set of known NPC IDs for safety (only delete NPCs we actually track).
+	knownIDs := make(map[int64]bool, len(existing))
+	for _, n := range existing {
+		knownIDs[n.ID] = true
+	}
+	// Also build a set of known names (case-insensitive) to avoid duplicates.
+	knownNamesLower := make(map[string]bool, len(knownNames))
+	for _, n := range knownNames {
+		knownNamesLower[strings.ToLower(n)] = true
+	}
+
+	changed := 0
+	for _, npc := range result.Add {
+		if npc.Name == "" || npc.Name == charName {
+			continue
+		}
+		if knownNamesLower[strings.ToLower(npc.Name)] {
 			continue
 		}
 		if _, err := s.db.CreateSessionNPC(sessionID, npc.Name, npc.Note); err == nil {
-			added++
+			changed++
 		}
 	}
-	if added > 0 {
+	for _, id := range result.Remove {
+		if !knownIDs[id] {
+			continue // safety: never delete an ID we didn't give the AI
+		}
+		if err := s.db.DeleteSessionNPC(id); err == nil {
+			changed++
+		}
+	}
+	if changed > 0 {
 		s.bus.Publish(Event{Type: EventNPCUpdated, Payload: map[string]any{"session_id": sessionID}})
 	}
+	_ = knownNames // used above
 }
 
 // --- Feature 4: In-Browser Dice Roller ---
@@ -1859,7 +1932,7 @@ func (s *Server) handleDeleteObjective(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-var objectiveKeywords = []string{
+var objectiveNewKeywords = []string{
 	"quest", "task", "mission", "objective", "goal",
 	"find", "bring", "kill", "slay", "defeat", "protect", "rescue", "retrieve", "discover", "investigate",
 	"reward", "bounty", "contract", "assignment", "must", "need to", "have to",
@@ -1867,20 +1940,10 @@ var objectiveKeywords = []string{
 
 // autoDetectObjectives uses the AI to detect new objectives introduced in a GM
 // response and to resolve existing active objectives that were completed or failed.
+// Always runs when there are active objectives (to catch resolutions/failures).
+// Only skips entirely when there are no active objectives AND no new-objective keywords.
 // Runs in a background goroutine.
 func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmText string) {
-	lower := strings.ToLower(gmText)
-	hasSignal := false
-	for _, kw := range objectiveKeywords {
-		if strings.Contains(lower, kw) {
-			hasSignal = true
-			break
-		}
-	}
-	if !hasSignal {
-		return
-	}
-
 	completer, ok := s.aiClient.(ai.Completer)
 	if !ok {
 		return
@@ -1894,6 +1957,30 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 	existing, err := s.db.ListObjectives(sess.CampaignID)
 	if err != nil {
 		return
+	}
+
+	// Count active objectives — if any exist, always run to catch resolutions.
+	hasActive := false
+	for _, o := range existing {
+		if o.Status == "active" {
+			hasActive = true
+			break
+		}
+	}
+
+	// If no active objectives, only run when new-objective keywords appear.
+	if !hasActive {
+		lower := strings.ToLower(gmText)
+		found := false
+		for _, kw := range objectiveNewKeywords {
+			if strings.Contains(lower, kw) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return
+		}
 	}
 
 	type slimObjective struct {
@@ -1910,23 +1997,26 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 		return
 	}
 
-	prompt := fmt.Sprintf(`You are a TTRPG quest tracker. Analyze this story passage.
+	prompt := fmt.Sprintf(`You are a TTRPG quest tracker. Analyze this story passage and update objectives accordingly.
 
-Existing objectives (JSON array): %s
+Existing objectives (JSON array, only "active" ones can be resolved): %s
 
 Story passage:
 %s
 
 Return ONLY a JSON object with two fields:
-- "new": array of {title, description} for brand-new objectives or goals introduced (quests given, tasks revealed, goals stated). Empty array if none.
-- "resolved": array of {id, status} for existing active objectives that were just completed or failed. Only include ones with clear story evidence. "status" must be "completed" or "failed".
+- "new": array of {title, description} for brand-new objectives introduced in this passage (quests given, tasks revealed, explicit goals stated). Empty array if none.
+- "resolved": array of {id, status} for ACTIVE objectives that are now completed or impossible. Be aggressive: if a target is dead, captured, fled, destroyed, or the goal is clearly achieved or permanently blocked — mark it. "status" must be "completed" or "failed".
 
-Example: {"new":[{"title":"Find the stolen data-chip","description":"Vex wants you to recover a data-chip from a House Valdris facility"}],"resolved":[{"id":3,"status":"completed"}]}
+Examples of failed: target died, location destroyed, time ran out, goal became impossible, key person fled permanently.
+Examples of completed: task explicitly done, item delivered, enemy defeated, location reached.
+
+Example output: {"new":[{"title":"Secure the harbor","description":"Take control of the docks before dawn"}],"resolved":[{"id":3,"status":"completed"},{"id":7,"status":"failed"}]}
 
 If nothing changed: {"new":[],"resolved":[]}
 No explanation, no markdown.`, string(existingJSON), gmText)
 
-	raw, err := completer.Generate(ctx, prompt, 256)
+	raw, err := completer.Generate(ctx, prompt, 512)
 	if err != nil {
 		return
 	}
