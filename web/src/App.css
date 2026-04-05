@@ -1344,6 +1344,51 @@ mark {
   color: var(--gold);
 }
 
+.subtask-list {
+  margin-left: 1.25rem;
+  border-left: 2px solid var(--gold-dim, rgba(212,175,55,0.3));
+  padding-left: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.subtask-add-form {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: 1.25rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+
+.subtask-input {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-mid, #1a1410);
+  border: 1px solid var(--gold-dim, rgba(212,175,55,0.4));
+  color: var(--ink, #e8dcc8);
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+}
+
+.objective-header-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.objective-subtask-btn {
+  background: transparent;
+  border: none;
+  color: var(--gold-dim, rgba(212,175,55,0.6));
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 0.2rem;
+  line-height: 1;
+}
+
+.objective-subtask-btn:hover {
+  color: var(--gold);
+}
+
 /* ── Map Tabs ───────────────────────────────────────────── */
 
 .map-tab-bar {
