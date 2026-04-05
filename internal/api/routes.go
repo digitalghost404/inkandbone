@@ -762,6 +762,63 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 		sb.WriteString("Active combat: no\n")
 	}
 
+	// Active objectives
+	objs, err := s.db.ListObjectives(sess.CampaignID)
+	if err == nil {
+		var active []db.Objective
+		for _, o := range objs {
+			if o.Status == "active" {
+				active = append(active, o)
+			}
+		}
+		if len(active) > 0 {
+			sb.WriteString("[ACTIVE OBJECTIVES]\n")
+			for _, o := range active {
+				if o.Description != "" {
+					fmt.Fprintf(&sb, "- %s (%s)\n", o.Title, o.Description)
+				} else {
+					fmt.Fprintf(&sb, "- %s\n", o.Title)
+				}
+			}
+			sb.WriteString("[/ACTIVE OBJECTIVES]\n")
+		}
+	}
+
+	// NPC personality cards
+	npcNotes, err := s.db.SearchWorldNotes(sess.CampaignID, "", "npc", "")
+	if err == nil {
+		for _, n := range npcNotes {
+			if n.PersonalityJSON == "" {
+				continue
+			}
+			var p map[string]any
+			if err := json.Unmarshal([]byte(n.PersonalityJSON), &p); err != nil {
+				continue
+			}
+			fmt.Fprintf(&sb, "[NPC: %s]\n", n.Title)
+			if traits, ok := p["traits"]; ok {
+				switch v := traits.(type) {
+				case []any:
+					strs := make([]string, 0, len(v))
+					for _, t := range v {
+						if s, ok := t.(string); ok {
+							strs = append(strs, s)
+						}
+					}
+					if len(strs) > 0 {
+						fmt.Fprintf(&sb, "Traits: %s\n", strings.Join(strs, ", "))
+					}
+				case string:
+					fmt.Fprintf(&sb, "Traits: %s\n", v)
+				}
+			}
+			if motivation, ok := p["motivation"].(string); ok && motivation != "" {
+				fmt.Fprintf(&sb, "Motivation: %s\n", motivation)
+			}
+			sb.WriteString("[/NPC]\n")
+		}
+	}
+
 	sb.WriteString("[/WORLD STATE]")
 	return sb.String()
 }

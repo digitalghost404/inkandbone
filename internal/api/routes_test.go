@@ -484,6 +484,35 @@ func TestGenerateRecap_noAI(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
+func TestBuildWorldContext_ActiveObjectives(t *testing.T) {
+	s := newTestServer(t)
+	campID, sessID := seedCampaign(t, s.db)
+
+	_, err := s.db.CreateObjective(campID, "Find the lost sword", "main quest", nil)
+	require.NoError(t, err)
+
+	ctx := s.buildWorldContext(t.Context(), sessID)
+	assert.Contains(t, ctx, "Find the lost sword")
+	assert.Contains(t, ctx, "OBJECTIVES")
+}
+
+func TestBuildWorldContext_NPCPersonality(t *testing.T) {
+	s := newTestServer(t)
+	campID, sessID := seedCampaign(t, s.db)
+
+	_, err := s.db.CreateWorldNote(campID, "Elara", "A skilled merchant", "npc")
+	require.NoError(t, err)
+	note, err := s.db.FindWorldNoteByTitle(campID, "Elara")
+	require.NoError(t, err)
+	require.NotNil(t, note)
+	err = s.db.UpdateWorldNotePersonality(note.ID, `{"traits":["cunning"],"motivation":"profit"}`)
+	require.NoError(t, err)
+
+	ctx := s.buildWorldContext(t.Context(), sessID)
+	assert.Contains(t, ctx, "Elara")
+	assert.Contains(t, ctx, "cunning")
+}
+
 func TestUploadMap_ok(t *testing.T) {
 	dir := t.TempDir()
 	s := newTestServerWithDir(t, dir)
