@@ -42,6 +42,14 @@ func TestNextTurn(t *testing.T) {
 	assert.EqualValues(t, 1, payload["active_turn_index"])
 }
 
+func TestNextTurnNotFound(t *testing.T) {
+	s := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/combat-encounters/99999/next-turn", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 func TestListCreateDeleteXP(t *testing.T) {
 	s := newTestServer(t)
 	_, sessID := seedCampaign(t, s.db)

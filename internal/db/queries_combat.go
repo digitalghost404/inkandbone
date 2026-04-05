@@ -61,8 +61,17 @@ func (d *DB) EndEncounter(id int64) error {
 }
 
 // AdvanceTurn increments active_turn_index modulo the number of combatants.
-// Returns the new index. Returns 0 if encounter has no combatants.
+// Returns the new index. Returns 0 if the encounter has no combatants.
+// Returns an error containing "not found" if the encounter does not exist.
 func (d *DB) AdvanceTurn(encounterID int64) (int, error) {
+	var current int
+	err := d.db.QueryRow("SELECT active_turn_index FROM combat_encounters WHERE id = ?", encounterID).Scan(&current)
+	if err == sql.ErrNoRows {
+		return 0, fmt.Errorf("combat encounter %d not found", encounterID)
+	}
+	if err != nil {
+		return 0, err
+	}
 	var count int
 	if err := d.db.QueryRow("SELECT COUNT(*) FROM combatants WHERE encounter_id = ?", encounterID).Scan(&count); err != nil {
 		return 0, err
@@ -70,12 +79,8 @@ func (d *DB) AdvanceTurn(encounterID int64) (int, error) {
 	if count == 0 {
 		return 0, nil
 	}
-	var current int
-	if err := d.db.QueryRow("SELECT active_turn_index FROM combat_encounters WHERE id = ?", encounterID).Scan(&current); err != nil {
-		return 0, err
-	}
 	next := (current + 1) % count
-	_, err := d.db.Exec("UPDATE combat_encounters SET active_turn_index = ? WHERE id = ?", next, encounterID)
+	_, err = d.db.Exec("UPDATE combat_encounters SET active_turn_index = ? WHERE id = ?", next, encounterID)
 	return next, err
 }
 

@@ -90,3 +90,10 @@ func TestAdvanceTurn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, enc.ActiveTurnIndex)
 }
+
+func TestAdvanceTurnNotFound(t *testing.T) {
+	d := newTestDB(t)
+	_, err := d.AdvanceTurn(99999)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
