@@ -130,6 +130,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/sessions/{id}/xp", s.handleListXP)
 	s.mux.HandleFunc("POST /api/sessions/{id}/xp", s.handleCreateXP)
 	s.mux.HandleFunc("DELETE /api/xp/{id}", s.handleDeleteXP)
+	// Phase C: GM tools
+	s.mux.HandleFunc("POST /api/sessions/{id}/improvise", s.handleImprovise)
+	s.mux.HandleFunc("POST /api/campaigns/{id}/pre-session-brief", s.handlePreSessionBrief)
+	s.mux.HandleFunc("POST /api/sessions/{id}/detect-threads", s.handleDetectThreads)
+	s.mux.HandleFunc("POST /api/campaigns/{id}/ask", s.handleCampaignAsk)
 	// Management UI routes
 	s.mux.HandleFunc("GET /api/rulesets", s.handleListRulesets)
 	s.mux.HandleFunc("POST /api/campaigns", s.handleCreateCampaign)
