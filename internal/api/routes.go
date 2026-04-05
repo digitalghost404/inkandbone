@@ -985,6 +985,9 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 			"\n[DICE ROLL]\nAction required a %s check%s.\nReason: %s\nRoll: %s = %d — %s\n[/DICE ROLL]",
 			roll.Attribute, dcNote, roll.Reason, roll.Expression, roll.Total, outcome,
 		)
+		if !roll.Success {
+			worldCtx += "\n[GM DIRECTION]\nThe player's action FAILED. Narrate a setback, complication, or consequence. Do not give them what they wanted. Make failure interesting.\n[/GM DIRECTION]"
+		}
 	}
 	systemPrompt := worldCtx + "\n\n" + gmSystemPrompt
 

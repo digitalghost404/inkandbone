@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/digitalghost404/inkandbone/internal/ai"
 	"github.com/digitalghost404/inkandbone/internal/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -511,6 +514,50 @@ func TestBuildWorldContext_NPCPersonality(t *testing.T) {
 	ctx := s.buildWorldContext(t.Context(), sessID)
 	assert.Contains(t, ctx, "Elara")
 	assert.Contains(t, ctx, "cunning")
+}
+
+// stubCompleterStreamer implements both ai.Completer and ai.Streamer for testing
+// handleGMRespondStream. Generate returns a fixed response; StreamRespond
+// captures the system prompt and writes a minimal SSE response.
+type stubCompleterStreamer struct {
+	generateResp string
+	capturedSys  string
+	streamResp   string
+}
+
+func (s *stubCompleterStreamer) Generate(_ context.Context, _ string) (string, error) {
+	return s.generateResp, nil
+}
+
+func (s *stubCompleterStreamer) StreamRespond(_ context.Context, system string, _ []ai.ChatMessage, _ int, w http.ResponseWriter) (string, error) {
+	s.capturedSys = system
+	fmt.Fprintf(w, "data: %s\n\n", s.streamResp)
+	return s.streamResp, nil
+}
+
+func TestHandleGMRespondStream_FailureDirection(t *testing.T) {
+	// The stub's Generate returns a roll requiring DC 100 — guaranteed failure
+	// on any dice roll. StreamRespond captures the system prompt.
+	stub := &stubCompleterStreamer{
+		generateResp: `{"required":true,"expression":"1d20","attribute":"Strength","dc":100,"reason":"forcing a door"}`,
+		streamResp:   "You fail to open the door.",
+	}
+	s := newTestServerWithAI(t, stub)
+	_, sessID := seedCampaign(t, s.db)
+
+	// Seed a user message so handleGMRespondStream has something to respond to.
+	_, err := s.db.CreateMessage(sessID, "user", "I try to kick down the door.", false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/sessions/"+strconv.FormatInt(sessID, 10)+"/gm-respond-stream",
+		nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, stub.capturedSys, "[GM DIRECTION]")
+	assert.Contains(t, stub.capturedSys, "FAILED")
 }
 
 func TestUploadMap_ok(t *testing.T) {
