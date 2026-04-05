@@ -1,5 +1,7 @@
 package db
 
+import "database/sql"
+
 // Objective represents a campaign goal or quest being tracked.
 type Objective struct {
 	ID          int64  `json:"id"`
@@ -30,6 +32,21 @@ func (d *DB) ListObjectives(campaignID int64) ([]Objective, error) {
 		out = append(out, o)
 	}
 	return out, rows.Err()
+}
+
+// GetObjective returns a single objective by ID, or nil if not found.
+func (d *DB) GetObjective(id int64) (*Objective, error) {
+	var o Objective
+	err := d.db.QueryRow(
+		"SELECT id, campaign_id, title, description, status, parent_id, created_at FROM objectives WHERE id = ?", id,
+	).Scan(&o.ID, &o.CampaignID, &o.Title, &o.Description, &o.Status, &o.ParentID, &o.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &o, nil
 }
 
 // CreateObjective inserts a new objective and returns it.

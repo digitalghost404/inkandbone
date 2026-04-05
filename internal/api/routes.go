@@ -1646,6 +1646,21 @@ func (s *Server) handleCreateObjective(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "title is required", http.StatusBadRequest)
 		return
 	}
+	if body.ParentID != nil {
+		parent, err := s.db.GetObjective(*body.ParentID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if parent == nil {
+			http.Error(w, "parent objective not found", http.StatusBadRequest)
+			return
+		}
+		if parent.ParentID != nil {
+			http.Error(w, "parent_id must reference a top-level objective", http.StatusBadRequest)
+			return
+		}
+	}
 	obj, err := s.db.CreateObjective(id, body.Title, body.Description, body.ParentID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1672,6 +1687,11 @@ func (s *Server) handlePatchObjective(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Status == "" {
 		http.Error(w, "status is required", http.StatusBadRequest)
+		return
+	}
+	validStatuses := map[string]bool{"active": true, "completed": true, "failed": true}
+	if !validStatuses[body.Status] {
+		http.Error(w, "invalid status", http.StatusBadRequest)
 		return
 	}
 	if err := s.db.UpdateObjectiveStatus(id, body.Status); err != nil {

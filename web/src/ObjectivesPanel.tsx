@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { fetchObjectives, patchObjective, deleteObjective, createObjective } from './api'
 import type { Objective } from './types'
 
@@ -11,28 +11,26 @@ export function ObjectivesPanel({ campaignId, lastEvent }: ObjectivesPanelProps)
   const [objectives, setObjectives] = useState<Objective[]>([])
   const [subTaskForm, setSubTaskForm] = useState<{ parentId: number; title: string } | null>(null)
 
-  function load() {
+  const load = useCallback(() => {
     if (campaignId === null) return
     fetchObjectives(campaignId).then(setObjectives).catch(() => setObjectives([]))
-  }
+  }, [campaignId])
 
   useEffect(() => {
+    setSubTaskForm(null)
     load()
-  }, [campaignId])
+  }, [campaignId, load])
 
   useEffect(() => {
     const ev = lastEvent as { type?: string } | null
     if (ev?.type === 'objective_updated' && campaignId !== null) {
       load()
     }
-  }, [lastEvent, campaignId])
+  }, [lastEvent, campaignId, load])
 
   async function handleStatus(id: number, status: 'active' | 'completed' | 'failed') {
     try {
       await patchObjective(id, status)
-      setObjectives((prev) =>
-        prev.map((o) => (o.id === id ? { ...o, status } : o))
-      )
     } catch (err) {
       console.error(err)
     }
@@ -41,8 +39,6 @@ export function ObjectivesPanel({ campaignId, lastEvent }: ObjectivesPanelProps)
   async function handleDelete(id: number) {
     try {
       await deleteObjective(id)
-      // Remove objective and any of its sub-tasks from local state
-      setObjectives((prev) => prev.filter((o) => o.id !== id && o.parent_id !== id))
     } catch (err) {
       console.error(err)
     }
