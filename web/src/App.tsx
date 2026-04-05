@@ -15,6 +15,8 @@ import { NPCRosterPanel } from './NPCRosterPanel'
 import { ObjectivesPanel } from './ObjectivesPanel'
 import { InventoryPanel } from './InventoryPanel'
 import { ManagePanel } from './ManagePanel'
+import { OraclePanel } from './OraclePanel'
+import { RelationshipsPanel } from './RelationshipsPanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -230,7 +232,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [mapOpen, setMapOpen] = useState(false)
-  const [rightTab, setRightTab] = useState<'notes' | 'journal' | 'npcs' | 'objectives'>('notes')
+  const [rightTab, setRightTab] = useState<'notes' | 'journal' | 'npcs' | 'objectives' | 'oracle' | 'relationships'>('notes')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [gmResponding, setGmResponding] = useState(false)
@@ -585,6 +587,18 @@ export default function App() {
             >
               Objectives
             </button>
+            <button
+              className={`tab-btn${rightTab === 'oracle' ? ' active' : ''}`}
+              onClick={() => setRightTab('oracle')}
+            >
+              Oracle
+            </button>
+            <button
+              className={`tab-btn${rightTab === 'relationships' ? ' active' : ''}`}
+              onClick={() => setRightTab('relationships')}
+            >
+              Relations
+            </button>
           </div>
           <div className="tab-content">
             {rightTab === 'notes' && ctx.campaign && (
@@ -610,6 +624,12 @@ export default function App() {
             )}
             {rightTab === 'objectives' && (
               <ObjectivesPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />
+            )}
+            {rightTab === 'oracle' && ctx.session && (
+              <OraclePanel sessionId={ctx.session.id} />
+            )}
+            {rightTab === 'relationships' && ctx.campaign && (
+              <RelationshipsPanel campaignId={ctx.campaign.id} />
             )}
           </div>
         </aside>

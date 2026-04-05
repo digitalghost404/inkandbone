@@ -130,3 +130,13 @@ export interface XPEntry {
   amount: number | null
   created_at: string
 }
+
+export interface Relationship {
+  id: number
+  campaign_id: number
+  from_name: string
+  to_name: string
+  relationship_type: string
+  description: string
+  created_at: string
+}

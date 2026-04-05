@@ -1,4 +1,4 @@
-import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC, Objective, Item, XPEntry } from './types'
+import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC, Objective, Item, XPEntry, Relationship } from './types'
 
 export interface CampaignMap {
   id: number;
@@ -546,4 +546,63 @@ export async function uploadRulebook(
   })
   if (!res.ok) throw new Error(`uploadRulebook failed: ${res.status}`)
   return res.json()
+}
+
+// Oracle
+export async function postOracleRoll(table: string, roll: number, rulesetId?: number): Promise<{ result: string; table: string; roll: number }> {
+  const res = await fetch('/api/oracle/roll', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ table, roll, ruleset_id: rulesetId }),
+  })
+  if (!res.ok) throw new Error('Oracle roll failed')
+  return res.json()
+}
+
+// Tension
+export async function getTension(sessionId: number): Promise<number> {
+  const res = await fetch(`/api/sessions/${sessionId}/tension`)
+  if (!res.ok) throw new Error('Get tension failed')
+  const data = await res.json()
+  return data.tension_level
+}
+
+export async function patchTension(sessionId: number, level: number): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}/tension`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tension_level: level }),
+  })
+  if (!res.ok) throw new Error('Patch tension failed')
+}
+
+// Relationships
+export async function listRelationships(campaignId: number): Promise<Relationship[]> {
+  const res = await fetch(`/api/campaigns/${campaignId}/relationships`)
+  if (!res.ok) throw new Error('List relationships failed')
+  return res.json()
+}
+
+export async function createRelationship(campaignId: number, fromName: string, toName: string, type: string, description: string): Promise<{ id: number }> {
+  const res = await fetch(`/api/campaigns/${campaignId}/relationships`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from_name: fromName, to_name: toName, relationship_type: type, description }),
+  })
+  if (!res.ok) throw new Error('Create relationship failed')
+  return res.json()
+}
+
+export async function updateRelationship(id: number, type: string, description: string): Promise<void> {
+  const res = await fetch(`/api/relationships/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationship_type: type, description }),
+  })
+  if (!res.ok) throw new Error('Update relationship failed')
+}
+
+export async function deleteRelationship(id: number): Promise<void> {
+  const res = await fetch(`/api/relationships/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Delete relationship failed')
 }
