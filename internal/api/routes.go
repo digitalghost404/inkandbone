@@ -388,24 +388,37 @@ func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Summary string `json:"summary"`
+		Summary *string `json:"summary"`
+		Notes   *string `json:"notes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
-	if err := s.db.UpdateSessionSummary(id, body.Summary); err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			http.Error(w, err.Error(), http.StatusNotFound)
+	payload := map[string]any{"session_id": id}
+	if body.Summary != nil {
+		if err := s.db.UpdateSessionSummary(id, *body.Summary); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		payload["summary"] = *body.Summary
 	}
-	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
-		"session_id": id,
-		"summary":    body.Summary,
-	}})
+	if body.Notes != nil {
+		if err := s.db.UpdateSessionNotes(id, *body.Notes); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		payload["notes"] = *body.Notes
+	}
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: payload})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1623,16 +1636,17 @@ func (s *Server) handleCreateObjective(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
+		ParentID    *int64 `json:"parent_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
 	if body.Title == "" {
 		http.Error(w, "title is required", http.StatusBadRequest)
 		return
 	}
-	obj, err := s.db.CreateObjective(id, body.Title, body.Description, nil)
+	obj, err := s.db.CreateObjective(id, body.Title, body.Description, body.ParentID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
