@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { setAmbientVolume, setAmbientMuted } from './audio/ambient';
+import { setAmbientVolume, setAmbientMuted, pauseAmbient, resumeAmbient } from './audio/ambient';
 
 const STORAGE_KEY_MUTED = 'inkandbone_audio_muted';
 const STORAGE_KEY_VOLUME = 'inkandbone_audio_volume';
+const STORAGE_KEY_PAUSED = 'inkandbone_ambient_paused';
 
 // Exported state accessor for sounds.ts and other consumers
 export function getAudioMuted(): boolean {
@@ -17,6 +18,9 @@ export function getAudioVolume(): number {
 export default function AudioControls() {
   const [muted, setMuted] = useState<boolean>(() => getAudioMuted());
   const [volume, setVolume] = useState<number>(() => getAudioVolume());
+  const [ambientPaused, setAmbientPaused] = useState<boolean>(
+    () => localStorage.getItem(STORAGE_KEY_PAUSED) === 'true'
+  );
 
   useEffect(() => {
     setAmbientMuted(muted);
@@ -27,6 +31,24 @@ export default function AudioControls() {
     setAmbientVolume(volume);
     localStorage.setItem(STORAGE_KEY_VOLUME, String(volume));
   }, [volume]);
+
+  // Initialize ambient pause state on mount from localStorage
+  useEffect(() => {
+    if (localStorage.getItem(STORAGE_KEY_PAUSED) === 'true') {
+      pauseAmbient();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleAmbientPause() {
+    const next = !ambientPaused;
+    setAmbientPaused(next);
+    localStorage.setItem(STORAGE_KEY_PAUSED, String(next));
+    if (next) {
+      pauseAmbient();
+    } else {
+      resumeAmbient();
+    }
+  }
 
   return (
     <div className="audio-controls">
@@ -48,6 +70,14 @@ export default function AudioControls() {
         title="Volume"
         className="audio-volume-slider"
       />
+      <button
+        onClick={toggleAmbientPause}
+        disabled={muted}
+        title={ambientPaused ? 'Resume ambient music' : 'Pause ambient music'}
+        className="audio-pause-btn"
+      >
+        {ambientPaused ? '▶' : '⏸'}
+      </button>
     </div>
   );
 }
