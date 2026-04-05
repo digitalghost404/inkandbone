@@ -1056,6 +1056,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 		tensionText = "critical failure " + fullText
 	}
 	go s.autoUpdateTension(id, tensionText)
+	go s.autoUpdateSceneTags(context.Background(), id, fullText)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
@@ -2129,6 +2130,88 @@ Story passage:
 	if changed > 0 {
 		s.bus.Publish(Event{Type: EventItemUpdated, Payload: map[string]any{"character_id": charID}})
 	}
+}
+
+// autoUpdateSceneTags uses the AI to classify the scene from each GM response
+// and updates the session's scene_tags to drive ambient audio. Skips the write
+// if the active (first) tag is unchanged (stability — avoids restarting the track
+// mid-scene). Runs in a background goroutine.
+func (s *Server) autoUpdateSceneTags(ctx context.Context, sessionID int64, gmText string) {
+	if s.aiClient == nil {
+		return
+	}
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+	if gmText == "" {
+		return
+	}
+
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+
+	prompt := fmt.Sprintf(`You are a scene classifier for a tabletop RPG. Based on the GM's narrative below, select the single most fitting scene tag.
+
+Valid tags: tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins
+
+Rules:
+- Return exactly one tag from the list above
+- Choose based on the dominant environment or mood
+- If no tag fits well, return the closest match
+- Return only JSON: {"tag":"<chosen_tag>"}
+- No explanation, no markdown
+
+GM text:
+%s`, gmText)
+
+	raw, err := completer.Generate(ctx, prompt)
+	if err != nil {
+		return
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start < 0 || end <= start {
+		return
+	}
+
+	var result struct {
+		Tag string `json:"tag"`
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &result); err != nil {
+		return
+	}
+
+	validTags := map[string]bool{
+		"tavern": true, "dungeon": true, "forest": true, "city": true,
+		"ocean": true, "cave": true, "castle": true, "rain": true,
+		"night": true, "battle": true, "market": true, "temple": true,
+		"ruins": true,
+	}
+	if !validTags[result.Tag] {
+		return
+	}
+
+	// Tag stability: skip if the active (first) tag is unchanged
+	currentFirst := ""
+	if sess.SceneTags != "" {
+		currentFirst = strings.SplitN(sess.SceneTags, ",", 2)[0]
+	}
+	if result.Tag == currentFirst {
+		return
+	}
+
+	if err := s.db.UpdateSceneTags(sessionID, result.Tag); err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
+		"session_id": sessionID,
+		"scene_tags": result.Tag,
+	}})
 }
 
 // autoUpdateTension adjusts session tension after each GM response.
