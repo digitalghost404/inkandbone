@@ -1043,6 +1043,11 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	go s.autoUpdateRecap(context.Background(), id)
 	go s.autoDetectObjectives(context.Background(), id, fullText)
 	go s.autoExtractItems(context.Background(), id, fullText)
+	tensionText := fullText
+	if roll != nil && !roll.Success {
+		tensionText = "critical failure " + fullText
+	}
+	go s.autoUpdateTension(id, tensionText)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
@@ -2115,5 +2120,30 @@ Story passage:
 
 	if changed > 0 {
 		s.bus.Publish(Event{Type: EventItemUpdated, Payload: map[string]any{"character_id": charID}})
+	}
+}
+
+// autoUpdateTension adjusts session tension after each GM response.
+// Failed dice rolls increase tension +1 (caller prepends "critical failure" to text).
+// Crisis keywords in the GM text also increase tension +1.
+func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
+	crisisKeywords := []string{"critical failure", "disaster", "catastrophe", "ambush", "trap", "betrayal", "dying"}
+	lowerText := strings.ToLower(gmText)
+
+	current, err := s.db.GetTension(sessionID)
+	if err != nil {
+		return
+	}
+
+	for _, kw := range crisisKeywords {
+		if strings.Contains(lowerText, kw) {
+			newLevel := current + 1
+			_ = s.db.UpdateTension(sessionID, newLevel)
+			s.bus.Publish(Event{Type: EventTensionUpdated, Payload: map[string]any{
+				"session_id":    sessionID,
+				"tension_level": newLevel,
+			}})
+			return
+		}
 	}
 }

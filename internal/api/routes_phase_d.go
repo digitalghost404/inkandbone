@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"github.com/digitalghost404/inkandbone/internal/db"
 )
 
 func (s *Server) handleOracleRoll(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +53,97 @@ func (s *Server) handleGetTension(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"tension_level": level}) //nolint:errcheck
+}
+
+func (s *Server) handleCreateRelationship(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	campaignID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		FromName         string `json:"from_name"`
+		ToName           string `json:"to_name"`
+		RelationshipType string `json:"relationship_type"`
+		Description      string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.FromName == "" || body.ToName == "" {
+		http.Error(w, "from_name and to_name required", http.StatusBadRequest)
+		return
+	}
+	relType := body.RelationshipType
+	if relType == "" {
+		relType = "neutral"
+	}
+
+	id, err := s.db.CreateRelationship(campaignID, body.FromName, body.ToName, relType, body.Description)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	s.bus.Publish(Event{Type: EventRelationshipUpdated, Payload: map[string]any{"campaign_id": campaignID}})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{"id": id}) //nolint:errcheck
+}
+
+func (s *Server) handleListRelationships(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	campaignID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	rels, err := s.db.ListRelationships(campaignID)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	if rels == nil {
+		rels = []db.Relationship{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rels) //nolint:errcheck
+}
+
+func (s *Server) handleUpdateRelationship(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		RelationshipType string `json:"relationship_type"`
+		Description      string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.UpdateRelationship(id, body.RelationshipType, body.Description); err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventRelationshipUpdated, Payload: map[string]any{"id": id}})
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleDeleteRelationship(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.DeleteRelationship(id); err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handlePatchTension(w http.ResponseWriter, r *http.Request) {
