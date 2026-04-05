@@ -979,6 +979,24 @@ body {
   color: var(--gold);
 }
 
+.next-turn-btn {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.next-turn-btn:hover {
+  background: rgba(var(--gold-rgb, 212, 175, 55), 0.15);
+}
+
 /* ── Turn Order Strip ───────────────────────────────────── */
 
 .turn-strip {
