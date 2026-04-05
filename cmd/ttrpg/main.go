@@ -12,6 +12,7 @@ import (
 	"github.com/digitalghost404/inkandbone/internal/db"
 	mcpserver "github.com/digitalghost404/inkandbone/internal/mcp"
 	ttrpgweb "github.com/digitalghost404/inkandbone/web"
+	"golang.org/x/term"
 )
 
 func main() {
@@ -42,15 +43,20 @@ func main() {
 	}
 	httpServer.RegisterStatic(http.FS(distFS))
 
-	go func() {
-		log.Println("HTTP server listening on :7432")
-		if err := httpServer.ListenAndServe(":7432"); err != nil {
-			log.Printf("HTTP server stopped: %v", err)
-		}
-	}()
-
+	// When stdin is a pipe (MCP client connected), run the MCP stdio transport
+	// in a goroutine and block on HTTP. When stdin is a terminal (interactive /
+	// smoke-test mode), skip MCP stdio entirely and just block on HTTP.
 	mcpSrv := mcpserver.New(database, httpServer.Bus(), aiClient)
-	if err := mcpSrv.Start(); err != nil {
-		log.Fatalf("MCP server: %v", err)
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		go func() {
+			if err := mcpSrv.Start(); err != nil {
+				log.Printf("MCP server stopped: %v", err)
+			}
+		}()
+	}
+
+	log.Println("HTTP server listening on :7432")
+	if err := httpServer.ListenAndServe(":7432"); err != nil {
+		log.Printf("HTTP server stopped: %v", err)
 	}
 }
