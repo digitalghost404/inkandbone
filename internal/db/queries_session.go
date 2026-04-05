@@ -87,6 +87,28 @@ func (d *DB) ListSessions(campaignID int64) ([]Session, error) {
 	return out, rows.Err()
 }
 
+func (d *DB) DeleteSession(id int64) error {
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmts := []string{
+		`DELETE FROM dice_rolls WHERE session_id = ?`,
+		`DELETE FROM messages WHERE session_id = ?`,
+		`DELETE FROM session_npcs WHERE session_id = ?`,
+		`DELETE FROM combatants WHERE encounter_id IN (SELECT id FROM combat_encounters WHERE session_id = ?)`,
+		`DELETE FROM combat_encounters WHERE session_id = ?`,
+		`DELETE FROM sessions WHERE id = ?`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt, id); err != nil {
+			return fmt.Errorf("delete session %d: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
 // --- Messages ---
 
 type Message struct {

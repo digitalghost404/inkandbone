@@ -214,6 +214,22 @@ func (d *DB) ListCharacters(campaignID int64) ([]Character, error) {
 	return out, rows.Err()
 }
 
+// DeleteCharacter removes a character and all its items.
+func (d *DB) DeleteCharacter(id int64) error {
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("DELETE FROM items WHERE character_id = ?", id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM characters WHERE id = ?", id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // CloseCampaign sets active = 0 for the given campaign.
 // Returns an error if the campaign does not exist.
 // Idempotent: closing an already-closed campaign is a no-op.

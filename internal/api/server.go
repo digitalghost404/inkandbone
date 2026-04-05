@@ -96,6 +96,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("PATCH /api/world-notes/{id}", s.handlePatchWorldNote)
 	// Plan 9
 	s.mux.HandleFunc("GET /api/rulesets/{id}", s.handleGetRuleset)
+	s.mux.HandleFunc("GET /api/rulesets/{id}/character-options", s.handleGetCharacterOptions)
 	s.mux.HandleFunc("GET /api/rulesets/{id}/rulebook", s.handleListRulebookSources)
 	s.mux.HandleFunc("POST /api/rulesets/{id}/rulebook", s.handleIngestRulebook)
 	s.mux.HandleFunc("PATCH /api/characters/{id}", s.handlePatchCharacter)
@@ -128,6 +129,15 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/sessions/{id}/xp", s.handleListXP)
 	s.mux.HandleFunc("POST /api/sessions/{id}/xp", s.handleCreateXP)
 	s.mux.HandleFunc("DELETE /api/xp/{id}", s.handleDeleteXP)
+	// Management UI routes
+	s.mux.HandleFunc("GET /api/rulesets", s.handleListRulesets)
+	s.mux.HandleFunc("POST /api/campaigns", s.handleCreateCampaign)
+	s.mux.HandleFunc("DELETE /api/campaigns/{id}", s.handleDeleteCampaign)
+	s.mux.HandleFunc("POST /api/campaigns/{id}/characters", s.handleCreateCharacter)
+	s.mux.HandleFunc("DELETE /api/characters/{id}", s.handleDeleteCharacter)
+	s.mux.HandleFunc("POST /api/campaigns/{id}/sessions", s.handleCreateSession)
+	s.mux.HandleFunc("DELETE /api/sessions/{id}", s.handleDeleteSession)
+	s.mux.HandleFunc("PATCH /api/settings", s.handlePatchSettings)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

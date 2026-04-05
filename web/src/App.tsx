@@ -14,6 +14,7 @@ import { CharacterSheetPanel } from './CharacterSheetPanel'
 import { NPCRosterPanel } from './NPCRosterPanel'
 import { ObjectivesPanel } from './ObjectivesPanel'
 import { InventoryPanel } from './InventoryPanel'
+import { ManagePanel } from './ManagePanel'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -241,6 +242,8 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') ?? 'worn-grimoire')
   const [activeMapId, setActiveMapId] = useState<number | null>(null)
   const [activeMapImagePath, setActiveMapImagePath] = useState<string | null>(null)
+  const [manageOpen, setManageOpen] = useState(false)
+  const [manageTab, setManageTab] = useState<'campaigns' | 'characters' | 'sessions' | 'rulebooks'>('campaigns')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -382,7 +385,26 @@ export default function App() {
         <button className="h-export" onClick={handleExport} title="Export session">
           ↓ Export
         </button>
+        <button
+          className="h-manage"
+          onClick={() => setManageOpen(true)}
+          title="Manage campaigns, characters, sessions"
+        >
+          ⚙ Manage
+        </button>
       </header>
+
+      {manageOpen && (
+        <ManagePanel
+          activeCampaignId={ctx?.campaign?.id ?? null}
+          activeCharacterId={ctx?.character?.id ?? null}
+          activeSessionId={ctx?.session?.id ?? null}
+          initialTab={manageTab}
+          onTabChange={setManageTab}
+          onClose={() => setManageOpen(false)}
+          onContextChanged={() => { loadContext(); setManageOpen(false) }}
+        />
+      )}
 
       <div className="grimoire-body">
 

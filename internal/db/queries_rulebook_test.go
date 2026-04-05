@@ -57,7 +57,7 @@ func TestDeleteRulebookChunks(t *testing.T) {
 	require.Empty(t, results)
 }
 
-func TestSearchRulebookChunks_limitThree(t *testing.T) {
+func TestSearchRulebookChunks_limitFive(t *testing.T) {
 	d := newTestDB(t)
 	rulesets, err := d.ListRulesets()
 	require.NoError(t, err)
@@ -68,12 +68,14 @@ func TestSearchRulebookChunks_limitThree(t *testing.T) {
 		{Heading: "B", Content: "magic word"},
 		{Heading: "C", Content: "magic word"},
 		{Heading: "D", Content: "magic word"},
+		{Heading: "E", Content: "magic word"},
+		{Heading: "F", Content: "magic word"},
 	}
 	require.NoError(t, d.CreateRulebookChunks(rulesetID, chunks))
 
 	results, err := d.SearchRulebookChunks(rulesetID, "magic")
 	require.NoError(t, err)
-	require.Len(t, results, 3)
+	require.Len(t, results, 5)
 }
 
 func TestSearchRulebookChunks_empty(t *testing.T) {

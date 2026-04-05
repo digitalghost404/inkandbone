@@ -376,3 +376,132 @@ export async function deleteXP(id: number): Promise<void> {
   const res = await fetch(`/api/xp/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`deleteXP failed: ${res.status}`)
 }
+
+// --- Management API ---
+
+export interface RulebookSource {
+  source: string;
+  chunks: number;
+}
+
+export async function fetchRulesets(): Promise<Ruleset[]> {
+  const res = await fetch('/api/rulesets')
+  if (!res.ok) throw new Error(`fetchRulesets failed: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchCampaigns(): Promise<import('./types').Campaign[]> {
+  const res = await fetch('/api/campaigns')
+  if (!res.ok) throw new Error(`fetchCampaigns failed: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchCharacters(campaignId: number): Promise<import('./types').Character[]> {
+  const res = await fetch(`/api/campaigns/${campaignId}/characters`)
+  if (!res.ok) throw new Error(`fetchCharacters failed: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchSessions(campaignId: number): Promise<import('./types').Session[]> {
+  const res = await fetch(`/api/campaigns/${campaignId}/sessions`)
+  if (!res.ok) throw new Error(`fetchSessions failed: ${res.status}`)
+  return res.json()
+}
+
+export async function createCampaign(name: string, description: string, rulesetId: number): Promise<{ id: number }> {
+  const res = await fetch('/api/campaigns', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description, ruleset_id: rulesetId }),
+  })
+  if (!res.ok) throw new Error(`createCampaign failed: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteCampaign(id: number): Promise<void> {
+  const res = await fetch(`/api/campaigns/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteCampaign failed: ${res.status}`)
+}
+
+export async function fetchCharacterOptions(rulesetId: number): Promise<Record<string, string[]>> {
+  const res = await fetch(`/api/rulesets/${rulesetId}/character-options`)
+  if (!res.ok) throw new Error(`fetchCharacterOptions failed: ${res.status}`)
+  return res.json()
+}
+
+export async function createCharacter(
+  campaignId: number,
+  name: string,
+  overrides?: Record<string, string>,
+): Promise<import('./types').Character> {
+  const res = await fetch(`/api/campaigns/${campaignId}/characters`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, overrides }),
+  })
+  if (!res.ok) throw new Error(`createCharacter failed: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteCharacter(id: number): Promise<void> {
+  const res = await fetch(`/api/characters/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteCharacter failed: ${res.status}`)
+}
+
+export async function createSession(
+  campaignId: number,
+  title: string,
+  date: string,
+): Promise<import('./types').Session> {
+  const res = await fetch(`/api/campaigns/${campaignId}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, date }),
+  })
+  if (!res.ok) throw new Error(`createSession failed: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteSession(id: number): Promise<void> {
+  const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteSession failed: ${res.status}`)
+}
+
+export async function patchSettings(settings: {
+  campaign_id?: number | null;
+  character_id?: number | null;
+  session_id?: number | null;
+}): Promise<void> {
+  const body: Record<string, number> = {}
+  if (settings.campaign_id !== undefined) body['campaign_id'] = settings.campaign_id ?? 0
+  if (settings.character_id !== undefined) body['character_id'] = settings.character_id ?? 0
+  if (settings.session_id !== undefined) body['session_id'] = settings.session_id ?? 0
+  const res = await fetch('/api/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`patchSettings failed: ${res.status}`)
+}
+
+export async function fetchRulebookSources(rulesetId: number): Promise<RulebookSource[]> {
+  const res = await fetch(`/api/rulesets/${rulesetId}/rulebook`)
+  if (!res.ok) throw new Error(`fetchRulebookSources failed: ${res.status}`)
+  return res.json()
+}
+
+export async function uploadRulebook(
+  rulesetId: number,
+  file: File,
+  source: string,
+): Promise<{ chunks_created: number; source: string }> {
+  const form = new FormData()
+  form.append('rulebook', file)
+  form.append('source', source)
+  const res = await fetch(`/api/rulesets/${rulesetId}/rulebook`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) throw new Error(`uploadRulebook failed: ${res.status}`)
+  return res.json()
+}
