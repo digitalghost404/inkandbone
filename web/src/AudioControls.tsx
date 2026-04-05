@@ -32,12 +32,12 @@ export default function AudioControls() {
     localStorage.setItem(STORAGE_KEY_VOLUME, String(volume));
   }, [volume]);
 
-  // Initialize ambient pause state on mount from localStorage
+  // Sync ambient module's paused flag before any track loads
   useEffect(() => {
     if (localStorage.getItem(STORAGE_KEY_PAUSED) === 'true') {
       pauseAmbient();
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   function toggleAmbientPause() {
     const next = !ambientPaused;
