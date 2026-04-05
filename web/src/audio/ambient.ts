@@ -42,6 +42,7 @@ export function pauseAmbient(): void {
 export function resumeAmbient(): void {
   paused = false;
   if (currentTrack && !muted) {
+    currentTrack.audio.volume = masterVolume * MAX_VOLUME;
     currentTrack.audio.play().catch(() => {});
   }
 }
@@ -82,9 +83,14 @@ export async function setAmbientTrack(tag: string | null): Promise<void> {
   // If same tag, do nothing
   if (currentTrack && tag === currentTrack.tag) return;
 
-  // Fade out current track
+  // Fade out current track (skip fade if paused — audio is already silent)
   if (currentTrack) {
-    await fadeOut(currentTrack.audio);
+    if (!paused) {
+      await fadeOut(currentTrack.audio);
+    } else {
+      currentTrack.audio.pause();
+      currentTrack.audio.currentTime = 0;
+    }
     currentTrack = null;
   }
 
