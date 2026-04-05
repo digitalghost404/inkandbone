@@ -60,9 +60,17 @@ func (s *Server) ListenAndServe(addr string) error {
 func (s *Server) Shutdown(_ context.Context) error { return nil }
 
 // RegisterStatic serves the embedded React SPA for all routes not matched by /api/ or /ws.
+// index.html is served with Cache-Control: no-cache so browsers always re-validate it
+// after a binary update (Vite hashes JS/CSS names; a stale index.html causes blank screens).
 func (s *Server) RegisterStatic(fsys http.FileSystem) {
 	fileServer := http.FileServer(fsys)
 	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Strip query string for extension check; assets (*.js, *.css) can be
+		// cached by hash. Only index.html needs no-cache.
+		path := r.URL.Path
+		if path == "/" || strings.HasSuffix(path, ".html") {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		}
 		fileServer.ServeHTTP(w, r)
 	})
 }
