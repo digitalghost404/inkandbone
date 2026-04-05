@@ -1632,7 +1632,7 @@ func (s *Server) handleCreateObjective(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "title is required", http.StatusBadRequest)
 		return
 	}
-	obj, err := s.db.CreateObjective(id, body.Title, body.Description)
+	obj, err := s.db.CreateObjective(id, body.Title, body.Description, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1762,7 +1762,7 @@ No explanation, no markdown.`, string(existingJSON), gmText)
 		if n.Title == "" {
 			continue
 		}
-		if _, err := s.db.CreateObjective(sess.CampaignID, n.Title, n.Description); err == nil {
+		if _, err := s.db.CreateObjective(sess.CampaignID, n.Title, n.Description, nil); err == nil {
 			changed++
 		}
 	}
