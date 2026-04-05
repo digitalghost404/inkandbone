@@ -6,7 +6,7 @@ import type { GameContext } from './types'
 const mockCtx: GameContext = {
   campaign: { id: 1, ruleset_id: 1, name: 'Greyhawk', description: '', active: true, created_at: '' },
   character: { id: 1, campaign_id: 1, name: 'Zara', data_json: '{}', portrait_path: '', created_at: '' },
-  session: { id: 1, campaign_id: 1, title: 'Session 1', date: '2026-04-03', summary: '', created_at: '' },
+  session: { id: 1, campaign_id: 1, title: 'Session 1', date: '2026-04-03', summary: '', notes: '', created_at: '' },
   recent_messages: [
     { id: 1, session_id: 1, role: 'assistant', content: 'You enter the tavern.', created_at: '' },
     { id: 2, session_id: 1, role: 'user', content: 'I look for a table.', created_at: '' },
@@ -104,7 +104,7 @@ describe('App', () => {
     const ctxWithCombat: GameContext = {
       ...mockCtx,
       active_combat: {
-        encounter: { id: 1, session_id: 1, name: 'Dragon Fight', active: true, created_at: '' },
+        encounter: { id: 1, session_id: 1, name: 'Dragon Fight', active: true, active_turn_index: 0, created_at: '' },
         combatants: [
           { id: 1, encounter_id: 1, character_id: null, name: 'Zara', initiative: 20, hp_current: 40, hp_max: 40, conditions_json: '[]', is_player: true },
         ],
