@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 // handleNextTurn advances the active turn index for a combat encounter (wraps around).
@@ -15,6 +16,10 @@ func (s *Server) handleNextTurn(w http.ResponseWriter, r *http.Request) {
 	}
 	nextIdx, err := s.db.AdvanceTurn(id)
 	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
 		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -77,8 +82,9 @@ func (s *Server) handleCreateXP(w http.ResponseWriter, r *http.Request) {
 		"note":       entry.Note,
 		"amount":     entry.Amount,
 	}})
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, entry)
+	json.NewEncoder(w).Encode(entry) //nolint:errcheck
 }
 
 // handleDeleteXP removes an XP log entry.

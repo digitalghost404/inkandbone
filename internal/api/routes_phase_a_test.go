@@ -39,7 +39,7 @@ func TestNextTurn(t *testing.T) {
 	assert.Equal(t, EventTurnAdvanced, got.Type)
 	payload := got.Payload.(map[string]any)
 	assert.Equal(t, encID, payload["encounter_id"])
-	assert.Equal(t, 1, payload["active_turn_index"])
+	assert.EqualValues(t, 1, payload["active_turn_index"])
 }
 
 func TestListCreateDeleteXP(t *testing.T) {
