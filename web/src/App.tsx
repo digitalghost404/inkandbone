@@ -694,7 +694,7 @@ export default function App() {
               />
             )}
             {rightTab === 'objectives' && (
-              <ObjectivesPanel campaignId={ctx?.campaign?.id ?? null} lastEvent={lastEvent} />
+              <ObjectivesPanel campaignId={ctx?.campaign?.id ?? null} sessionId={ctx?.session?.id ?? null} lastEvent={lastEvent} />
             )}
             {rightTab === 'oracle' && ctx.session && (
               <OraclePanel sessionId={ctx.session.id} />

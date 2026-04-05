@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchObjectives, patchObjective, deleteObjective, createObjective } from './api'
+import { fetchObjectives, patchObjective, deleteObjective, createObjective, reanalyzeSession } from './api'
 import type { Objective } from './types'
 
 interface ObjectivesPanelProps {
   campaignId: number | null
+  sessionId: number | null
   lastEvent: unknown
 }
 
-export function ObjectivesPanel({ campaignId, lastEvent }: ObjectivesPanelProps) {
+export function ObjectivesPanel({ campaignId, sessionId, lastEvent }: ObjectivesPanelProps) {
   const [objectives, setObjectives] = useState<Objective[]>([])
   const [subTaskForm, setSubTaskForm] = useState<{ parentId: number; title: string } | null>(null)
+  const [reanalyzing, setReanalyzing] = useState(false)
 
   const load = useCallback(() => {
     if (campaignId === null) return
@@ -52,6 +54,18 @@ export function ObjectivesPanel({ campaignId, lastEvent }: ObjectivesPanelProps)
       load()
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  async function handleReanalyze() {
+    if (sessionId === null || reanalyzing) return
+    setReanalyzing(true)
+    try {
+      await reanalyzeSession(sessionId)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setReanalyzing(false)
     }
   }
 
@@ -117,6 +131,17 @@ export function ObjectivesPanel({ campaignId, lastEvent }: ObjectivesPanelProps)
 
   return (
     <div className="objectives-panel">
+      {sessionId !== null && (
+        <button
+          className="npc-reanalyze-btn"
+          onClick={handleReanalyze}
+          disabled={reanalyzing}
+          title="Re-run AI analysis on full session history to update objectives"
+          style={{ marginBottom: '0.5rem' }}
+        >
+          {reanalyzing ? 'Analyzing…' : '↻ Reanalyze'}
+        </button>
+      )}
       {active.length > 0 && (
         <section>
           <div className="objectives-section-label">Active</div>

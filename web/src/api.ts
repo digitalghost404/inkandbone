@@ -615,3 +615,8 @@ export async function deleteRelationship(id: number): Promise<void> {
   const res = await fetch(`/api/relationships/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Delete relationship failed')
 }
+
+export async function reanalyzeSession(sessionId: number): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}/reanalyze`, { method: 'POST' })
+  if (!res.ok) throw new Error('Reanalyze failed')
+}

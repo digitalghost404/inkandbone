@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchNPCs, createNPC, patchNPC, deleteNPC } from './api'
+import { fetchNPCs, createNPC, patchNPC, deleteNPC, reanalyzeSession } from './api'
 import type { SessionNPC } from './types'
 
 interface Props {
@@ -13,6 +13,7 @@ export function NPCRosterPanel({ sessionId, lastEvent }: Props) {
   const [addName, setAddName] = useState('')
   const [addNote, setAddNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [reanalyzing, setReanalyzing] = useState(false)
 
   useEffect(() => {
     if (sessionId === null) return
@@ -56,6 +57,18 @@ export function NPCRosterPanel({ sessionId, lastEvent }: Props) {
     patchNPC(npc.id, note).catch(console.error)
   }
 
+  async function handleReanalyze() {
+    if (sessionId === null || reanalyzing) return
+    setReanalyzing(true)
+    try {
+      await reanalyzeSession(sessionId)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setReanalyzing(false)
+    }
+  }
+
   if (sessionId === null) return <p className="empty">No active session.</p>
 
   return (
@@ -71,6 +84,15 @@ export function NPCRosterPanel({ sessionId, lastEvent }: Props) {
           onNoteBlur={(note) => handleNoteBlur(npc, note)}
         />
       ))}
+
+      <button
+        className="npc-reanalyze-btn"
+        onClick={handleReanalyze}
+        disabled={reanalyzing}
+        title="Re-run AI analysis on full session history to add/remove NPCs"
+      >
+        {reanalyzing ? 'Analyzing…' : '↻ Reanalyze'}
+      </button>
 
       {showAddForm ? (
         <div className="npc-add-form">

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -168,4 +169,52 @@ func (s *Server) handleCampaignAsk(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"result": result}) //nolint:errcheck
+}
+
+// handleReanalyzeSession retroactively runs objective and NPC analysis over the
+// full session history. Fires in the background; responds 202 immediately.
+// POST /api/sessions/{id}/reanalyze
+func (s *Server) handleReanalyzeSession(w http.ResponseWriter, r *http.Request) {
+	id, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+	if s.aiClient == nil {
+		http.Error(w, "AI not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	messages, err := s.db.ListMessages(id)
+	if err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build corpus from all GM (assistant) messages.
+	var sb strings.Builder
+	for _, m := range messages {
+		if m.Role == "assistant" {
+			sb.WriteString(m.Content)
+			sb.WriteString("\n\n")
+		}
+	}
+	corpus := strings.TrimSpace(sb.String())
+	if corpus == "" {
+		http.Error(w, "no GM messages found", http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Truncate to ~12000 chars (~3000 tokens) — take the tail so we analyze
+	// the most recent story state rather than early session setup.
+	const maxCorpusChars = 12000
+	if len(corpus) > maxCorpusChars {
+		corpus = corpus[len(corpus)-maxCorpusChars:]
+	}
+
+	go s.autoDetectObjectives(context.Background(), id, corpus)
+	go s.extractNPCs(context.Background(), id, corpus)
+
+	w.WriteHeader(http.StatusAccepted)
+	writeJSON(w, map[string]string{"status": "reanalysis started"})
 }
