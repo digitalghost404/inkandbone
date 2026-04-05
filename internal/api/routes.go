@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	mathrand "math/rand"
 	"net/http"
 	"os"
@@ -479,7 +480,7 @@ func (s *Server) handleDraftWorldNote(w http.ResponseWriter, r *http.Request) {
 		"Create a TTRPG world note for: %s\n\nRespond with exactly two lines:\nTitle: <short name>\nContent: <2-3 sentence description>",
 		body.Hint,
 	)
-	generated, err := s.aiClient.Generate(r.Context(), prompt)
+	generated, err := s.aiClient.Generate(r.Context(), prompt, 256)
 	if err != nil {
 		http.Error(w, "AI error: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -704,7 +705,7 @@ func (s *Server) buildRecap(ctx context.Context, sessionID int64) (string, error
 		fmt.Fprintf(&sb, "%s = %d\n", r.Expression, r.Result)
 	}
 
-	return s.aiClient.Generate(ctx, sb.String())
+	return s.aiClient.Generate(ctx, sb.String(), 200)
 }
 
 const gmSystemPrompt = `You are the Game Master of a tabletop roleplaying game. Continue the story in response to the player's most recent action.
@@ -716,26 +717,16 @@ End with "**What do you do?**"
 DICE ROLLS — follow these strictly:
 - If the [WORLD STATE] contains a [DICE ROLL] block, you MUST incorporate the result into the narrative. The outcome is fixed. Do not invent a different result.
 - Narrate success vividly. Narrate failure with consequences that still move the story forward.
-- Never say "you rolled a 14" or reference numbers in the prose. Translate the mechanical result into fiction: "Your grip holds" (success) or "Your fingers slip at the last moment" (failure).
-- Briefly and naturally explain why the roll mattered, in one sentence of in-world flavor, so new players understand: e.g. "Picking the lock needed a steady hand." Keep it light, never lecture.
+- Never say "you rolled a 14" or reference numbers in the prose. Translate the mechanical result into fiction.
+- Briefly explain in one sentence of in-world flavor why the roll mattered. Keep it light, never lecture.
 
-WRITING RULES — follow these strictly:
-- Vary sentence length drastically. Short sentences hit hard. Then a longer one draws the moment out, letting weight settle. Fragments work.
-- Use contractions naturally: don't, can't, it's, you're.
-- NEVER use an em-dash (—) anywhere in your response, for any reason. Not for pauses, not for asides, not for interruptions. Zero em-dashes, ever.
-- For dramatic pauses: use a period and start a new sentence, or use a sentence fragment. Example: "The door opens. Nothing." not "The door opens — nothing."
-- For interrupted speech or trailing off: use an ellipsis (...). Example: "I wouldn't do that if I were..." not "I wouldn't do that—"
-- For asides and parentheticals: use commas or parentheses. Example: "The guard (half-asleep) barely glances up." not "The guard — half-asleep — barely glances up."
-- Never use "It's not X, it's Y" constructions.
-- No rhetorical questions mid-sentence or as transitions.
-- Repeat character names and key nouns freely. Never synonym-chain ("the warrior" → "the combatant" → "the fighter").
-- Show atmosphere with concrete sensory detail, not vague declarations ("something shifted").
-- Banned words: delve, tapestry, multifaceted, unpack, ascertain, whilst, moreover, furthermore, transformative, empower, elevate, realm, intricate.
-- No academic hedges: "it is worth noting," "one could argue," "in light of."
-- No canned openers: "As the [noun] continues to..." or "In this world..."
+WRITING RULES:
+- Vary sentence length. Short sentences hit hard. Fragments work.
+- Repeat character names freely. Never synonym-chain ("the warrior" → "the combatant").
+- Concrete sensory detail, not vague declarations ("something shifted").
+- No academic hedges, canned openers, or rhetorical questions as transitions.
 
-Do not break character. Do not summarize. Just continue the story.
-CRITICAL: Begin your response immediately with story prose. Never output any preamble, meta-commentary, reasoning, or thinking. The player sees your first word. Make it story.`
+Begin immediately with story prose. No preamble, no meta-commentary.`
 
 // buildWorldContext assembles a [WORLD STATE] block injected into the GM system prompt.
 func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string {
@@ -814,13 +805,28 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 		}
 	}
 
-	// NPC personality cards
+	// NPC personality cards — only inject NPCs mentioned in session summary to bound token cost.
+	// If summary is empty, fall back to the 3 most recent NPC notes.
 	npcNotes, err := s.db.SearchWorldNotes(sess.CampaignID, "", "npc", "")
 	if err == nil {
+		summaryLower := strings.ToLower(sess.Summary)
+		var filteredNPCs []db.WorldNote
 		for _, n := range npcNotes {
 			if n.PersonalityJSON == "" {
 				continue
 			}
+			if summaryLower == "" || summaryLower == "none" {
+				filteredNPCs = append(filteredNPCs, n)
+				if len(filteredNPCs) >= 3 {
+					break
+				}
+				continue
+			}
+			if strings.Contains(summaryLower, strings.ToLower(n.Title)) {
+				filteredNPCs = append(filteredNPCs, n)
+			}
+		}
+		for _, n := range filteredNPCs {
 			var p map[string]any
 			if err := json.Unmarshal([]byte(n.PersonalityJSON), &p); err != nil {
 				continue
@@ -886,6 +892,15 @@ func (s *Server) handleGMRespond(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		history = append(history, ai.ChatMessage{Role: m.Role, Content: m.Content})
+	}
+	// Cap history to the last 30 messages to bound input token cost.
+	// The session summary in buildWorldContext covers long-term memory.
+	const historyWindow = 30
+	if len(history) > historyWindow {
+		history = history[len(history)-historyWindow:]
+		for len(history) > 0 && history[0].Role != "user" {
+			history = history[1:]
+		}
 	}
 
 	worldCtx := s.buildWorldContext(r.Context(), id)
@@ -995,6 +1010,15 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 		}
 		history = append(history, ai.ChatMessage{Role: m.Role, Content: m.Content})
 	}
+	// Cap history to the last 30 messages to bound input token cost.
+	// The session summary in buildWorldContext covers long-term memory.
+	const historyWindow = 30
+	if len(history) > historyWindow {
+		history = history[len(history)-historyWindow:]
+		for len(history) > 0 && history[0].Role != "user" {
+			history = history[1:]
+		}
+	}
 
 	// Check if the player's action requires a dice roll under the active ruleset.
 	// Do this before building the system prompt so the result can be injected.
@@ -1027,7 +1051,8 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 
 	fullText, err := streamer.StreamRespond(r.Context(), systemPrompt, history, 2048, w)
 	if err != nil {
-		// Headers already sent; can't send HTTP error status, just return
+		// Headers already sent; can't send HTTP error status, just log and return
+		log.Printf("gm-respond-stream: StreamRespond error: %v", err)
 		return
 	}
 
@@ -1093,7 +1118,7 @@ Return ONLY JSON (no explanation, no markdown):
 Story passage:
 %s`, gmText)
 
-	raw, err := completer.Generate(ctx, detectPrompt)
+	raw, err := completer.Generate(ctx, detectPrompt, 128)
 	if err != nil {
 		return
 	}
@@ -1154,9 +1179,31 @@ Story passage:
 // autoUpdateCharacterStats checks whether the story events require any
 // character stat changes under the active ruleset (XP, wounds, level-ups,
 // stress, etc.) and applies them automatically.
+// statChangeKeywords are signals that something mechanically significant happened.
+var statChangeKeywords = []string{
+	"wound", "injur", "damage", "bleed", "hurt", "dead", "die", "dies", "dying",
+	"level", "experience", "xp", "exp", "advance",
+	"stress", "trauma", "exhaust", "corrupt",
+	"heal", "recover", "restore",
+	"spend", "use", "consume", "expend",
+	"critical", "fail", "success",
+}
+
 func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, playerAction, gmText string) {
 	completer, ok := s.aiClient.(ai.Completer)
 	if !ok {
+		return
+	}
+	// Skip the AI call when the narrative contains no stat-change signals.
+	combined := strings.ToLower(playerAction + " " + gmText)
+	hasSignal := false
+	for _, kw := range statChangeKeywords {
+		if strings.Contains(combined, kw) {
+			hasSignal = true
+			break
+		}
+	}
+	if !hasSignal {
 		return
 	}
 
@@ -1212,7 +1259,7 @@ Return ONLY a JSON object with the fields that must change and their new values.
 - If nothing needs to change, return {}.
 - No explanation, no markdown — just the JSON object.`, ruleset.Name, schema, char.DataJSON, playerAction, gmText)
 
-	raw, err := completer.Generate(ctx, prompt)
+	raw, err := completer.Generate(ctx, prompt, 256)
 	if err != nil {
 		return
 	}
@@ -1313,7 +1360,7 @@ If a dice roll IS required, respond with ONLY this JSON (no explanation, no mark
 If NO dice roll is required, respond with ONLY:
 {"required":false}`, ruleset.Name, schema, charStats, playerAction)
 
-	raw, err := completer.Generate(ctx, prompt)
+	raw, err := completer.Generate(ctx, prompt, 128)
 	if err != nil {
 		return nil
 	}
@@ -1413,7 +1460,7 @@ func (s *Server) extractNPCs(ctx context.Context, sessionID int64, gmText string
 Story passage:
 %s`, excludeClause, gmText)
 
-	raw, err := completer.Generate(ctx, prompt)
+	raw, err := completer.Generate(ctx, prompt, 256)
 	if err != nil {
 		return
 	}
@@ -1812,10 +1859,28 @@ func (s *Server) handleDeleteObjective(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+var objectiveKeywords = []string{
+	"quest", "task", "mission", "objective", "goal",
+	"find", "bring", "kill", "slay", "defeat", "protect", "rescue", "retrieve", "discover", "investigate",
+	"reward", "bounty", "contract", "assignment", "must", "need to", "have to",
+}
+
 // autoDetectObjectives uses the AI to detect new objectives introduced in a GM
 // response and to resolve existing active objectives that were completed or failed.
 // Runs in a background goroutine.
 func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmText string) {
+	lower := strings.ToLower(gmText)
+	hasSignal := false
+	for _, kw := range objectiveKeywords {
+		if strings.Contains(lower, kw) {
+			hasSignal = true
+			break
+		}
+	}
+	if !hasSignal {
+		return
+	}
+
 	completer, ok := s.aiClient.(ai.Completer)
 	if !ok {
 		return
@@ -1861,7 +1926,7 @@ Example: {"new":[{"title":"Find the stolen data-chip","description":"Vex wants y
 If nothing changed: {"new":[],"resolved":[]}
 No explanation, no markdown.`, string(existingJSON), gmText)
 
-	raw, err := completer.Generate(ctx, prompt)
+	raw, err := completer.Generate(ctx, prompt, 256)
 	if err != nil {
 		return
 	}
@@ -2071,7 +2136,7 @@ If nothing changed: {"gained":[],"lost":[]}
 Story passage:
 %s`, gmText)
 
-	raw, err := completer.Generate(ctx, prompt)
+	raw, err := completer.Generate(ctx, prompt, 256)
 	if err != nil {
 		return
 	}
@@ -2132,69 +2197,52 @@ Story passage:
 	}
 }
 
-// autoUpdateSceneTags uses the AI to classify the scene from each GM response
-// and updates the session's scene_tags to drive ambient audio. Skips the write
-// if the active (first) tag is unchanged (stability — avoids restarting the track
-// mid-scene). Note: writes a single tag, replacing any multi-tag value set by the
-// player via SceneTagPicker. Runs in a background goroutine.
-func (s *Server) autoUpdateSceneTags(ctx context.Context, sessionID int64, gmText string) {
-	if s.aiClient == nil {
-		return
-	}
-	completer, ok := s.aiClient.(ai.Completer)
-	if !ok {
-		return
-	}
+// sceneTagKeywords maps each scene tag to keywords that strongly indicate it.
+// Keyword matching replaces an AI call — same accuracy, zero token cost.
+var sceneTagKeywords = map[string][]string{
+	"battle":  {"battle", "fight", "combat", "attack", "enemy", "clash", "sword", "skirmish", "weapon", "strike", "wound", "blood", "war"},
+	"dungeon": {"dungeon", "corridor", "cell", "prison", "iron door", "torch"},
+	"cave":    {"cave", "cavern", "stalactite", "stalagmite", "underground", "tunnel", "grotto"},
+	"forest":  {"forest", "tree", "woods", "grove", "undergrowth", "canopy", "thicket", "bark"},
+	"castle":  {"castle", "throne", "tower", "battlement", "great hall", "rampart", "fortress", "keep", "parapet"},
+	"tavern":  {"tavern", "inn", "alehouse", "taproom", "barmaid", "bartender", "tankard", "common room"},
+	"market":  {"market", "stall", "merchant", "vendor", "bazaar", "goods", "wares"},
+	"temple":  {"temple", "shrine", "altar", "priest", "prayer", "ritual", "holy", "sacred", "chapel"},
+	"ruins":   {"ruins", "ruin", "crumble", "ancient", "collapse", "decay", "abandoned", "overgrown", "rubble"},
+	"city":    {"city", "street", "alley", "crowd", "cobblestone", "district", "urban", "plaza"},
+	"ocean":   {"ocean", "sea", "ship", "wave", "sail", "harbor", "dock", "tide", "shore"},
+	"rain":    {"rain", "storm", "thunder", "lightning", "drizzle", "downpour", "soaked", "puddle"},
+	"night":   {"night", "midnight", "moonlight", "dusk", "twilight"},
+}
+
+// autoUpdateSceneTags classifies the scene via keyword matching and updates the
+// session's scene_tags to drive ambient audio. Skips the write if the active
+// (first) tag is unchanged (stability — avoids restarting the track mid-scene).
+// Uses keyword matching instead of an AI call: same accuracy, zero token cost.
+func (s *Server) autoUpdateSceneTags(_ context.Context, sessionID int64, gmText string) {
 	if gmText == "" {
 		return
 	}
+	lowerText := strings.ToLower(gmText)
 
-	prompt := fmt.Sprintf(`You are a scene classifier for a tabletop RPG. Based on the GM's narrative below, select the single most fitting scene tag.
-
-Valid tags: tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins
-
-Rules:
-- Return exactly one tag from the list above
-- Choose based on the dominant environment or mood
-- If no tag fits well, return the closest match
-- Return only JSON: {"tag":"<chosen_tag>"}
-- No explanation, no markdown
-
-GM text:
-%s`, gmText)
-
-	raw, err := completer.Generate(ctx, prompt)
-	if err != nil {
+	bestTag := ""
+	bestScore := 0
+	for tag, keywords := range sceneTagKeywords {
+		score := 0
+		for _, kw := range keywords {
+			if strings.Contains(lowerText, kw) {
+				score++
+			}
+		}
+		if score > bestScore {
+			bestScore = score
+			bestTag = tag
+		}
+	}
+	if bestTag == "" {
 		return
 	}
 
-	raw = strings.TrimSpace(raw)
-	start := strings.Index(raw, "{")
-	end := strings.LastIndex(raw, "}")
-	if start < 0 || end <= start {
-		return
-	}
-
-	var result struct {
-		Tag string `json:"tag"`
-	}
-	if err := json.Unmarshal([]byte(raw[start:end+1]), &result); err != nil {
-		return
-	}
-	result.Tag = strings.ToLower(strings.TrimSpace(result.Tag))
-
-	validTags := map[string]bool{
-		"tavern": true, "dungeon": true, "forest": true, "city": true,
-		"ocean": true, "cave": true, "castle": true, "rain": true,
-		"night": true, "battle": true, "market": true, "temple": true,
-		"ruins": true,
-	}
-	if !validTags[result.Tag] {
-		return
-	}
-
-	// Fetch session after AI returns to minimise the race window against
-	// concurrent manual SceneTagPicker updates.
 	sess, err := s.db.GetSession(sessionID)
 	if err != nil || sess == nil {
 		return
@@ -2205,16 +2253,16 @@ GM text:
 	if sess.SceneTags != "" {
 		currentFirst = strings.SplitN(sess.SceneTags, ",", 2)[0]
 	}
-	if result.Tag == currentFirst {
+	if bestTag == currentFirst {
 		return
 	}
 
-	if err := s.db.UpdateSceneTags(sessionID, result.Tag); err != nil {
+	if err := s.db.UpdateSceneTags(sessionID, bestTag); err != nil {
 		return
 	}
 	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
 		"session_id": sessionID,
-		"scene_tags": result.Tag,
+		"scene_tags": bestTag,
 	}})
 }
 

@@ -23,7 +23,7 @@ func TestClient_Generate_ok(t *testing.T) {
 	defer srv.Close()
 
 	client := ai.NewClientWithURL("test-key", srv.URL)
-	result, err := client.Generate(context.Background(), "test prompt")
+	result, err := client.Generate(context.Background(), "test prompt", 256)
 	require.NoError(t, err)
 	assert.Equal(t, "generated text", result)
 }
@@ -35,7 +35,7 @@ func TestClient_Generate_emptyContent(t *testing.T) {
 	defer srv.Close()
 
 	client := ai.NewClientWithURL("test-key", srv.URL)
-	_, err := client.Generate(context.Background(), "prompt")
+	_, err := client.Generate(context.Background(), "prompt", 256)
 	assert.ErrorContains(t, err, "empty response")
 }
 
@@ -46,6 +46,6 @@ func TestClient_Generate_httpError(t *testing.T) {
 	defer srv.Close()
 
 	client := ai.NewClientWithURL("bad-key", srv.URL)
-	_, err := client.Generate(context.Background(), "prompt")
+	_, err := client.Generate(context.Background(), "prompt", 256)
 	assert.ErrorContains(t, err, "401")
 }

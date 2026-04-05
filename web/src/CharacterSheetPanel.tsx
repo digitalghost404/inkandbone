@@ -122,6 +122,7 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
           }))
         }
       }
+      if (!Array.isArray(parsed)) return []
       return parsed as SchemaField[]
     } catch {
       return []

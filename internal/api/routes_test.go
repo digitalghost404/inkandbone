@@ -551,7 +551,7 @@ type stubCompleterStreamer struct {
 	streamResp   string
 }
 
-func (s *stubCompleterStreamer) Generate(_ context.Context, _ string) (string, error) {
+func (s *stubCompleterStreamer) Generate(_ context.Context, _ string, _ int) (string, error) {
 	return s.generateResp, nil
 }
 
@@ -633,8 +633,7 @@ func TestHandlePatchSession_SceneTags(t *testing.T) {
 }
 
 func TestAutoUpdateSceneTags_setsTag(t *testing.T) {
-	stub := &stubCompleter{response: `{"tag":"dungeon"}`}
-	s := newTestServerWithAI(t, stub)
+	s := newTestServer(t)
 	_, sessID := seedCampaign(t, s.db)
 
 	s.autoUpdateSceneTags(context.Background(), sessID, "You descend into the stone corridor.")
@@ -645,8 +644,7 @@ func TestAutoUpdateSceneTags_setsTag(t *testing.T) {
 }
 
 func TestAutoUpdateSceneTags_stability_noOpWhenSameTag(t *testing.T) {
-	stub := &stubCompleter{response: `{"tag":"dungeon"}`}
-	s := newTestServerWithAI(t, stub)
+	s := newTestServer(t)
 	_, sessID := seedCampaign(t, s.db)
 	require.NoError(t, s.db.UpdateSceneTags(sessID, "dungeon"))
 
@@ -657,9 +655,8 @@ func TestAutoUpdateSceneTags_stability_noOpWhenSameTag(t *testing.T) {
 	assert.Equal(t, "dungeon", sess.SceneTags)
 }
 
-func TestAutoUpdateSceneTags_invalidTagIgnored(t *testing.T) {
-	stub := &stubCompleter{response: `{"tag":"spaceship"}`}
-	s := newTestServerWithAI(t, stub)
+func TestAutoUpdateSceneTags_noKeywordMatch_noChange(t *testing.T) {
+	s := newTestServer(t)
 	_, sessID := seedCampaign(t, s.db)
 
 	s.autoUpdateSceneTags(context.Background(), sessID, "You board the vessel.")
@@ -669,20 +666,19 @@ func TestAutoUpdateSceneTags_invalidTagIgnored(t *testing.T) {
 	assert.Equal(t, "", sess.SceneTags)
 }
 
-func TestAutoUpdateSceneTags_nilAI_noOp(t *testing.T) {
-	s := newTestServer(t) // no AI client
+func TestAutoUpdateSceneTags_battleKeyword(t *testing.T) {
+	s := newTestServer(t)
 	_, sessID := seedCampaign(t, s.db)
 
-	s.autoUpdateSceneTags(context.Background(), sessID, "The forest rustles.")
+	s.autoUpdateSceneTags(context.Background(), sessID, "The enemy attacks and combat breaks out.")
 
 	sess, err := s.db.GetSession(sessID)
 	require.NoError(t, err)
-	assert.Equal(t, "", sess.SceneTags)
+	assert.Equal(t, "battle", sess.SceneTags)
 }
 
 func TestAutoUpdateSceneTags_emptyText_noOp(t *testing.T) {
-	stub := &stubCompleter{response: `{"tag":"dungeon"}`}
-	s := newTestServerWithAI(t, stub)
+	s := newTestServer(t)
 	_, sessID := seedCampaign(t, s.db)
 
 	s.autoUpdateSceneTags(context.Background(), sessID, "")

@@ -18,8 +18,9 @@ const (
 )
 
 // Completer generates text from a prompt. Implemented by *Client; nil means AI is disabled.
+// maxTokens caps the output length; pass a tight value to avoid wasted spend.
 type Completer interface {
-	Generate(ctx context.Context, prompt string) (string, error)
+	Generate(ctx context.Context, prompt string, maxTokens int) (string, error)
 }
 
 // ChatMessage is a single turn in a conversation.
@@ -56,10 +57,10 @@ func NewClientWithURL(apiKey, url string) *Client {
 	return &Client{apiKey: apiKey, url: url, http: &http.Client{}}
 }
 
-func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
+func (c *Client) Generate(ctx context.Context, prompt string, maxTokens int) (string, error) {
 	body, err := json.Marshal(map[string]any{
 		"model":      model,
-		"max_tokens": 1024,
+		"max_tokens": maxTokens,
 		"messages":   []map[string]any{{"role": "user", "content": prompt}},
 	})
 	if err != nil {
@@ -189,8 +190,8 @@ func (c *Client) StreamRespond(ctx context.Context, system string, history []Cha
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck
-		return "", fmt.Errorf("anthropic API returned %d", resp.StatusCode)
+		errBody, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("anthropic API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(errBody)))
 	}
 
 	flusher, canFlush := w.(http.Flusher)

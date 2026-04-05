@@ -27,7 +27,7 @@ func newTestServerWithDir(t *testing.T, dir string) *Server {
 
 type stubCompleter struct{ response string }
 
-func (s *stubCompleter) Generate(_ context.Context, _ string) (string, error) {
+func (s *stubCompleter) Generate(_ context.Context, _ string, _ int) (string, error) {
 	return s.response, nil
 }
 

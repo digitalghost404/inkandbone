@@ -47,7 +47,7 @@ func (s *Server) handleGenerateSessionRecap(ctx context.Context, req mcplib.Call
 		return mcplib.NewToolResultError("session transcript too long for recap — try end_session with a manual summary"), nil
 	}
 
-	summary, err := s.aiClient.Generate(ctx, sb.String())
+	summary, err := s.aiClient.Generate(ctx, sb.String(), 200)
 	if err != nil {
 		return mcplib.NewToolResultError("AI error: " + err.Error()), nil
 	}

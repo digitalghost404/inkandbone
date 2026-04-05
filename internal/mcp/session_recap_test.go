@@ -14,7 +14,7 @@ import (
 
 type mcpStubCompleter struct{ response string }
 
-func (s *mcpStubCompleter) Generate(_ context.Context, _ string) (string, error) {
+func (s *mcpStubCompleter) Generate(_ context.Context, _ string, _ int) (string, error) {
 	return s.response, nil
 }
 

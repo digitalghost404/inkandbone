@@ -39,7 +39,7 @@ func (s *Server) handleImprovise(w http.ResponseWriter, r *http.Request) {
 		sb.WriteString(fmt.Sprintf("%s: %s\n", m.Role, m.Content))
 	}
 
-	result, err := s.aiClient.Generate(r.Context(), sb.String())
+	result, err := s.aiClient.Generate(r.Context(), sb.String(), 512)
 	if err != nil {
 		http.Error(w, "AI error", http.StatusInternalServerError)
 		return
@@ -80,7 +80,7 @@ func (s *Server) handlePreSessionBrief(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := s.aiClient.Generate(r.Context(), sb.String())
+	result, err := s.aiClient.Generate(r.Context(), sb.String(), 512)
 	if err != nil {
 		http.Error(w, "AI error", http.StatusInternalServerError)
 		return
@@ -117,7 +117,7 @@ func (s *Server) handleDetectThreads(w http.ResponseWriter, r *http.Request) {
 		sb.WriteString(fmt.Sprintf("%s: %s\n", m.Role, m.Content))
 	}
 
-	result, err := s.aiClient.Generate(r.Context(), sb.String())
+	result, err := s.aiClient.Generate(r.Context(), sb.String(), 512)
 	if err != nil {
 		http.Error(w, "AI error", http.StatusInternalServerError)
 		return
@@ -160,7 +160,7 @@ func (s *Server) handleCampaignAsk(w http.ResponseWriter, r *http.Request) {
 	}
 	sb.WriteString(fmt.Sprintf("\nQuestion: %s", body.Question))
 
-	result, err := s.aiClient.Generate(r.Context(), sb.String())
+	result, err := s.aiClient.Generate(r.Context(), sb.String(), 512)
 	if err != nil {
 		http.Error(w, "AI error", http.StatusInternalServerError)
 		return

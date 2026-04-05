@@ -30,9 +30,21 @@ func main() {
 	defer database.Close()
 
 	var aiClient ai.Completer
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		aiClient = ai.NewClient(key)
-		log.Println("AI features enabled")
+	switch {
+	case os.Getenv("ANTHROPIC_API_KEY") != "":
+		aiClient = ai.NewClient(os.Getenv("ANTHROPIC_API_KEY"))
+		log.Println("AI: Anthropic Claude Haiku")
+	case os.Getenv("OLLAMA_GM_MODEL") != "" && os.Getenv("OLLAMA_AI_MODEL") != "":
+		gmModel := os.Getenv("OLLAMA_GM_MODEL")
+		autoModel := os.Getenv("OLLAMA_AI_MODEL")
+		aiClient = ai.NewDualOllamaClient(gmModel, autoModel)
+		log.Printf("AI: Ollama dual-model (GM=%s, automation=%s)", gmModel, autoModel)
+	case os.Getenv("OLLAMA_MODEL") != "":
+		model := os.Getenv("OLLAMA_MODEL")
+		aiClient = ai.NewOllamaClient(model)
+		log.Printf("AI: Ollama single-model (%s)", model)
+	default:
+		log.Println("AI: disabled (set ANTHROPIC_API_KEY or OLLAMA_MODEL)")
 	}
 
 	httpServer := api.NewServer(database, dataDir, aiClient)
