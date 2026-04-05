@@ -906,7 +906,7 @@ func (s *Server) handleGMRespond(w http.ResponseWriter, r *http.Request) {
 	worldCtx := s.buildWorldContext(r.Context(), id)
 	systemPrompt := worldCtx + "\n\n" + gmSystemPrompt
 
-	response, err := gmResponder.Respond(r.Context(), systemPrompt, history, 2048)
+	response, err := gmResponder.Respond(r.Context(), systemPrompt, history, 4096)
 	if err != nil {
 		http.Error(w, "AI error: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -1049,7 +1049,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	fullText, err := streamer.StreamRespond(r.Context(), systemPrompt, history, 2048, w)
+	fullText, err := streamer.StreamRespond(r.Context(), systemPrompt, history, 4096, w)
 	if err != nil {
 		// Headers already sent; can't send HTTP error status, just log and return
 		log.Printf("gm-respond-stream: StreamRespond error: %v", err)
