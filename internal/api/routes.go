@@ -2135,7 +2135,8 @@ Story passage:
 // autoUpdateSceneTags uses the AI to classify the scene from each GM response
 // and updates the session's scene_tags to drive ambient audio. Skips the write
 // if the active (first) tag is unchanged (stability — avoids restarting the track
-// mid-scene). Runs in a background goroutine.
+// mid-scene). Note: writes a single tag, replacing any multi-tag value set by the
+// player via SceneTagPicker. Runs in a background goroutine.
 func (s *Server) autoUpdateSceneTags(ctx context.Context, sessionID int64, gmText string) {
 	if s.aiClient == nil {
 		return
@@ -2145,11 +2146,6 @@ func (s *Server) autoUpdateSceneTags(ctx context.Context, sessionID int64, gmTex
 		return
 	}
 	if gmText == "" {
-		return
-	}
-
-	sess, err := s.db.GetSession(sessionID)
-	if err != nil || sess == nil {
 		return
 	}
 
@@ -2197,7 +2193,14 @@ GM text:
 		return
 	}
 
-	// Tag stability: skip if the active (first) tag is unchanged
+	// Fetch session after AI returns to minimise the race window against
+	// concurrent manual SceneTagPicker updates.
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+
+	// Tag stability: skip if the active (first) tag is unchanged.
 	currentFirst := ""
 	if sess.SceneTags != "" {
 		currentFirst = strings.SplitN(sess.SceneTags, ",", 2)[0]

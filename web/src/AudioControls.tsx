@@ -34,7 +34,7 @@ export default function AudioControls() {
 
   // Sync ambient module's paused flag before any track loads
   useEffect(() => {
-    if (localStorage.getItem(STORAGE_KEY_PAUSED) === 'true') {
+    if (ambientPaused) {
       pauseAmbient();
     }
   }, []);
