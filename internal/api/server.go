@@ -94,6 +94,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/recap", s.handleGenerateRecap)
 	s.mux.HandleFunc("POST /api/campaigns/{id}/world-notes/draft", s.handleDraftWorldNote)
 	s.mux.HandleFunc("PATCH /api/world-notes/{id}", s.handlePatchWorldNote)
+	s.mux.HandleFunc("PATCH /api/world-notes/{id}/personality", s.handlePatchWorldNotePersonality)
 	// Plan 9
 	s.mux.HandleFunc("GET /api/rulesets/{id}", s.handleGetRuleset)
 	s.mux.HandleFunc("GET /api/rulesets/{id}/character-options", s.handleGetCharacterOptions)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchWorldNotes, draftWorldNote } from './api'
+import { fetchWorldNotes, draftWorldNote, patchWorldNotePersonality } from './api'
 import type { WorldNote } from './types'
 
 interface Props {
@@ -11,6 +11,42 @@ interface Props {
 function parseTags(json: string): string[] {
   try { return JSON.parse(json) as string[] }
   catch { return [] }
+}
+
+function PersonalityEditor({ note, onSaved }: { note: WorldNote; onSaved: () => void }) {
+  const [value, setValue] = useState(note.personality_json || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    try {
+      await patchWorldNotePersonality(note.id, value)
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="personality-editor">
+      <label className="personality-label">Personality JSON</label>
+      <textarea
+        className="personality-textarea"
+        rows={3}
+        placeholder='{"traits":["brave"],"motivation":"justice"}'
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      {error && <p className="personality-error">{error}</p>}
+      <button className="personality-save-btn" disabled={saving} onClick={handleSave}>
+        {saving ? 'Saving…' : 'Save Personality'}
+      </button>
+    </div>
+  )
 }
 
 export function WorldNotesPanel({ campaignId, lastEvent, aiEnabled }: Props) {
@@ -80,6 +116,9 @@ export function WorldNotesPanel({ campaignId, lastEvent, aiEnabled }: Props) {
                 </div>
               )}
               <p className="note-content">{n.content}</p>
+              {n.category === 'npc' && (
+                <PersonalityEditor note={n} onSaved={loadNotes} />
+              )}
             </div>
           )
         })

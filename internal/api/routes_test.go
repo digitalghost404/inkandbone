@@ -516,6 +516,32 @@ func TestBuildWorldContext_NPCPersonality(t *testing.T) {
 	assert.Contains(t, ctx, "cunning")
 }
 
+func TestPatchWorldNotePersonality(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+
+	// Create a world note
+	_, err := s.db.CreateWorldNote(campID, "Elara", "A skilled merchant", "npc")
+	require.NoError(t, err)
+	note, err := s.db.FindWorldNoteByTitle(campID, "Elara")
+	require.NoError(t, err)
+
+	personality := `{"traits":["cunning"],"motivation":"profit"}`
+	body := map[string]string{"personality_json": personality}
+	bodyJSON, _ := json.Marshal(body)
+
+	req := httptest.NewRequest("PATCH", fmt.Sprintf("/api/world-notes/%d/personality", note.ID), bytes.NewReader(bodyJSON))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	updated, err := s.db.GetWorldNote(note.ID)
+	require.NoError(t, err)
+	assert.Equal(t, personality, updated.PersonalityJSON)
+}
+
 // stubCompleterStreamer implements both ai.Completer and ai.Streamer for testing
 // handleGMRespondStream. Generate returns a fixed response; StreamRespond
 // captures the system prompt and writes a minimal SSE response.

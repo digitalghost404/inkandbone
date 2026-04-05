@@ -102,6 +102,16 @@ export async function draftWorldNote(campaignId: number, hint: string): Promise<
   return res.json()
 }
 
+export async function patchWorldNotePersonality(noteId: number, personalityJson: string): Promise<void> {
+  const url = `/api/world-notes/${noteId}/personality`
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ personality_json: personalityJson }),
+  })
+  if (!res.ok) throw new Error(`PATCH ${url} failed: ${res.status}`)
+}
+
 export async function uploadMap(campaignId: number, file: File): Promise<CampaignMap> {
   const url = `/api/campaigns/${campaignId}/maps`
   const form = new FormData()

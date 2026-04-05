@@ -185,6 +185,28 @@ func (s *Server) handlePatchWorldNote(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handlePatchWorldNotePersonality(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		PersonalityJSON string `json:"personality_json"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.UpdateWorldNotePersonality(id, body.PersonalityJSON); err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventWorldNoteUpdated, Payload: map[string]any{"note_id": id}})
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) handleServeFile(w http.ResponseWriter, r *http.Request) {
 	rel := filepath.Clean(r.PathValue("path"))
 	// Reject any path that tries to escape the data directory

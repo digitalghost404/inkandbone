@@ -84,6 +84,7 @@ export interface WorldNote {
   content: string
   category: string
   tags_json: string
+  personality_json: string
   created_at: string
 }
 
