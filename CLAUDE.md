@@ -28,7 +28,7 @@ A private, local AI Game Master for 13 tabletop RPG systems. Single-binary Go se
 cmd/ttrpg/            - Binary entrypoint
 internal/
   api/                - HTTP handlers, WebSocket hub, event bus, automation goroutines
-  db/                 - SQLite layer, migrations (8 files: initial + 7 features)
+  db/                 - SQLite layer, migrations (15 files: initial + 14 features)
   ai/                 - Claude API client, system prompt injection, SSE streaming
   utils/              - Dice roller, validation, rulebook parsing
 web/                  - React frontend (src/components, src/pages, src/hooks)
@@ -39,16 +39,19 @@ Makefile              - build, install, dev, test, clean
 
 - `campaigns` (ruleset reference)
 - `characters` (stats as JSON, portrait path)
-- `sessions` (title, date, summary)
+- `sessions` (title, date, summary, `tension_level` 1-10)
 - `messages` (full conversation history)
 - `session_npcs` (named NPCs per session)
-- `world_notes` (tagged lore: NPC, location, faction, item, other)
+- `world_notes` (tagged lore: NPC, location, faction, item, other; `personality_json` for NPC traits)
 - `maps` (uploaded or generated SVG)
 - `map_pins` (coordinate + label + notes)
 - `objectives` (active/completed/failed)
 - `items` (character inventory)
 - `combat_encounters` + `combatants` (turn tracking)
 - `dice_rolls` (expression + result breakdown)
+- `oracle_tables` (action/theme table entries, 50 rows each, seeded by ruleset)
+- `relationships` (from_name, to_name, relationship_type, description, campaign_id)
+- `scene_tags` (session scene tags: tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins)
 
 ## Routes (HTTP + WebSocket)
 
@@ -65,6 +68,8 @@ Makefile              - build, install, dev, test, clean
 - `GET /api/sessions/{id}/npcs` — NPC roster
 - `GET /api/campaigns/{id}/objectives` — Quest tracker
 - `GET /api/characters/{id}/items` — Inventory
+- `GET /api/sessions/{id}/tension` — Current tension level
+- `GET /api/campaigns/{id}/relationships` — All relationships for campaign
 
 **Write:**
 - `POST /api/sessions/{id}/messages` — Send player action
@@ -74,30 +79,43 @@ Makefile              - build, install, dev, test, clean
 - `POST /api/campaigns/{id}/maps/generate` — AI-generate map
 - `POST /api/campaigns/{id}/objectives` — Create objective
 - `POST /api/characters/{id}/items` — Add item to inventory
+- `POST /api/sessions/{id}/improvise` — Generate improvised scene/complication (Phase C)
+- `POST /api/campaigns/{id}/pre-session-brief` — Generate GM prep brief (Phase C)
+- `POST /api/sessions/{id}/detect-threads` — Identify unresolved narrative threads (Phase C)
+- `POST /api/campaigns/{id}/ask` — Ask freeform question about campaign (Phase C)
+- `POST /api/oracle/roll` — Roll oracle table (Phase D)
+- `POST /api/campaigns/{id}/relationships` — Create relationship (Phase D)
 
 **Patches:**
 - `PATCH /api/campaigns/{id}` — Update campaign (name, description, active status)
-- `PATCH /api/sessions/{id}` — Update session (title, summary)
+- `PATCH /api/sessions/{id}` — Update session (title, summary, scene tags)
 - `PATCH /api/characters/{id}` — Update character sheet
 - `PATCH /api/world-notes/{id}` — Update world note
+- `PATCH /api/world-notes/{id}/personality` — Set NPC personality JSON (Phase B)
 - `PATCH /api/objectives/{id}` — Mark objective complete/failed
 - `PATCH /api/items/{id}` — Update item (quantity, equipped)
 - `PATCH /api/combatants/{id}` — Add/remove conditions (poisoned, paralyzed, etc.)
+- `PATCH /api/sessions/{id}/tension` — Set tension level (Phase D)
+- `PATCH /api/relationships/{id}` — Update relationship type/description (Phase D)
+
+**Delete:**
+- `DELETE /api/relationships/{id}` — Remove relationship (Phase D)
 
 **WebSocket:**
 - `GET /ws` — Upgrade to WebSocket for real-time dashboard updates
 
 ## Automation Goroutines
 
-All fire after every GM response via `handleGMRespondStream`. Access goroutines in `/internal/api/routes.go`:
+All fire after every GM response via `handleGMRespondStream`. Goroutines organized in separate files:
 
-1. **autoExtractNPCs** (line ~700) — Parse proper names from GM text, add to session NPC roster.
-2. **autoGenerateMap** (line ~953) — Detect new location names, generate SVG via Claude.
-3. **autoUpdateCharacterStats** (line ~1048) — Analyze story events, apply ruleset-based stat changes.
-4. **autoUpdateRecap** (line ~612) — Every 4 GM messages, regenerate session journal.
-5. **autoDetectObjectives** (line ~1688) — Detect story goals, add to Objectives tab.
-6. **autoExtractItems** (line ~1911) — Parse items gained/lost, update inventory.
-7. **checkAndExecuteRoll** (line ~1160) — Before GM responds, enforce dice rolls if action requires them per ruleset.
+1. **autoExtractNPCs** — Parse proper names from GM text, add to session NPC roster.
+2. **autoGenerateMap** — Detect new location names, generate SVG via Claude.
+3. **autoUpdateCharacterStats** — Analyze story events, apply ruleset-based stat changes.
+4. **autoUpdateRecap** — Every 4 GM messages, regenerate session journal.
+5. **autoDetectObjectives** — Detect story goals, add to Objectives tab.
+6. **autoExtractItems** — Parse items gained/lost, update inventory.
+7. **checkAndExecuteRoll** — Before GM responds, enforce dice rolls if action requires them per ruleset.
+8. **autoUpdateTension** — After GM response, check for crisis keywords (ambush, betrayal, catastrophe, danger, doom, enemy, escape, failure, fear, fight, flee, loss, peril, threat, trapped, wounded, etc.) or critical dice failures; auto-increment tension_level if found. Capped at 10.
 
 ## Supported Rulesets
 
@@ -107,7 +125,10 @@ All fire after every GM response via `handleGMRespondStream`. Access goroutines 
 
 ## Key Implementation Details
 
-**System Prompt Injection:** Character name injected per turn so Claude uses correct pronouns/names.
+**System Prompt Injection:** Character name injected per turn. World context block includes:
+- `[ACTIVE OBJECTIVES]` — All active quests/goals for the campaign
+- `[NPC: Name]` personality cards — For every NPC world note with non-empty `personality_json`, the personality definition is injected
+- Ensures NPCs stay consistent and plot threads remain visible
 
 **Em-dash Strip:** All output em-dashes (`—`) programmatically stripped before display.
 
@@ -115,11 +136,25 @@ All fire after every GM response via `handleGMRespondStream`. Access goroutines 
 
 **SSE Streaming:** GM responses stream character-by-character via SSE to create live prose effect.
 
-**WebSocket Hub:** Event bus broadcasts all state changes (character updates, NPCs, objectives, items, etc.) to connected clients in real time.
+**WebSocket Hub:** Event bus broadcasts all state changes (character updates, NPCs, objectives, items, tension, relationships, oracle rolls) to connected clients in real time.
 
-**Rulebook Chunks:** `migrations/003_rulebook_chunks.sql` supports PDF/text upload for rules lookup during play.
+**Rulebook Chunks:** Supports PDF/text upload for rules lookup during play. Sources are labeled (Core Rulebook, Bestiary, Adventure, etc.) and stored independently; re-uploading the same source overwrites only that source's chunks.
 
 **Whisper Mode:** Player messages marked private (🔒 lock icon) are excluded from GM context and session exports.
+
+**NPC Personality JSON (Phase B):** World notes tagged as `npc` can store a `personality_json` field with any valid JSON object defining NPC traits. This is injected into Claude's context on every turn via the world context block.
+
+**Oracle System (Phase D):** 50-row Action and Theme tables seeded per ruleset. Roll endpoint accepts 1-50 roll value and returns matching oracle result. Custom rulesets can provide their own oracle tables.
+
+**Tension Auto-Update (Phase D):** `autoUpdateTension` goroutine scans GM response text for crisis keywords; increments `tension_level` (max 10) on match. Also increments on critical dice failures. Manual override via PATCH endpoint.
+
+**Relationships (Phase D):** Campaign-wide relationship tracking with from_name, to_name, relationship_type (neutral, ally, enemy, rival, mentor, etc.), and description. Used to drive roleplay and plot complications.
+
+**Procedural Audio (Phase E):** Web Audio API synthesis for dice rolls, notifications, and combat start sounds. No audio files required. All sounds respect mute toggle and volume slider.
+
+**Ambient Audio (Phase E):** Local MP3 loop manager with fade in/out. Loads from `/api/files/audio/{tag}.mp3`. Scene tags toggle ambient audio track selection. Supports 13 scene tags: tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins. User can place custom MP3 files in `~/.ttrpg/audio/` directory.
+
+**Audio Controls (Phase E):** AudioControls component in grimoire header with mute toggle (🔔/🔕) and volume slider (0-100). Settings persisted to localStorage.
 
 ## Build & Deploy
 

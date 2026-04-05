@@ -474,7 +474,7 @@ Claude then narrates what happens, applying rules as needed, and responds via Se
 
 ### Automation Goroutines
 
-After every GM response, seven background tasks fire automatically (no player action required):
+After every GM response, eight background tasks fire automatically (no player action required):
 
 **autoExtractNPCs** — Claude's text is analyzed for proper names. New named characters are automatically added to the session NPC roster. Names appear in the NPCs tab on the right sidebar.
 
@@ -490,7 +490,129 @@ After every GM response, seven background tasks fire automatically (no player ac
 
 **checkAndExecuteRoll** — Before Claude responds, the player's action is analyzed. If the ruleset requires a dice roll for that action (e.g., attack roll in combat, climb check, persuasion roll), the roll is enforced first. Claude sees the result and narrates accordingly. Keeps story moving without manual dice rolling.
 
+**autoUpdateTension** — After every GM response, the session's tension level automatically increments if the text contains crisis keywords (ambush, betrayal, catastrophe, danger, doom, enemy, escape, failure, fear, fight, flee, loss, peril, threat, trapped, wounded, etc.) or when a dice roll critically fails. The tension tracker is visible in the session UI and influences narrative pacing. You can manually adjust tension via the UI at any time.
+
 All automation runs in the background without interrupting your gameplay. Updates appear in real time via WebSocket.
+
+### NPC Personality System
+
+World notes with the `npc` category can store a personality profile as structured JSON. This allows you to define NPC traits that Claude incorporates into every turn:
+
+**To set an NPC personality:**
+
+```bash
+PATCH /api/world-notes/{id}/personality
+Content-Type: application/json
+
+{
+  "personality_json": "{\"traits\": [\"cunning\", \"honorable\"], \"motivations\": \"power and legacy\", \"quirks\": \"speaks in riddles\"}"
+}
+```
+
+The personality JSON is injected into Claude's world context block before every GM turn. Any valid JSON object is accepted — use whatever fields describe your NPC best. Claude will reference personality traits when the NPC appears in the story.
+
+### World Context Injection
+
+When you send a player action, Claude receives an enriched world context block that includes:
+
+- `[ACTIVE OBJECTIVES]` — All active quests and story goals for the campaign, so Claude tracks narrative threads without you having to remind them.
+- `[NPC: Name]` personality cards — For every world note tagged as `npc` with a non-empty personality JSON, Claude receives the personality definition and incorporates it into NPC dialogue and actions.
+
+This ensures NPCs stay consistent and plot threads remain visible throughout the session.
+
+### GM Session Tools
+
+Four AI-powered endpoints let you get Claude's analysis of the campaign and session. All require `ANTHROPIC_API_KEY` to be set:
+
+**POST /api/sessions/{id}/improvise** — Generate an improvised scene suggestion, NPC complication, or plot twist from the last 5 messages. Returns `{"result":"..."}` with a 2-3 sentence suggestion.
+
+**POST /api/campaigns/{id}/pre-session-brief** — Generate a concise GM prep brief (3-5 bullets) summarizing world notes and active objectives. Use this before your next session to remember what happened and what's at stake. Returns `{"result":"..."}`.
+
+**POST /api/sessions/{id}/detect-threads** — Analyze the full session transcript and identify unresolved narrative threads, loose ends, and plot hooks for future sessions. Returns `{"result":"..."}` with a list of thread recommendations.
+
+**POST /api/campaigns/{id}/ask** — Ask Claude a freeform question about your campaign. Body: `{"question":"..."}`. Claude uses world notes as context to answer. Returns `{"result":"..."}` with the answer.
+
+All four endpoints are handy for GM prep, campaign planning, and breaking writer's block mid-session.
+
+### Oracle Tables & Narrative Systems
+
+**Oracle Tables** — Roll dice against seeded action and theme tables (50 rows each, numbered 1-50). Use oracles for random inspiration when you're stuck:
+
+```bash
+POST /api/oracle/roll
+Content-Type: application/json
+
+{"table": "action", "roll": 23, "ruleset_id": null}
+```
+
+Response: `{"result":"Betray","table":"action","roll":23}`
+
+Replace `"action"` with `"theme"` to roll the theme table. Custom rulesets can provide their own oracle tables.
+
+**Tension Tracker** — Each session has a tension level (1-10, default 5) that influences narrative pacing and danger:
+
+- `GET /api/sessions/{id}/tension` — View current tension level
+- `PATCH /api/sessions/{id}/tension` — Manually set tension (body: `{"tension_level":N}`)
+
+Tension auto-increments when Claude's responses contain crisis keywords (ambush, betrayal, catastrophe, danger, doom, escape, failure, fear, fight, loss, peril, threat, trapped, wounded) or on critical dice failures. You can override it anytime via the UI.
+
+**Relationship Web** — Track named relationships between characters and factions to drive roleplaying and plot complications:
+
+```bash
+POST /api/campaigns/{id}/relationships
+{"from_name": "Kael", "to_name": "The Warlord", "relationship_type": "enemy", "description": "Killed Kael's mentor five years ago"}
+
+GET /api/campaigns/{id}/relationships
+→ [{id: 1, from_name: "Kael", to_name: "The Warlord", relationship_type: "enemy", description: "...", created_at: "2026-04-04T..."}]
+
+PATCH /api/relationships/{id}
+{"relationship_type": "rival", "description": "Now seeks redemption through direct challenge"}
+
+DELETE /api/relationships/{id}
+```
+
+Relationships are campaign-wide and persist. Use them to track feuds, alliances, mentorships, and rivalries that shape your story.
+
+### Audio & Ambience
+
+**Procedural Sound Effects** — Web Audio API synthesis provides automatic sound effects during play:
+
+- Dice rolls trigger a percussive rattle sound when `dice_rolled` events occur.
+- New messages trigger an ascending two-tone chime notification.
+- Combat start triggers a low sawtooth pulse when `combat_started` is broadcast.
+
+All sounds respect the mute toggle and volume slider in the grimoire header. No audio files required — synthesis happens in your browser.
+
+**Ambient Audio Loops** — Set the mood with ambient music tied to scene tags. Place your own MP3 files in `~/.ttrpg/audio/` with names matching scene tags (e.g., `tavern.mp3`, `dungeon.mp3`, `forest.mp3`):
+
+```
+~/.ttrpg/audio/
+├── tavern.mp3
+├── dungeon.mp3
+├── forest.mp3
+├── city.mp3
+├── ocean.mp3
+├── cave.mp3
+├── castle.mp3
+├── rain.mp3
+├── night.mp3
+├── battle.mp3
+├── market.mp3
+├── temple.mp3
+└── ruins.mp3
+```
+
+Supported scene tags (13 total): `tavern`, `dungeon`, `forest`, `city`, `ocean`, `cave`, `castle`, `rain`, `night`, `battle`, `market`, `temple`, `ruins`.
+
+**How Ambient Audio Works:**
+
+1. Click the scene tag buttons in the session header to toggle tags on/off.
+2. The first active tag is used to select the ambient audio track (e.g., if `dungeon` and `rain` are both active, `dungeon.mp3` plays).
+3. The ambient track fades in smoothly and loops continuously.
+4. Audio respects the master mute toggle and volume slider in the header.
+5. When you switch scene tags, the ambient track fades out and a new one fades in.
+
+**AudioControls Component** — The grimoire header displays a mute toggle (🔔/🔕) and volume slider (0–100%). Settings persist in browser localStorage, so your audio preferences are remembered between sessions.
 
 ---
 
@@ -528,16 +650,16 @@ inkandbone/
 
 ### Database Schema
 
-SQLite stores campaigns, characters, sessions, messages, NPCs, world notes, maps, pins, dice rolls, objectives, items, and combat encounters. All data persists locally. Migrations are applied on startup.
+SQLite stores campaigns, characters, sessions, messages, NPCs, world notes, maps, pins, dice rolls, objectives, items, combat encounters, oracle tables, relationships, and narrative tension. All data persists locally. Migrations are applied on startup.
 
 Key tables:
 
 - `campaigns` — Campaign metadata and ruleset reference.
 - `characters` — Player characters with stats (JSON) and portrait path.
-- `sessions` — Play sessions with title, date, and summary.
+- `sessions` — Play sessions with title, date, summary, and `tension_level` (1-10).
 - `messages` — Full conversation history (role: 'user' or 'assistant').
 - `session_npcs` — Named characters for each session.
-- `world_notes` — Lore entries (locations, NPCs, factions, items).
+- `world_notes` — Lore entries (locations, NPCs, factions, items) with optional `personality_json` for NPC profiles.
 - `maps` — Campaign maps (uploaded or AI-generated SVG).
 - `map_pins` — Pins placed on maps with labels and notes.
 - `objectives` — Story goals (active, completed, failed).
@@ -545,6 +667,9 @@ Key tables:
 - `combat_encounters` — Combat tracks (one per encounter).
 - `combatants` — Combatants in an encounter (initiative, HP, conditions).
 - `dice_rolls` — Roll history with expression and result breakdown.
+- `oracle_tables` — Seeded oracle tables (action and theme) with 50 rows each. Custom rulesets can provide their own.
+- `relationships` — Named relationships between characters/factions (from_name, to_name, relationship_type, description, campaign_id).
+- `scene_tags` — Session scene tags (tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins) linked to sessions for ambient audio selection.
 
 ---
 
