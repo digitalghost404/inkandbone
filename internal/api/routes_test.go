@@ -679,3 +679,15 @@ func TestAutoUpdateSceneTags_nilAI_noOp(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "", sess.SceneTags)
 }
+
+func TestAutoUpdateSceneTags_emptyText_noOp(t *testing.T) {
+	stub := &stubCompleter{response: `{"tag":"dungeon"}`}
+	s := newTestServerWithAI(t, stub)
+	_, sessID := seedCampaign(t, s.db)
+
+	s.autoUpdateSceneTags(context.Background(), sessID, "")
+
+	sess, err := s.db.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "", sess.SceneTags)
+}

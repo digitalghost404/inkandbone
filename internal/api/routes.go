@@ -2185,6 +2185,7 @@ GM text:
 	if err := json.Unmarshal([]byte(raw[start:end+1]), &result); err != nil {
 		return
 	}
+	result.Tag = strings.ToLower(strings.TrimSpace(result.Tag))
 
 	validTags := map[string]bool{
 		"tavern": true, "dungeon": true, "forest": true, "city": true,
