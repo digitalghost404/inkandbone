@@ -410,8 +410,9 @@ func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Summary *string `json:"summary"`
-		Notes   *string `json:"notes"`
+		Summary   *string `json:"summary"`
+		Notes     *string `json:"notes"`
+		SceneTags *string `json:"scene_tags"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -439,6 +440,13 @@ func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		payload["notes"] = *body.Notes
+	}
+	if body.SceneTags != nil {
+		if err := s.db.UpdateSceneTags(id, *body.SceneTags); err != nil {
+			http.Error(w, "db error", http.StatusInternalServerError)
+			return
+		}
+		payload["scene_tags"] = *body.SceneTags
 	}
 	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: payload})
 	w.WriteHeader(http.StatusNoContent)

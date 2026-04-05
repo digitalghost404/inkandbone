@@ -614,3 +614,20 @@ func TestUploadMap_ok(t *testing.T) {
 	assert.True(t, strings.HasPrefix(m.ImagePath, "maps/"))
 	assert.FileExists(t, filepath.Join(dir, "maps", filepath.Base(m.ImagePath)))
 }
+
+func TestHandlePatchSession_SceneTags(t *testing.T) {
+	s := newTestServer(t)
+	_, sessID := seedCampaign(t, s.db)
+
+	body := `{"scene_tags":"dungeon,battle"}`
+	req := httptest.NewRequest("PATCH", fmt.Sprintf("/api/sessions/%d", sessID), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	sess, err := s.db.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "dungeon,battle", sess.SceneTags)
+}
