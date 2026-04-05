@@ -54,3 +54,39 @@ func TestCombatants(t *testing.T) {
 	assert.Equal(t, 12, list[0].HPCurrent)
 	assert.Equal(t, `["poisoned"]`, list[0].ConditionsJSON)
 }
+
+func TestAdvanceTurn(t *testing.T) {
+	d := newTestDB(t)
+	sessID := setupSession(t, d)
+	encID, err := d.CreateEncounter(sessID, "Goblin Ambush")
+	require.NoError(t, err)
+
+	d.AddCombatant(encID, "Rogue", 18, 20, true, nil)
+	d.AddCombatant(encID, "Goblin", 12, 10, false, nil)
+	d.AddCombatant(encID, "Warrior", 15, 30, true, nil)
+
+	// Initial index is 0
+	enc, err := d.GetActiveEncounter(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, enc.ActiveTurnIndex)
+
+	// Advance: 0 → 1
+	next, err := d.AdvanceTurn(encID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, next)
+
+	// Advance: 1 → 2
+	next, err = d.AdvanceTurn(encID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, next)
+
+	// Advance: 2 → 0 (wraps)
+	next, err = d.AdvanceTurn(encID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, next)
+
+	// Verify persisted
+	enc, err = d.GetActiveEncounter(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, enc.ActiveTurnIndex)
+}

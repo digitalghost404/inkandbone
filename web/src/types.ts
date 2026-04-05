@@ -22,6 +22,7 @@ export interface Session {
   title: string
   date: string
   summary: string
+  notes: string
   created_at: string
 }
 
@@ -47,6 +48,7 @@ export interface CombatEncounter {
   session_id: number
   name: string
   active: boolean
+  active_turn_index: number
   created_at: string
 }
 
@@ -106,6 +108,7 @@ export interface Objective {
   title: string
   description: string
   status: 'active' | 'completed' | 'failed'
+  parent_id: number | null
   created_at: string
 }
 
@@ -116,5 +119,13 @@ export interface Item {
   description: string
   quantity: number
   equipped: boolean
+  created_at: string
+}
+
+export interface XPEntry {
+  id: number
+  session_id: number
+  note: string
+  amount: number | null
   created_at: string
 }

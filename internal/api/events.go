@@ -27,6 +27,8 @@ const (
 	EventNPCUpdated       EventType = "npc_updated"
 	EventObjectiveUpdated EventType = "objective_updated"
 	EventItemUpdated      EventType = "item_updated"
+	EventTurnAdvanced     EventType = "turn_advanced"
+	EventXPAdded          EventType = "xp_added"
 )
 
 // Event is published by MCP tool handlers and broadcast to WebSocket clients.

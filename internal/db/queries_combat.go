@@ -6,11 +6,12 @@ import (
 )
 
 type CombatEncounter struct {
-	ID        int64  `json:"id"`
-	SessionID int64  `json:"session_id"`
-	Name      string `json:"name"`
-	Active    bool   `json:"active"`
-	CreatedAt string `json:"created_at"`
+	ID               int64  `json:"id"`
+	SessionID        int64  `json:"session_id"`
+	Name             string `json:"name"`
+	Active           bool   `json:"active"`
+	ActiveTurnIndex  int    `json:"active_turn_index"`
+	CreatedAt        string `json:"created_at"`
 }
 
 func (d *DB) CreateEncounter(sessionID int64, name string) (int64, error) {
@@ -41,9 +42,9 @@ func (d *DB) GetActiveEncounter(sessionID int64) (*CombatEncounter, error) {
 	e := &CombatEncounter{}
 	var active int
 	err := d.db.QueryRow(
-		"SELECT id, session_id, name, active, created_at FROM combat_encounters WHERE session_id = ? AND active = 1",
+		"SELECT id, session_id, name, active, active_turn_index, created_at FROM combat_encounters WHERE session_id = ? AND active = 1",
 		sessionID,
-	).Scan(&e.ID, &e.SessionID, &e.Name, &active, &e.CreatedAt)
+	).Scan(&e.ID, &e.SessionID, &e.Name, &active, &e.ActiveTurnIndex, &e.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -57,6 +58,25 @@ func (d *DB) GetActiveEncounter(sessionID int64) (*CombatEncounter, error) {
 func (d *DB) EndEncounter(id int64) error {
 	_, err := d.db.Exec("UPDATE combat_encounters SET active = 0 WHERE id = ?", id)
 	return err
+}
+
+// AdvanceTurn increments active_turn_index modulo the number of combatants.
+// Returns the new index. Returns 0 if encounter has no combatants.
+func (d *DB) AdvanceTurn(encounterID int64) (int, error) {
+	var count int
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM combatants WHERE encounter_id = ?", encounterID).Scan(&count); err != nil {
+		return 0, err
+	}
+	if count == 0 {
+		return 0, nil
+	}
+	var current int
+	if err := d.db.QueryRow("SELECT active_turn_index FROM combat_encounters WHERE id = ?", encounterID).Scan(&current); err != nil {
+		return 0, err
+	}
+	next := (current + 1) % count
+	_, err := d.db.Exec("UPDATE combat_encounters SET active_turn_index = ? WHERE id = ?", next, encounterID)
+	return next, err
 }
 
 // --- Combatants ---

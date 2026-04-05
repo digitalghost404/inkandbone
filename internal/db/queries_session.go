@@ -11,6 +11,7 @@ type Session struct {
 	Title      string `json:"title"`
 	Date       string `json:"date"`
 	Summary    string `json:"summary"`
+	Notes      string `json:"notes"`
 	CreatedAt  string `json:"created_at"`
 }
 
@@ -28,8 +29,8 @@ func (d *DB) CreateSession(campaignID int64, title, date string) (int64, error) 
 func (d *DB) GetSession(id int64) (*Session, error) {
 	s := &Session{}
 	err := d.db.QueryRow(
-		"SELECT id, campaign_id, title, date, summary, created_at FROM sessions WHERE id = ?", id,
-	).Scan(&s.ID, &s.CampaignID, &s.Title, &s.Date, &s.Summary, &s.CreatedAt)
+		"SELECT id, campaign_id, title, date, summary, notes, created_at FROM sessions WHERE id = ?", id,
+	).Scan(&s.ID, &s.CampaignID, &s.Title, &s.Date, &s.Summary, &s.Notes, &s.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -51,9 +52,24 @@ func (d *DB) UpdateSessionSummary(id int64, summary string) error {
 	return nil
 }
 
+func (d *DB) UpdateSessionNotes(id int64, notes string) error {
+	res, err := d.db.Exec("UPDATE sessions SET notes = ? WHERE id = ?", notes, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("session %d not found", id)
+	}
+	return nil
+}
+
 func (d *DB) ListSessions(campaignID int64) ([]Session, error) {
 	rows, err := d.db.Query(
-		"SELECT id, campaign_id, title, date, summary, created_at FROM sessions WHERE campaign_id = ? ORDER BY date DESC",
+		"SELECT id, campaign_id, title, date, summary, notes, created_at FROM sessions WHERE campaign_id = ? ORDER BY date DESC",
 		campaignID,
 	)
 	if err != nil {
@@ -63,7 +79,7 @@ func (d *DB) ListSessions(campaignID int64) ([]Session, error) {
 	var out []Session
 	for rows.Next() {
 		var s Session
-		if err := rows.Scan(&s.ID, &s.CampaignID, &s.Title, &s.Date, &s.Summary, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.CampaignID, &s.Title, &s.Date, &s.Summary, &s.Notes, &s.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

@@ -7,6 +7,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+const makeSession = (id: number, summary: string, notes = '') => ({ id, summary, notes })
+
 describe('JournalPanel', () => {
   it('renders nothing when session is null', () => {
     const { container } = render(
@@ -16,31 +18,31 @@ describe('JournalPanel', () => {
   })
 
   it('renders textarea with session summary', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }))
     render(
       <JournalPanel
-        session={{ id: 1, summary: 'We fought a dragon.' }}
+        session={makeSession(1, 'We fought a dragon.')}
         lastEvent={null}
         aiEnabled={false}
       />
     )
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(textarea.value).toBe('We fought a dragon.')
+    const textareas = screen.getAllByRole('textbox') as HTMLTextAreaElement[]
+    expect(textareas[0].value).toBe('We fought a dragon.')
   })
 
   it('calls patchSessionSummary on blur', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) })
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) })
     vi.stubGlobal('fetch', mockFetch)
     render(
       <JournalPanel
-        session={{ id: 42, summary: 'Initial summary.' }}
+        session={makeSession(42, 'Initial summary.')}
         lastEvent={null}
         aiEnabled={false}
       />
     )
-    const textarea = screen.getByRole('textbox')
-    fireEvent.change(textarea, { target: { value: 'Updated summary.' } })
-    fireEvent.blur(textarea)
+    const textareas = screen.getAllByRole('textbox')
+    fireEvent.change(textareas[0], { target: { value: 'Updated summary.' } })
+    fireEvent.blur(textareas[0])
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/sessions/42',
@@ -52,26 +54,26 @@ describe('JournalPanel', () => {
     })
   })
 
-  it('generate recap button is disabled when aiEnabled=false', () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }))
+  it('generate recap button is not rendered when aiEnabled=false', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }))
     render(
       <JournalPanel
-        session={{ id: 1, summary: 'Some summary.' }}
+        session={makeSession(1, 'Some summary.')}
         lastEvent={null}
         aiEnabled={false}
       />
     )
-    const button = screen.getByRole('button', { name: /generate recap/i })
-    expect(button).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /generate recap/i })).toBeNull()
   })
 
   it('generate recap button calls generateRecap and updates textarea when aiEnabled=true', async () => {
     const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // fetchXP
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ summary: 'AI generated recap.' }) }) // generateRecap
     vi.stubGlobal('fetch', mockFetch)
     render(
       <JournalPanel
-        session={{ id: 5, summary: 'Old summary.' }}
+        session={makeSession(5, 'Old summary.')}
         lastEvent={null}
         aiEnabled={true}
       />
@@ -80,55 +82,54 @@ describe('JournalPanel', () => {
     expect(button).not.toBeDisabled()
     fireEvent.click(button)
     await waitFor(() => {
-      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-      expect(textarea.value).toBe('AI generated recap.')
+      const textareas = screen.getAllByRole('textbox') as HTMLTextAreaElement[]
+      expect(textareas[0].value).toBe('AI generated recap.')
     })
     expect(mockFetch).toHaveBeenCalledWith(
       '/api/sessions/5/recap',
       expect.objectContaining({ method: 'POST' })
     )
-    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('session_updated WS event updates draft', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }))
     const { rerender } = render(
       <JournalPanel
-        session={{ id: 3, summary: 'Initial.' }}
+        session={makeSession(3, 'Initial.')}
         lastEvent={null}
         aiEnabled={false}
       />
     )
     rerender(
       <JournalPanel
-        session={{ id: 3, summary: 'Initial.' }}
+        session={makeSession(3, 'Initial.')}
         lastEvent={{ type: 'session_updated', payload: { session_id: 3, summary: 'WS updated summary.' } }}
         aiEnabled={false}
       />
     )
     await waitFor(() => {
-      const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-      expect(textarea.value).toBe('WS updated summary.')
+      const textareas = screen.getAllByRole('textbox') as HTMLTextAreaElement[]
+      expect(textareas[0].value).toBe('WS updated summary.')
     })
   })
 
   it('session_updated event with wrong session_id does not update draft', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) }))
     const { rerender } = render(
       <JournalPanel
-        session={{ id: 3, summary: 'Initial.' }}
+        session={makeSession(3, 'Initial.')}
         lastEvent={null}
         aiEnabled={false}
       />
     )
     rerender(
       <JournalPanel
-        session={{ id: 3, summary: 'Initial.' }}
+        session={makeSession(3, 'Initial.')}
         lastEvent={{ type: 'session_updated', payload: { session_id: 99, summary: 'Other session.' } }}
         aiEnabled={false}
       />
     )
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(textarea.value).toBe('Initial.')
+    const textareas = screen.getAllByRole('textbox') as HTMLTextAreaElement[]
+    expect(textareas[0].value).toBe('Initial.')
   })
 })

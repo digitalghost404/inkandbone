@@ -1,4 +1,4 @@
-import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC, Objective, Item } from './types'
+import type { GameContext, WorldNote, DiceRoll, TimelineEntry, SessionNPC, Objective, Item, XPEntry } from './types'
 
 export interface CampaignMap {
   id: number;
@@ -73,6 +73,15 @@ export async function patchSessionSummary(sessionId: number, summary: string): P
     body: JSON.stringify({ summary }),
   })
   if (!res.ok) throw new Error(`PATCH /api/sessions/${sessionId} failed: ${res.status}`)
+}
+
+export async function patchSessionNotes(sessionId: number, notes: string): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  })
+  if (!res.ok) throw new Error(`patchSessionNotes failed: ${res.status}`)
 }
 
 export async function generateRecap(sessionId: number): Promise<{ summary: string }> {
@@ -278,11 +287,11 @@ export async function fetchObjectives(campaignId: number): Promise<Objective[]> 
   return res.json()
 }
 
-export async function createObjective(campaignId: number, title: string, description: string): Promise<Objective> {
+export async function createObjective(campaignId: number, title: string, description: string, parentId?: number): Promise<Objective> {
   const res = await fetch(`/api/campaigns/${campaignId}/objectives`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, description }),
+    body: JSON.stringify({ title, description, parent_id: parentId ?? null }),
   })
   if (!res.ok) throw new Error(`createObjective failed: ${res.status}`)
   return res.json()
@@ -338,4 +347,32 @@ export async function patchItem(
 export async function deleteItem(id: number): Promise<void> {
   const res = await fetch(`/api/items/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`deleteItem failed: ${res.status}`)
+}
+
+export async function advanceTurn(encounterId: number): Promise<void> {
+  const res = await fetch(`/api/combat-encounters/${encounterId}/next-turn`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(`advanceTurn failed: ${res.status}`)
+}
+
+export async function fetchXP(sessionId: number): Promise<XPEntry[]> {
+  const res = await fetch(`/api/sessions/${sessionId}/xp`)
+  if (!res.ok) throw new Error(`fetchXP failed: ${res.status}`)
+  return res.json()
+}
+
+export async function createXP(sessionId: number, note: string, amount?: number): Promise<XPEntry> {
+  const res = await fetch(`/api/sessions/${sessionId}/xp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note, amount: amount ?? null }),
+  })
+  if (!res.ok) throw new Error(`createXP failed: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteXP(id: number): Promise<void> {
+  const res = await fetch(`/api/xp/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`deleteXP failed: ${res.status}`)
 }

@@ -39,6 +39,19 @@ func TestSessions(t *testing.T) {
 	assert.Len(t, list, 1)
 }
 
+func TestUpdateSessionNotes(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+	sessID, err := d.CreateSession(campID, "S1", "2026-04-04")
+	require.NoError(t, err)
+
+	require.NoError(t, d.UpdateSessionNotes(sessID, "remember the sword"))
+
+	sess, err := d.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "remember the sword", sess.Notes)
+}
+
 func TestMessages(t *testing.T) {
 	d := newTestDB(t)
 	campID := setupCampaign(t, d)

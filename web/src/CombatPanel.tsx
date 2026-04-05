@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CombatSnapshot, Combatant } from './types'
-import { patchCombatant } from './api'
+import { patchCombatant, advanceTurn } from './api'
 
 interface Props {
   combat: CombatSnapshot
@@ -64,7 +64,7 @@ function CombatantRow({ c, isActive }: { c: Combatant; isActive: boolean }) {
       <div className="hp-label">
         {c.hp_current} / {c.hp_max} HP
       </div>
-      {(conditions.length > 0 || true) && (
+      {(conditions.length > 0 || available.length > 0) && (
         <div className="conditions">
           {conditions.map((cond) => (
             <button
@@ -106,12 +106,30 @@ function CombatantRow({ c, isActive }: { c: Combatant; isActive: boolean }) {
 
 export function CombatPanel({ combat }: Props) {
   const { encounter, combatants } = combat
+
+  async function handleNextTurn() {
+    try {
+      await advanceTurn(encounter.id)
+    } catch (err) {
+      console.error('advanceTurn failed:', err)
+    }
+  }
+
+  const sorted = [...combatants].sort((a, b) => b.initiative - a.initiative)
+
   return (
     <div className="combat-grimoire">
       <h2>⚔ {encounter.name}</h2>
-      {combatants.map((c, idx) => (
-        <CombatantRow key={c.id} c={c} isActive={idx === 0} />
+      {sorted.map((c, idx) => (
+        <CombatantRow
+          key={c.id}
+          c={c}
+          isActive={idx === encounter.active_turn_index}
+        />
       ))}
+      <button className="next-turn-btn" onClick={handleNextTurn}>
+        Next Turn →
+      </button>
     </div>
   )
 }

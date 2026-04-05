@@ -123,6 +123,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/characters/{id}/items", s.handleCreateItem)
 	s.mux.HandleFunc("PATCH /api/items/{id}", s.handlePatchItem)
 	s.mux.HandleFunc("DELETE /api/items/{id}", s.handleDeleteItem)
+	// Phase A
+	s.mux.HandleFunc("POST /api/combat-encounters/{id}/next-turn", s.handleNextTurn)
+	s.mux.HandleFunc("GET /api/sessions/{id}/xp", s.handleListXP)
+	s.mux.HandleFunc("POST /api/sessions/{id}/xp", s.handleCreateXP)
+	s.mux.HandleFunc("DELETE /api/xp/{id}", s.handleDeleteXP)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
