@@ -12,18 +12,37 @@ interface AmbientTrack {
 let currentTrack: AmbientTrack | null = null;
 let masterVolume = 1.0;
 let muted = false;
+let paused = false;
 
 export function setAmbientVolume(volume: number): void {
   masterVolume = Math.max(0, Math.min(1, volume));
-  if (currentTrack) {
-    currentTrack.audio.volume = muted ? 0 : masterVolume * MAX_VOLUME;
+  if (currentTrack && !muted && !paused) {
+    currentTrack.audio.volume = masterVolume * MAX_VOLUME;
   }
 }
 
 export function setAmbientMuted(isMuted: boolean): void {
   muted = isMuted;
   if (currentTrack) {
-    currentTrack.audio.volume = muted ? 0 : masterVolume * MAX_VOLUME;
+    if (muted) {
+      currentTrack.audio.volume = 0;
+    } else if (!paused) {
+      currentTrack.audio.volume = masterVolume * MAX_VOLUME;
+    }
+  }
+}
+
+export function pauseAmbient(): void {
+  paused = true;
+  if (currentTrack) {
+    currentTrack.audio.pause();
+  }
+}
+
+export function resumeAmbient(): void {
+  paused = false;
+  if (currentTrack && !muted) {
+    currentTrack.audio.play().catch(() => {});
   }
 }
 
@@ -69,14 +88,16 @@ export async function setAmbientTrack(tag: string | null): Promise<void> {
     currentTrack = null;
   }
 
-  if (!tag || muted) return;
+  if (!tag) return;
 
-  // Fade in new track
+  // Load new track; respect paused and muted state
   const audio = new Audio(`/api/files/audio/${tag}.mp3`);
   audio.loop = true;
-  const targetVol = masterVolume * MAX_VOLUME;
   currentTrack = { audio, tag };
-  fadeIn(audio, targetVol);
+
+  if (!paused && !muted) {
+    fadeIn(audio, masterVolume * MAX_VOLUME);
+  }
 }
 
 export function stopAmbient(): void {
