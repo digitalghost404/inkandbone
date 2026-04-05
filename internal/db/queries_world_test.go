@@ -120,6 +120,45 @@ func TestListMaps(t *testing.T) {
 	assert.Equal(t, "maps/abc.jpg", maps[0].ImagePath)
 }
 
+func TestFindWorldNoteByTitle(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+
+	_, err := d.CreateWorldNote(campID, "Elara", "A skilled merchant", "npc")
+	require.NoError(t, err)
+
+	// Find by exact title (case-insensitive)
+	note, err := d.FindWorldNoteByTitle(campID, "elara")
+	require.NoError(t, err)
+	require.NotNil(t, note)
+	assert.Equal(t, "Elara", note.Title)
+
+	// Not found returns nil, no error
+	note, err = d.FindWorldNoteByTitle(campID, "nonexistent")
+	require.NoError(t, err)
+	assert.Nil(t, note)
+}
+
+func TestUpdateWorldNotePersonality(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+
+	_, err := d.CreateWorldNote(campID, "Elara", "A skilled merchant", "npc")
+	require.NoError(t, err)
+
+	note, err := d.FindWorldNoteByTitle(campID, "Elara")
+	require.NoError(t, err)
+	require.NotNil(t, note)
+
+	personality := `{"traits":["cunning","friendly"],"motivation":"profit"}`
+	err = d.UpdateWorldNotePersonality(note.ID, personality)
+	require.NoError(t, err)
+
+	updated, err := d.GetWorldNote(note.ID)
+	require.NoError(t, err)
+	assert.Equal(t, personality, updated.PersonalityJSON)
+}
+
 func TestDiceRolls(t *testing.T) {
 	d := newTestDB(t)
 	sessID := setupSession(t, d)
