@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { patchSessionSummary, generateRecap, patchSessionNotes, fetchXP, createXP, deleteXP } from './api'
+import { patchSessionSummary, generateRecap, patchSessionNotes, fetchXP, createXP, deleteXP, postImprovise, postPreSessionBrief, postDetectThreads, postCampaignAsk } from './api'
 import type { XPEntry } from './types'
 
 interface JournalPanelProps {
   session: { id: number; summary: string; notes: string } | null
+  campaignId?: number | null
   lastEvent: unknown
   aiEnabled: boolean
 }
@@ -50,13 +51,17 @@ function isXPAddedEvent(ev: unknown): ev is XPAddedEvent {
   return typeof p['session_id'] === 'number' && typeof p['id'] === 'number' && typeof p['note'] === 'string'
 }
 
-export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProps) {
+export function JournalPanel({ session, campaignId, lastEvent, aiEnabled }: JournalPanelProps) {
   const [draft, setDraft] = useState(session?.summary ?? '')
   const [notes, setNotes] = useState(session?.notes ?? '')
   const [xpEntries, setXpEntries] = useState<XPEntry[]>([])
   const [milestoneNote, setMilestoneNote] = useState('')
   const [milestoneXP, setMilestoneXP] = useState('')
   const notesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [gmToolsOpen, setGmToolsOpen] = useState(false)
+  const [gmResult, setGmResult] = useState('')
+  const [gmLoading, setGmLoading] = useState(false)
+  const [askQuestion, setAskQuestion] = useState('')
 
   useEffect(() => {
     return () => {
@@ -147,6 +152,19 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
     }
   }
 
+  async function runTool(fn: () => Promise<string>) {
+    setGmLoading(true)
+    setGmResult('')
+    try {
+      const result = await fn()
+      setGmResult(result)
+    } catch {
+      setGmResult('Error: tool failed')
+    } finally {
+      setGmLoading(false)
+    }
+  }
+
   return (
     <>
       <textarea
@@ -214,6 +232,64 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
           </button>
         </form>
       </div>
+
+      {aiEnabled && (
+        <div className="gm-tools-section">
+          <div
+            className="gm-tools-header"
+            onClick={() => setGmToolsOpen(o => !o)}
+          >
+            <span className="gm-tools-toggle">{gmToolsOpen ? '▼' : '▶'}</span>
+            GM Tools
+          </div>
+          {gmToolsOpen && (
+            <div className="gm-tools-body">
+              <div className="gm-tools-buttons">
+                <button
+                  className="gm-tool-btn"
+                  disabled={gmLoading || !session}
+                  onClick={() => runTool(() => postImprovise(session!.id))}
+                >
+                  {gmLoading ? '…' : 'Improvise'}
+                </button>
+                <button
+                  className="gm-tool-btn"
+                  disabled={gmLoading || !campaignId}
+                  onClick={() => runTool(() => postPreSessionBrief(campaignId!))}
+                >
+                  {gmLoading ? '…' : 'Pre-Session Brief'}
+                </button>
+                <button
+                  className="gm-tool-btn"
+                  disabled={gmLoading || !session}
+                  onClick={() => runTool(() => postDetectThreads(session!.id))}
+                >
+                  {gmLoading ? '…' : 'Detect Threads'}
+                </button>
+              </div>
+              <div className="gm-tools-ask">
+                <input
+                  className="gm-tools-ask-input"
+                  type="text"
+                  value={askQuestion}
+                  onChange={e => setAskQuestion(e.target.value)}
+                  placeholder="Ask about the campaign..."
+                />
+                <button
+                  className="gm-tool-btn"
+                  disabled={gmLoading || !askQuestion.trim() || !campaignId}
+                  onClick={() => runTool(() => postCampaignAsk(campaignId!, askQuestion))}
+                >
+                  {gmLoading ? '…' : 'Ask'}
+                </button>
+              </div>
+              {gmResult && (
+                <blockquote className="gm-tools-result">{gmResult}</blockquote>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   )
 }

@@ -387,6 +387,38 @@ export async function deleteXP(id: number): Promise<void> {
   if (!res.ok) throw new Error(`deleteXP failed: ${res.status}`)
 }
 
+export async function postImprovise(sessionId: number): Promise<string> {
+  const res = await fetch(`/api/sessions/${sessionId}/improvise`, { method: 'POST' })
+  if (!res.ok) throw new Error('Improvise failed')
+  const data = await res.json()
+  return data.result
+}
+
+export async function postPreSessionBrief(campaignId: number): Promise<string> {
+  const res = await fetch(`/api/campaigns/${campaignId}/pre-session-brief`, { method: 'POST' })
+  if (!res.ok) throw new Error('Pre-session brief failed')
+  const data = await res.json()
+  return data.result
+}
+
+export async function postDetectThreads(sessionId: number): Promise<string> {
+  const res = await fetch(`/api/sessions/${sessionId}/detect-threads`, { method: 'POST' })
+  if (!res.ok) throw new Error('Detect threads failed')
+  const data = await res.json()
+  return data.result
+}
+
+export async function postCampaignAsk(campaignId: number, question: string): Promise<string> {
+  const res = await fetch(`/api/campaigns/${campaignId}/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  })
+  if (!res.ok) throw new Error('Campaign ask failed')
+  const data = await res.json()
+  return data.result
+}
+
 // --- Management API ---
 
 export interface RulebookSource {

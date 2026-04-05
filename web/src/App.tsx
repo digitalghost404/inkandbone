@@ -597,6 +597,7 @@ export default function App() {
             {rightTab === 'journal' && (
               <JournalPanel
                 session={ctx?.session ?? null}
+                campaignId={ctx?.campaign?.id ?? null}
                 lastEvent={lastEvent}
                 aiEnabled={aiEnabled}
               />
