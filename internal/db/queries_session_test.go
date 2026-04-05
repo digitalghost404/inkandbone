@@ -52,6 +52,26 @@ func TestUpdateSessionNotes(t *testing.T) {
 	assert.Equal(t, "remember the sword", sess.Notes)
 }
 
+func TestSceneTags(t *testing.T) {
+	d := newTestDB(t)
+	campID := setupCampaign(t, d)
+	sessID, err := d.CreateSession(campID, "S1", "2026-04-04")
+	require.NoError(t, err)
+
+	// Default is empty string
+	sess, err := d.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "", sess.SceneTags)
+
+	// Update via UpdateSceneTags
+	err = d.UpdateSceneTags(sessID, "tavern,night")
+	require.NoError(t, err)
+
+	sess, err = d.GetSession(sessID)
+	require.NoError(t, err)
+	assert.Equal(t, "tavern,night", sess.SceneTags)
+}
+
 func TestMessages(t *testing.T) {
 	d := newTestDB(t)
 	campID := setupCampaign(t, d)
