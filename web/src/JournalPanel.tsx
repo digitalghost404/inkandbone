@@ -59,6 +59,14 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
   const notesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    return () => {
+      if (notesDebounceRef.current) {
+        clearTimeout(notesDebounceRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (session) {
       setDraft(session.summary)
       setNotes(session.notes ?? '')
@@ -117,16 +125,26 @@ export function JournalPanel({ session, lastEvent, aiEnabled }: JournalPanelProp
     e.preventDefault()
     const note = milestoneNote.trim()
     if (!note) return
-    const amount = milestoneXP.trim() !== '' ? parseInt(milestoneXP, 10) : undefined
-    const entry = await createXP(session!.id, note, amount)
-    setXpEntries(prev => [...prev, entry])
-    setMilestoneNote('')
-    setMilestoneXP('')
+    const parsed = parseInt(milestoneXP, 10)
+    const amount = milestoneXP.trim() !== '' && !isNaN(parsed) ? parsed : undefined
+    try {
+      const entry = await createXP(session!.id, note, amount)
+      setXpEntries(prev => [...prev, entry])
+    } catch (err) {
+      console.error('Failed to add milestone:', err)
+    } finally {
+      setMilestoneNote('')
+      setMilestoneXP('')
+    }
   }
 
   async function handleDeleteMilestone(id: number) {
-    await deleteXP(id).catch(console.error)
-    setXpEntries(prev => prev.filter(e => e.id !== id))
+    try {
+      await deleteXP(id)
+      setXpEntries(prev => prev.filter(e => e.id !== id))
+    } catch (err) {
+      console.error('Failed to delete milestone:', err)
+    }
   }
 
   return (
