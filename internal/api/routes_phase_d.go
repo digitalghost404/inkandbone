@@ -14,8 +14,8 @@ func (s *Server) handleOracleRoll(w http.ResponseWriter, r *http.Request) {
 		Roll      int    `json:"roll"`
 		RulesetID *int64 `json:"ruleset_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Table == "" || body.Roll == 0 {
-		http.Error(w, "table and roll required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Table == "" || body.Roll < 1 || body.Roll > 50 {
+		http.Error(w, "table and roll (1-50) required", http.StatusBadRequest)
 		return
 	}
 
@@ -124,6 +124,9 @@ func (s *Server) handleUpdateRelationship(w http.ResponseWriter, r *http.Request
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
+	if body.RelationshipType == "" {
+		body.RelationshipType = "neutral"
+	}
 	if err := s.db.UpdateRelationship(id, body.RelationshipType, body.Description); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
@@ -155,14 +158,14 @@ func (s *Server) handlePatchTension(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		TensionLevel int `json:"tension_level"`
+		TensionLevel *int `json:"tension_level"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TensionLevel == nil {
+		http.Error(w, "tension_level required", http.StatusBadRequest)
 		return
 	}
 
-	if err := s.db.UpdateTension(sessionID, body.TensionLevel); err != nil {
+	if err := s.db.UpdateTension(sessionID, *body.TensionLevel); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
