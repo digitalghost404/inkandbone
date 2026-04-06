@@ -143,3 +143,20 @@ export interface Relationship {
   description: string
   created_at: string
 }
+
+export interface XPSuggestion {
+  field: string
+  display_name: string
+  current_value: number
+  new_value: number
+  xp_cost: number
+  reasoning: string
+}
+
+export interface XPSpendSuggestionsEvent {
+  character_id: number
+  character_name: string
+  current_xp: number
+  xp_label: string
+  suggestions: XPSuggestion[]
+}
