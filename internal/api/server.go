@@ -128,6 +128,7 @@ func (s *Server) registerRoutes() {
 	// Feature 10: Objectives tracker
 	s.mux.HandleFunc("GET /api/campaigns/{id}/objectives", s.handleListObjectives)
 	s.mux.HandleFunc("POST /api/campaigns/{id}/objectives", s.handleCreateObjective)
+	s.mux.HandleFunc("POST /api/campaigns/{id}/objectives/dedup", s.handleDeduplicateObjectives)
 	s.mux.HandleFunc("PATCH /api/objectives/{id}", s.handlePatchObjective)
 	s.mux.HandleFunc("DELETE /api/objectives/{id}", s.handleDeleteObjective)
 	// Feature 11: Player inventory

@@ -330,6 +330,12 @@ export async function deleteObjective(id: number): Promise<void> {
   if (!res.ok) throw new Error(`deleteObjective failed: ${res.status}`)
 }
 
+export async function deduplicateObjectives(campaignId: number): Promise<{ deleted: number }> {
+  const res = await fetch(`/api/campaigns/${campaignId}/objectives/dedup`, { method: 'POST' })
+  if (!res.ok) throw new Error(`deduplicateObjectives failed: ${res.status}`)
+  return res.json()
+}
+
 export async function fetchItems(characterId: number): Promise<Item[]> {
   const res = await fetch(`/api/characters/${characterId}/items`)
   if (!res.ok) throw new Error(`fetchItems failed: ${res.status}`)

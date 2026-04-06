@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchObjectives, patchObjective, deleteObjective, createObjective, reanalyzeSession } from './api'
+import { fetchObjectives, patchObjective, deleteObjective, createObjective, reanalyzeSession, deduplicateObjectives } from './api'
 import type { Objective } from './types'
 
 interface ObjectivesPanelProps {
@@ -12,6 +12,7 @@ export function ObjectivesPanel({ campaignId, sessionId, lastEvent }: Objectives
   const [objectives, setObjectives] = useState<Objective[]>([])
   const [subTaskForm, setSubTaskForm] = useState<{ parentId: number; title: string } | null>(null)
   const [reanalyzing, setReanalyzing] = useState(false)
+  const [deduping, setDeduping] = useState(false)
 
   const load = useCallback(() => {
     if (campaignId === null) return
@@ -66,6 +67,19 @@ export function ObjectivesPanel({ campaignId, sessionId, lastEvent }: Objectives
       console.error(err)
     } finally {
       setReanalyzing(false)
+    }
+  }
+
+  async function handleDedup() {
+    if (campaignId === null || deduping) return
+    setDeduping(true)
+    try {
+      await deduplicateObjectives(campaignId)
+      load()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeduping(false)
     }
   }
 
@@ -131,17 +145,26 @@ export function ObjectivesPanel({ campaignId, sessionId, lastEvent }: Objectives
 
   return (
     <div className="objectives-panel">
-      {sessionId !== null && (
+      <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem' }}>
+        {sessionId !== null && (
+          <button
+            className="reanalyze-btn"
+            onClick={handleReanalyze}
+            disabled={reanalyzing}
+            title="Re-run AI analysis on full session history to update objectives"
+          >
+            {reanalyzing ? 'Analyzing…' : '↻ Reanalyze'}
+          </button>
+        )}
         <button
           className="reanalyze-btn"
-          onClick={handleReanalyze}
-          disabled={reanalyzing}
-          title="Re-run AI analysis on full session history to update objectives"
-          style={{ marginBottom: '0.5rem' }}
+          onClick={handleDedup}
+          disabled={deduping}
+          title="Remove duplicate objectives with the same title"
         >
-          {reanalyzing ? 'Analyzing…' : '↻ Reanalyze'}
+          {deduping ? 'Cleaning…' : '⊟ Dedup'}
         </button>
-      )}
+      </div>
       {active.length > 0 && (
         <section>
           <div className="objectives-section-label">Active</div>

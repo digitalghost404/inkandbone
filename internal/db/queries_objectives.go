@@ -76,6 +76,24 @@ func (d *DB) UpdateObjectiveStatus(id int64, status string) error {
 	return err
 }
 
+// DeduplicateObjectives removes duplicate objectives within a campaign,
+// keeping the oldest copy of each title (lowest id). Returns the number deleted.
+func (d *DB) DeduplicateObjectives(campaignID int64) (int, error) {
+	res, err := d.db.Exec(`
+		DELETE FROM objectives
+		WHERE campaign_id = ?
+		  AND id NOT IN (
+		      SELECT MIN(id) FROM objectives
+		      WHERE campaign_id = ?
+		      GROUP BY LOWER(TRIM(title))
+		  )`, campaignID, campaignID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // DeleteObjective removes an objective and all its sub-tasks.
 func (d *DB) DeleteObjective(id int64) error {
 	tx, err := d.db.Begin()

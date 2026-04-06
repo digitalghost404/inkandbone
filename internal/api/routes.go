@@ -2305,6 +2305,26 @@ func (s *Server) handleDeleteObjective(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleDeduplicateObjectives removes duplicate objectives within a campaign,
+// keeping the oldest copy of each title (case-insensitive).
+// POST /api/campaigns/{id}/objectives/dedup
+func (s *Server) handleDeduplicateObjectives(w http.ResponseWriter, r *http.Request) {
+	campaignID, ok := parsePathID(r, "id")
+	if !ok {
+		http.Error(w, "invalid campaign id", http.StatusBadRequest)
+		return
+	}
+	n, err := s.db.DeduplicateObjectives(campaignID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if n > 0 {
+		s.bus.Publish(Event{Type: EventObjectiveUpdated, Payload: map[string]any{"campaign_id": campaignID}})
+	}
+	writeJSON(w, map[string]any{"deleted": n})
+}
+
 var objectiveNewKeywords = []string{
 	"quest", "task", "mission", "objective", "goal",
 	"find", "bring", "kill", "slay", "defeat", "protect", "rescue", "retrieve", "discover", "investigate",
@@ -2356,6 +2376,8 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 		}
 	}
 
+	// Build a case-insensitive set of existing titles for dedup.
+	existingTitleSet := make(map[string]bool, len(existing))
 	type slimObjective struct {
 		ID          int64  `json:"id"`
 		Title       string `json:"title"`
@@ -2365,33 +2387,58 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 	slim := make([]slimObjective, 0, len(existing))
 	for _, o := range existing {
 		slim = append(slim, slimObjective{ID: o.ID, Title: o.Title, Description: o.Description, Status: o.Status})
+		existingTitleSet[strings.ToLower(strings.TrimSpace(o.Title))] = true
 	}
 	existingJSON, err := json.Marshal(slim)
 	if err != nil {
 		return
 	}
 
-	prompt := fmt.Sprintf(`You are a TTRPG quest tracker. Analyze this story passage and update objectives accordingly.
+	// Fetch recent session history to give the AI enough context for resolution.
+	// A single GM message is often too narrow; we include the last ~4000 chars of
+	// prior assistant messages as a "recent story" prefix so the AI can tell whether
+	// an active objective was resolved in an earlier turn.
+	recentContext := ""
+	if msgs, merr := s.db.ListMessages(sessionID); merr == nil {
+		var sb strings.Builder
+		for _, m := range msgs {
+			if m.Role == "assistant" {
+				sb.WriteString(m.Content)
+				sb.WriteString("\n\n")
+			}
+		}
+		prior := strings.TrimSpace(sb.String())
+		// Exclude the current gmText from the prior (it's appended separately).
+		prior = strings.TrimSuffix(prior, strings.TrimSpace(gmText))
+		prior = strings.TrimSpace(prior)
+		if len(prior) > 4000 {
+			prior = prior[len(prior)-4000:]
+		}
+		if prior != "" {
+			recentContext = "\n\nRecent prior story (for resolution context only — do NOT add objectives already tracked):\n" + prior
+		}
+	}
 
-Existing objectives (JSON array — "active" ones can be resolved, others are informational):
+	prompt := fmt.Sprintf(`You are a TTRPG quest tracker. Analyze the story passage and update objectives.
+
+Existing objectives (ALL statuses — do NOT suggest any title that already exists here, even paraphrased):
 %s
 
-Story passage:
-%s
+Current story passage:
+%s%s
 
-Return ONLY a JSON object with two fields:
-- "new": array of {title, description} for brand-new objectives introduced in this passage (quests given, tasks revealed, goals explicitly stated). Empty array if none.
-- "resolved": array of {id, status} for ACTIVE objectives that have been completed or made impossible. Be AGGRESSIVE: err on the side of resolving. If the objective's goal has been substantially achieved, the situation has clearly moved on, a target died/fled/converted, evidence of success or permanent failure appears — mark it. Do not require explicit confirmation; infer from story logic. "status" must be "completed" or "failed".
+Return ONLY a JSON object with exactly two fields:
+- "new": array of {title, description} for objectives that are GENUINELY NEW and NOT already tracked above (quests given, tasks revealed, goals explicitly stated). If the goal already exists under any wording, omit it. Empty array if none.
+- "resolved": array of {id, status} where "status" is "completed" or "failed". Only resolve ACTIVE objectives. Be AGGRESSIVE: if a goal has been substantially achieved, the situation clearly moved on, a target died/fled/converted/recruited, or the goal became permanently impossible — mark it. Infer from story logic; do not require explicit confirmation.
 
-Examples of completed: task explicitly done, item delivered, enemy defeated, person converted/recruited, location secured, plan executed, any clear story resolution of the goal.
-Examples of failed: target died before goal achieved, location destroyed, time ran out, goal became permanently impossible.
+Examples resolved as completed: task explicitly done, item delivered, person converted or recruited, location secured, enemy defeated, plan executed.
+Examples resolved as failed: target died before completion, location destroyed, time ran out, goal permanently blocked.
 
-Example output: {"new":[{"title":"Secure the harbor","description":"Take control of the docks before dawn"}],"resolved":[{"id":3,"status":"completed"},{"id":7,"status":"failed"}]}
+Output format: {"new":[{"title":"...","description":"..."}],"resolved":[{"id":3,"status":"completed"}]}
+No changes: {"new":[],"resolved":[]}
+No explanation, no markdown, no code fences.`, string(existingJSON), gmText, recentContext)
 
-If nothing changed: {"new":[],"resolved":[]}
-No explanation, no markdown, no code fences.`, string(existingJSON), gmText)
-
-	raw, err := completer.Generate(ctx, prompt, 512)
+	raw, err := completer.Generate(ctx, prompt, 600)
 	if err != nil {
 		return
 	}
@@ -2422,8 +2469,14 @@ No explanation, no markdown, no code fences.`, string(existingJSON), gmText)
 		if n.Title == "" {
 			continue
 		}
+		// Application-level dedup: skip if title already exists (case-insensitive).
+		key := strings.ToLower(strings.TrimSpace(n.Title))
+		if existingTitleSet[key] {
+			continue
+		}
 		if _, err := s.db.CreateObjective(sess.CampaignID, n.Title, n.Description, nil); err == nil {
 			changed++
+			existingTitleSet[key] = true // prevent same-batch duplicates
 		}
 	}
 	for _, res := range result.Resolved {
