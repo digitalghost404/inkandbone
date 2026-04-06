@@ -1076,6 +1076,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	go s.autoUpdateRecap(context.Background(), id)
 	go s.autoDetectObjectives(context.Background(), id, fullText)
 	go s.autoExtractItems(context.Background(), id, fullText)
+	go s.autoUpdateCurrency(context.Background(), id, fullText)
 	tensionText := fullText
 	if roll != nil && !roll.Success {
 		tensionText = "critical failure " + fullText
@@ -2379,4 +2380,88 @@ func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
 			return
 		}
 	}
+}
+
+// autoUpdateCurrency analyzes a GM response for explicit currency transactions
+// (e.g. "you receive 30 gold", "costs 15 coin") and updates the active character's
+// balance accordingly. Runs in a background goroutine.
+// Only fires when a specific number AND a currency word appear together.
+// Publishes currency_delta in the character_updated event so the frontend can show an undo toast.
+func (s *Server) autoUpdateCurrency(ctx context.Context, sessionID int64, gmText string) {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+
+	// Resolve active character.
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return
+	}
+
+	prompt := fmt.Sprintf(`You are a TTRPG currency tracker. Analyze this GM story passage.
+
+Extract any EXPLICIT currency transaction where BOTH a specific number AND a currency word appear together.
+Currency words include: gold, gp, silver, sp, copper, cp, coin, coins, crowns, marks, ducats, dollars, credits.
+
+Rules:
+- Only extract when both a number AND a currency word are present (e.g. "30 gold", "15 coin", "5 gp").
+- Positive delta = player gains currency. Negative delta = player spends or loses currency.
+- If multiple transactions exist, sum them into a single delta.
+- Do NOT infer amounts. "A handful of coins" or "some gold" are NOT explicit — return delta 0.
+- Do NOT extract currency that belongs to NPCs unless it transfers to the player.
+
+Return ONLY a JSON object (no explanation, no markdown):
+{"delta": 0}
+
+Story passage:
+%s`, gmText)
+
+	raw, err := completer.Generate(ctx, prompt, 64)
+	if err != nil {
+		return
+	}
+
+	raw = strings.TrimSpace(raw)
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start < 0 || end <= start {
+		return
+	}
+
+	var result struct {
+		Delta int64 `json:"delta"`
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), &result); err != nil {
+		return
+	}
+	if result.Delta == 0 {
+		return
+	}
+
+	// Get current balance.
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil {
+		return
+	}
+
+	newBalance := char.CurrencyBalance + result.Delta
+	if newBalance < 0 {
+		newBalance = 0
+	}
+
+	if err := s.db.UpdateCharacterCurrencyBalance(charID, newBalance); err != nil {
+		return
+	}
+
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{
+		"id":               charID,
+		"currency_balance": newBalance,
+		"currency_label":   char.CurrencyLabel,
+		"currency_delta":   result.Delta,
+	}})
 }
