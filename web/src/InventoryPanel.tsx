@@ -38,6 +38,13 @@ export function InventoryPanel({
   const [toast, setToast] = useState<CurrencyToast | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Clear timer on unmount to prevent setState on unmounted component
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+    }
+  }, [])
+
   // Sync currency from parent when not editing
   useEffect(() => {
     if (!editingBalance) setBalance(characterCurrencyBalance)
