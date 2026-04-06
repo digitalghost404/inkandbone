@@ -6,8 +6,33 @@ package ruleset
 // omitted. Returns nil for unknown or fully-numeric systems.
 func CharacterOptions(system string) map[string][]string {
 	switch system {
-	case "dnd5e", "ironsworn":
-		return nil // all numeric, nothing to choose
+	case "ironsworn":
+		return nil // fully numeric, nothing to choose
+
+	case "dnd5e":
+		return map[string][]string{
+			"race": {
+				"Human", "Elf", "Dwarf", "Halfling", "Gnome",
+				"Half-Elf", "Half-Orc", "Tiefling", "Dragonborn",
+				"Aasimar", "Firbolg", "Goliath", "Kenku", "Lizardfolk",
+				"Tabaxi", "Triton", "Yuan-ti Pureblood",
+			},
+			"class": {
+				"Barbarian", "Bard", "Cleric", "Druid", "Fighter",
+				"Monk", "Paladin", "Ranger", "Rogue", "Sorcerer",
+				"Warlock", "Wizard", "Artificer", "Blood Hunter",
+			},
+			"background": {
+				"Acolyte", "Charlatan", "Criminal", "Entertainer",
+				"Folk Hero", "Guild Artisan", "Hermit", "Noble",
+				"Outlander", "Sage", "Sailor", "Soldier", "Urchin",
+			},
+			"alignment": {
+				"Lawful Good", "Neutral Good", "Chaotic Good",
+				"Lawful Neutral", "True Neutral", "Chaotic Neutral",
+				"Lawful Evil", "Neutral Evil", "Chaotic Evil",
+			},
+		}
 
 	case "vtm":
 		return map[string][]string{
@@ -38,6 +63,10 @@ func CharacterOptions(system string) map[string][]string {
 	case "shadowrun":
 		return map[string][]string{
 			"metatype": {"Human", "Elf", "Dwarf", "Ork", "Troll"},
+			"archetype": {
+				"Street Samurai", "Adept", "Decker", "Technomancer",
+				"Rigger", "Mage", "Shaman", "Face", "Infiltrator", "Fixer",
+			},
 		}
 
 	case "wfrp":
@@ -78,7 +107,10 @@ func CharacterOptions(system string) map[string][]string {
 				"Elves of Mirkwood", "Hobbits of the Shire",
 				"Men of Bree", "Rangers of the North", "Woodmen of Wilderland",
 			},
-			"calling": {"Scholar", "Slayer", "Treasure Hunter", "Wanderer", "Warden"},
+			"calling": {
+				"Captain", "Champion", "Messenger",
+				"Scholar", "Slayer", "Treasure Hunter", "Wanderer", "Warden",
+			},
 		}
 
 	case "wrath_glory":
@@ -86,12 +118,17 @@ func CharacterOptions(system string) map[string][]string {
 			"archetype": {
 				"Adeptus Astartes", "Adeptus Mechanicus", "Astra Militarum",
 				"Inquisitorial Agent", "Rogue Trader", "Ministorum Priest",
-				"Sanctioned Psyker", "Heretic", "Chaos Space Marine", "Cultist",
+				"Sanctioned Psyker", "Adepta Sororitas", "Commissar",
+				"Arbitrator", "Astropath", "Navigator", "Ogryn",
+				"Ratling", "Voidmaster", "Death Cult Assassin",
+				"Heretic", "Chaos Space Marine", "Cultist",
 			},
 			"faction": {
 				"Imperium of Man", "Adeptus Mechanicus", "Inquisition",
-				"Rogue Traders", "Chaos Undivided", "Nurgle", "Tzeentch",
-				"Khorne", "Slaanesh",
+				"Adepta Sororitas", "Astra Militarum", "Adeptus Astartes",
+				"Rogue Traders", "Officio Assassinorum",
+				"Chaos Undivided", "Nurgle", "Tzeentch", "Khorne", "Slaanesh",
+				"Death Guard", "Thousand Sons", "World Eaters", "Emperor's Children",
 			},
 		}
 

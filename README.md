@@ -262,6 +262,7 @@ Four tabs showing different campaign data:
 - Objectives auto-add when Claude detects a new story goal.
 
 **Items tab (Inventory):**
+- **Currency row (pinned at top):** Shows your current balance and currency label (e.g., "Gold"). Click the label or balance to edit inline; saves on blur or Enter. The AI automatically updates the balance when currency changes hands during play, with a 5-second undo toast.
 - All items owned by your character.
 - Shows name, description, quantity, and equipped status.
 - Click to edit or delete items.
@@ -474,7 +475,7 @@ Claude then narrates what happens, applying rules as needed, and responds via Se
 
 ### Automation Goroutines
 
-After every GM response, eight background tasks fire automatically (no player action required):
+After every GM response, ten background tasks fire automatically (no player action required):
 
 **autoExtractNPCs** — Claude's text is analyzed for proper names. New named characters are automatically added to the session NPC roster. Names appear in the NPCs tab on the right sidebar.
 
@@ -491,6 +492,10 @@ After every GM response, eight background tasks fire automatically (no player ac
 **checkAndExecuteRoll** — Before Claude responds, the player's action is analyzed. If the ruleset requires a dice roll for that action (e.g., attack roll in combat, climb check, persuasion roll), the roll is enforced first. Claude sees the result and narrates accordingly. Keeps story moving without manual dice rolling.
 
 **autoUpdateTension** — After every GM response, the session's tension level automatically increments if the text contains crisis keywords (ambush, betrayal, catastrophe, danger, doom, enemy, escape, failure, fear, fight, flee, loss, peril, threat, trapped, wounded, etc.) or when a dice roll critically fails. The tension tracker is visible in the session UI and influences narrative pacing. You can manually adjust tension via the UI at any time.
+
+**autoUpdateCurrency** — After every GM response, Claude analyzes the text for explicit currency transactions (e.g., "you receive 30 gold", "costs 15 coin"). If a specific number and a currency word appear together, the character's balance is updated automatically. A 5-second undo toast appears in the inventory panel so you can reverse unintended changes. No update fires if no transaction is found.
+
+**autoUpdateSceneTags** — After every GM response, the scene text is scanned for environment keywords (dungeon, tavern, forest, battle, etc.) and the session's active scene tags are updated. Scene tags drive ambient audio track selection without requiring any manual input.
 
 All automation runs in the background without interrupting your gameplay. Updates appear in real time via WebSocket.
 
@@ -517,8 +522,9 @@ When you send a player action, Claude receives an enriched world context block t
 
 - `[ACTIVE OBJECTIVES]` — All active quests and story goals for the campaign, so Claude tracks narrative threads without you having to remind them.
 - `[NPC: Name]` personality cards — For every world note tagged as `npc` with a non-empty personality JSON, Claude receives the personality definition and incorporates it into NPC dialogue and actions.
+- `[RULEBOOK REFERENCES]` — If a rulebook has been uploaded for the campaign's ruleset, up to 5 matching chunks are searched from the player's message (keywords are expanded to mechanic terms, e.g., "attack" also searches "combat" and "damage") and injected here. Claude is bound by a non-negotiable `RULEBOOK ADHERENCE` directive to apply these rules exactly — no softening, no improvising contradictory mechanics.
 
-This ensures NPCs stay consistent and plot threads remain visible throughout the session.
+This ensures NPCs stay consistent, plot threads remain visible, and all mechanical rulings are grounded in the actual rulebook text.
 
 ### GM Session Tools
 
@@ -655,7 +661,7 @@ SQLite stores campaigns, characters, sessions, messages, NPCs, world notes, maps
 Key tables:
 
 - `campaigns` — Campaign metadata and ruleset reference.
-- `characters` — Player characters with stats (JSON) and portrait path.
+- `characters` — Player characters with stats (JSON), portrait path, `currency_balance` (integer, default 0), and `currency_label` (text, default "Gold").
 - `sessions` — Play sessions with title, date, summary, and `tension_level` (1-10).
 - `messages` — Full conversation history (role: 'user' or 'assistant').
 - `session_npcs` — Named characters for each session.

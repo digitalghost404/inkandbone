@@ -38,7 +38,7 @@ Makefile              - build, install, dev, test, clean
 ## Key Database Tables
 
 - `campaigns` (ruleset reference)
-- `characters` (stats as JSON, portrait path)
+- `characters` (stats as JSON, portrait path, `currency_balance` INTEGER DEFAULT 0, `currency_label` TEXT DEFAULT 'Gold')
 - `sessions` (title, date, summary, `tension_level` 1-10)
 - `messages` (full conversation history)
 - `session_npcs` (named NPCs per session)
@@ -89,7 +89,7 @@ Makefile              - build, install, dev, test, clean
 **Patches:**
 - `PATCH /api/campaigns/{id}` — Update campaign (name, description, active status)
 - `PATCH /api/sessions/{id}` — Update session (title, summary, scene tags)
-- `PATCH /api/characters/{id}` — Update character sheet
+- `PATCH /api/characters/{id}` — Update character sheet (includes `currency_balance` and `currency_label`)
 - `PATCH /api/world-notes/{id}` — Update world note
 - `PATCH /api/world-notes/{id}/personality` — Set NPC personality JSON (Phase B)
 - `PATCH /api/objectives/{id}` — Mark objective complete/failed
@@ -116,6 +116,8 @@ All fire after every GM response via `handleGMRespondStream`. Goroutines organiz
 6. **autoExtractItems** — Parse items gained/lost, update inventory.
 7. **checkAndExecuteRoll** — Before GM responds, enforce dice rolls if action requires them per ruleset.
 8. **autoUpdateTension** — After GM response, check for crisis keywords (ambush, betrayal, catastrophe, danger, doom, enemy, escape, failure, fear, fight, flee, loss, peril, threat, trapped, wounded, etc.) or critical dice failures; auto-increment tension_level if found. Capped at 10.
+9. **autoUpdateCurrency** — Analyze GM text for explicit currency transactions (number + currency word). Apply `MAX(0, balance + delta)` and persist. Broadcast `character_updated` with `currency_delta` for frontend undo toast. No-op when delta is 0 or parse fails.
+10. **autoUpdateSceneTags** — Keyword-match GM text for environment terms; update `scene_tags` on the session to drive ambient audio. Zero AI cost (no Claude call).
 
 ## Supported Rulesets
 
@@ -123,12 +125,15 @@ All fire after every GM response via `handleGMRespondStream`. Goroutines organiz
 - ironsworn, wrathglory, bitd, vtm, cthulhu, shadowrun, whfrp, sweoote, l5r, lotr, paranoia, dnd5e
 - Custom rulesets can be added via JSON schema insert into `rulesets` table
 
+Character creation options (race/class/archetype/faction dropdowns) are defined in `internal/ruleset/options.go`. Fully expanded for: dnd5e (race ×17, class ×14, background ×13, alignment ×9), wrath_glory (archetype ×19, faction ×17), shadowrun (metatype ×5, archetype ×10), theonering (culture ×8, calling ×8), blades (playbook, heritage, background, vice).
+
 ## Key Implementation Details
 
 **System Prompt Injection:** Character name injected per turn. World context block includes:
 - `[ACTIVE OBJECTIVES]` — All active quests/goals for the campaign
 - `[NPC: Name]` personality cards — For every NPC world note with non-empty `personality_json`, the personality definition is injected
-- Ensures NPCs stay consistent and plot threads remain visible
+- `[RULEBOOK REFERENCES]` — Up to 5 rulebook chunks searched from player message keywords (with mechanic term expansion); injected before GM responds. Governed by a `RULEBOOK ADHERENCE` directive in the system prompt that binds Claude to apply referenced rules exactly.
+- Ensures NPCs stay consistent, plot threads remain visible, and GM rulings follow the actual rulebook.
 
 **Em-dash Strip:** All output em-dashes (`—`) programmatically stripped before display.
 

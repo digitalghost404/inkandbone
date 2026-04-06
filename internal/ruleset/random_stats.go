@@ -18,6 +18,10 @@ func RollStats(system string) map[string]any {
 	switch system {
 	case "dnd5e":
 		return map[string]any{
+			"race":              randPick([]string{"Human", "Elf", "Dwarf", "Halfling", "Gnome", "Half-Elf", "Half-Orc", "Tiefling", "Dragonborn"}),
+			"class":             randPick([]string{"Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"}),
+			"background":        randPick([]string{"Acolyte", "Charlatan", "Criminal", "Entertainer", "Folk Hero", "Guild Artisan", "Hermit", "Noble", "Outlander", "Sage", "Sailor", "Soldier", "Urchin"}),
+			"alignment":         "True Neutral",
 			"str":               roll4d6DropLowest(),
 			"dex":               roll4d6DropLowest(),
 			"con":               roll4d6DropLowest(),
@@ -99,6 +103,7 @@ func RollStats(system string) map[string]any {
 		cha := rollNd(1, 6)
 		return map[string]any{
 			"metatype":       randPick([]string{"Human", "Elf", "Dwarf", "Ork", "Troll"}),
+			"archetype":      randPick([]string{"Street Samurai", "Adept", "Decker", "Technomancer", "Rigger", "Mage", "Shaman", "Face", "Infiltrator", "Fixer"}),
 			"priority":       "A/B/C/D/E",
 			"body":           bod,
 			"agility":        agi,

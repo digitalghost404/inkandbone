@@ -714,6 +714,13 @@ Write 2-4 paragraphs of immersive narrative in second person ("you"). Match the 
 
 End with "**What do you do?**"
 
+RULEBOOK ADHERENCE — non-negotiable:
+- If [RULEBOOK REFERENCES] appear in the world context, those rules are authoritative. Apply them exactly.
+- Resolve all mechanics — combat outcomes, spell effects, skill results, conditions, durations, damage — according to the referenced rules. Do not soften, alter, or skip a rule because it is inconvenient for the narrative.
+- If multiple rules are referenced, apply the most specific one. If rules conflict, apply the more restrictive.
+- Do not invent mechanics, abilities, or effects that contradict the referenced rules. If the rulebook does not grant an ability, the character does not have it.
+- If no rulebook reference covers the action, rule conservatively: default to standard genre conventions and do not escalate lethality or grant powers beyond what is established.
+
 DICE ROLLS — follow these strictly:
 - If the [WORLD STATE] contains a [DICE ROLL] block, you MUST incorporate the result into the narrative. The outcome is fixed. Do not invent a different result.
 - Narrate success vividly. Narrate failure with consequences that still move the story forward.
@@ -857,6 +864,124 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 
 	sb.WriteString("[/WORLD STATE]")
 	return sb.String()
+}
+
+// mechanicKeywords maps trigger words in a player message to implied rulebook search terms.
+// This ensures that "I attack" also searches for "combat" even if the word isn't in the message.
+var mechanicKeywords = map[string][]string{
+	"attack":   {"combat", "attack", "damage"},
+	"fight":    {"combat", "fighting"},
+	"hit":      {"combat", "attack"},
+	"stab":     {"combat", "weapon", "damage"},
+	"shoot":    {"ranged", "combat"},
+	"cast":     {"spell", "magic", "casting"},
+	"spell":    {"spell", "magic"},
+	"magic":    {"magic", "spell"},
+	"sneak":    {"stealth", "sneak"},
+	"hide":     {"stealth", "hiding"},
+	"steal":    {"stealth", "thievery"},
+	"persuade": {"social", "persuasion"},
+	"deceive":  {"deception", "social"},
+	"intimidate": {"intimidation", "social"},
+	"climb":    {"athletics", "climbing"},
+	"swim":     {"athletics", "swimming"},
+	"jump":     {"athletics", "jumping"},
+	"search":   {"investigation", "searching"},
+	"investigate": {"investigation"},
+	"heal":     {"healing", "medicine"},
+	"dodge":    {"dodge", "defense"},
+	"run":      {"movement", "speed"},
+	"flee":     {"movement", "speed"},
+	"lockpick": {"thievery", "locks"},
+	"pick":     {"thievery"},
+	"craft":    {"crafting"},
+	"ritual":   {"ritual", "magic"},
+	"pray":     {"prayer", "divine"},
+}
+
+// appendRulebookContext searches uploaded rulebook chunks for keywords from the player's
+// message — including implied mechanic terms — and injects matching chunks into the world
+// context block so the GM is bound by the actual rules. At most 5 chunks are injected.
+func (s *Server) appendRulebookContext(ctx context.Context, sessionID int64, playerMsg string, worldCtx *string) {
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+	camp, err := s.db.GetCampaign(sess.CampaignID)
+	if err != nil || camp == nil {
+		return
+	}
+
+	stopWords := map[string]bool{
+		"that": true, "this": true, "with": true, "from": true, "they": true,
+		"have": true, "been": true, "will": true, "your": true, "their": true,
+		"what": true, "when": true, "where": true, "which": true, "there": true,
+		"would": true, "could": true, "should": true, "about": true, "into": true,
+		"also": true, "then": true, "them": true, "over": true, "just": true,
+	}
+
+	seenWords := map[string]bool{}
+	var keywords []string
+
+	addKeyword := func(w string) {
+		if !seenWords[w] {
+			seenWords[w] = true
+			keywords = append(keywords, w)
+		}
+	}
+
+	// Extract explicit words from the player message.
+	for _, raw := range strings.Fields(playerMsg) {
+		w := strings.ToLower(strings.Trim(raw, ".,!?;:\"'()[]"))
+		if len(w) > 3 && !stopWords[w] {
+			addKeyword(w)
+			// Expand to implied mechanic terms (e.g. "attack" → also search "combat", "damage").
+			if extras, ok := mechanicKeywords[w]; ok {
+				for _, extra := range extras {
+					addKeyword(extra)
+				}
+			}
+		}
+		if len(keywords) >= 12 {
+			break
+		}
+	}
+
+	if len(keywords) == 0 {
+		return
+	}
+
+	seenChunks := map[int64]bool{}
+	var chunks []db.RulebookChunk
+	for _, kw := range keywords {
+		results, err := s.db.SearchRulebookChunks(camp.RulesetID, kw)
+		if err != nil {
+			continue
+		}
+		for _, c := range results {
+			if !seenChunks[c.ID] {
+				seenChunks[c.ID] = true
+				chunks = append(chunks, c)
+				if len(chunks) >= 5 {
+					break
+				}
+			}
+		}
+		if len(chunks) >= 5 {
+			break
+		}
+	}
+	if len(chunks) == 0 {
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n[RULEBOOK REFERENCES]\n")
+	for _, c := range chunks {
+		fmt.Fprintf(&sb, "## %s (from %s)\n%s\n\n", c.Heading, c.Source, c.Content)
+	}
+	sb.WriteString("[/RULEBOOK REFERENCES]")
+	*worldCtx += sb.String()
 }
 
 func (s *Server) handleGMRespond(w http.ResponseWriter, r *http.Request) {
@@ -1026,6 +1151,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	roll := s.checkAndExecuteRoll(r.Context(), id, lastPlayerMsg)
 
 	worldCtx := s.buildWorldContext(r.Context(), id)
+	s.appendRulebookContext(r.Context(), id, lastPlayerMsg, &worldCtx)
 	if roll != nil {
 		outcome := "FAILURE"
 		if roll.Success {
@@ -2212,12 +2338,15 @@ func (s *Server) autoExtractItems(ctx context.Context, sessionID int64, gmText s
 
 	prompt := fmt.Sprintf(`You are a TTRPG inventory tracker. Analyze this GM story passage.
 
-Identify items that were EXPLICITLY given to, found by, or picked up by the player character. Also identify items that were EXPLICITLY lost, destroyed, or taken from the player character.
+Identify items the player character explicitly takes ownership of and will carry going forward. Also identify items explicitly lost, destroyed, or taken away.
 
 Rules:
-- Only include items with clear, direct story evidence.
-- Do NOT infer items from combat (e.g. do NOT add "enemy's sword" unless the player explicitly picks it up).
-- Do NOT add items that are merely mentioned or seen — only items the player character actually acquires or loses.
+- GAINED: only items the player character picks up, receives, or is explicitly handed.
+- Do NOT add containers or bags that are opened/searched — only add the container if the player explicitly takes it with them.
+- Do NOT add items found inside something unless the player explicitly takes those items out and keeps them.
+- Do NOT add items merely mentioned, seen, or examined — only items the player now owns.
+- Do NOT add the same item more than once in the gained list.
+- LOST: items the passage explicitly says were dropped, destroyed, given away, used up, or taken from the player.
 
 Return ONLY a JSON object (no explanation, no markdown):
 {"gained":[{"name":"...","description":"...","quantity":1}],"lost":["item name","item name"]}
@@ -2251,10 +2380,21 @@ Story passage:
 		return
 	}
 
+	// Load existing inventory once so we can deduplicate before inserting.
+	existing, _ := s.db.ListItems(charID)
+	existingNames := make(map[string]bool, len(existing))
+	for _, item := range existing {
+		existingNames[strings.ToLower(item.Name)] = true
+	}
+
 	changed := 0
 
 	for _, g := range result.Gained {
 		if g.Name == "" {
+			continue
+		}
+		// Skip if already in inventory (prevents re-adding on every mention).
+		if existingNames[strings.ToLower(g.Name)] {
 			continue
 		}
 		qty := g.Quantity
@@ -2262,22 +2402,20 @@ Story passage:
 			qty = 1
 		}
 		if _, err := s.db.CreateItem(charID, g.Name, g.Description, qty); err == nil {
+			existingNames[strings.ToLower(g.Name)] = true // prevent dupe within same response
 			changed++
 		}
 	}
 
 	if len(result.Lost) > 0 {
-		existing, err := s.db.ListItems(charID)
-		if err == nil {
-			for _, lostName := range result.Lost {
-				lostLower := strings.ToLower(lostName)
-				for _, item := range existing {
-					if strings.ToLower(item.Name) == lostLower {
-						if err := s.db.DeleteItem(item.ID); err == nil {
-							changed++
-						}
-						break
+		for _, lostName := range result.Lost {
+			lostLower := strings.ToLower(lostName)
+			for _, item := range existing {
+				if strings.ToLower(item.Name) == lostLower {
+					if err := s.db.DeleteItem(item.ID); err == nil {
+						changed++
 					}
+					break
 				}
 			}
 		}
