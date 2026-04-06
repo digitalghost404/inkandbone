@@ -236,19 +236,11 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(map[string]any{"data_json": string(updated)}) //nolint:errcheck
 }
 
-// isWGTalentOwned returns true if talentName is in the pipe-delimited ownedStr
-// OR is an archetype starting ability for archetypeName.
-func isWGTalentOwned(ownedStr, archetypeName, talentName string) bool {
+// isWGTalentOwned returns true if talentName is in the pipe-delimited ownedStr.
+func isWGTalentOwned(ownedStr, _ /*archetypeName*/ string, talentName string) bool {
 	for _, t := range strings.Split(ownedStr, "|") {
 		if strings.TrimSpace(t) == talentName {
 			return true
-		}
-	}
-	if def, ok := ruleset.WGArchetypeDefFor(archetypeName); ok {
-		for _, a := range def.Abilities() {
-			if a == talentName {
-				return true
-			}
 		}
 	}
 	return false
