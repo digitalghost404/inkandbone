@@ -118,6 +118,16 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 		}
 
 	} else {
+		validFields := ruleset.ValidFields(system)
+		validSet := make(map[string]bool, len(validFields))
+		for _, f := range validFields {
+			validSet[f] = true
+		}
+		if !validSet[field] {
+			http.Error(w, "field not advanceable for this system", http.StatusBadRequest)
+			return
+		}
+
 		currentVal := 0
 		if v, ok := stats[field].(float64); ok {
 			currentVal = int(v)

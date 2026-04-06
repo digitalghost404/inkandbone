@@ -11,6 +11,7 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [spending, setSpending] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [remainingXP, setRemainingXP] = useState<number | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
     try {
       await onSpend(event.character_id, sg.field, sg.new_value)
       succeeded = true
+      setRemainingXP(event.current_xp - sg.xp_cost)
       setSuccess(true)
       timerRef.current = setTimeout(() => onDismiss(), 600)
     } catch (e: unknown) {
@@ -40,7 +42,7 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
   return (
     <div className={`xp-suggestions-panel${success ? ' xp-success-flash' : ''}`}>
       <div className="xp-suggestions-header">
-        <span>Advancement Suggestions — {event.current_xp} {event.xp_label} available</span>
+        <span>Advancement Suggestions — {remainingXP !== null ? remainingXP : event.current_xp} {event.xp_label} available</span>
         <button className="xp-dismiss-btn" onClick={onDismiss} aria-label="Dismiss">×</button>
       </div>
 

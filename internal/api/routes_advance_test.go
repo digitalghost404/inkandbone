@@ -325,6 +325,31 @@ func TestHandleAdvanceCharacter_notFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestHandleAdvanceCharacter_invalidField(t *testing.T) {
+	s := newTestServer(t)
+	rs, err := s.db.GetRulesetByName("wrath_glory")
+	require.NoError(t, err)
+	require.NotNil(t, rs)
+	campID, err := s.db.CreateCampaign(rs.ID, "WG Campaign", "")
+	require.NoError(t, err)
+	charID, err := s.db.CreateCharacter(campID, "Brother Cato")
+	require.NoError(t, err)
+
+	// Give plenty of XP so the rejection is definitely about field validity, not XP.
+	statsJSON := `{"archetype":"Imperial Guardsman","xp":100}`
+	require.NoError(t, s.db.UpdateCharacterData(charID, statsJSON))
+
+	// "xp" is not an advanceable field — it should be rejected with 400.
+	body := `{"field":"xp","new_value":11}`
+	req := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/api/characters/%d/advance", charID),
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestHandleAdvanceCharacter_bladesNotEnoughXP(t *testing.T) {
 	s := newTestServer(t)
 	rs, err := s.db.GetRulesetByName("blades")

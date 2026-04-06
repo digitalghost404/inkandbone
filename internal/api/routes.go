@@ -1474,7 +1474,7 @@ func (s *Server) autoSuggestXPSpend(
 
 	// Atomically check-and-increment the session suggestion count.
 	for {
-		actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 1)
+		actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 0)
 		count := actual.(int)
 		if count >= maxSuggestionsPerSession {
 			return
