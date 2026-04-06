@@ -206,6 +206,16 @@ var wgArchetypes = map[string]wgArchetypeDef{
 	},
 }
 
+// Abilities returns the archetype's starting abilities slice.
+func (d wgArchetypeDef) Abilities() []string { return d.abilities }
+
+// WGArchetypeDefFor looks up the W&G archetype definition for the given name.
+// Returns the def and true if found, or zero-value and false if not found.
+func WGArchetypeDefFor(name string) (wgArchetypeDef, bool) {
+	def, ok := wgArchetypes[name]
+	return def, ok
+}
+
 // randPick returns a random element from the given slice.
 func randPick(options []string) string {
 	if len(options) == 0 {

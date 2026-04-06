@@ -1460,20 +1460,20 @@ func (s *Server) autoSuggestXPSpend(
 	stats map[string]any,
 	currentXP int,
 ) {
+	system := ruleset.Name
+
+	// Skip systems without XP advancement (must be first).
+	switch system {
+	case "coc", "paranoia":
+		return
+	}
+
 	const maxSuggestionsPerSession = 20
 
 	// Enforce per-session cap.
 	actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 0)
 	count := actual.(int)
 	if count >= maxSuggestionsPerSession {
-		return
-	}
-
-	system := ruleset.Name
-
-	// Skip systems without XP advancement.
-	switch system {
-	case "coc", "paranoia":
 		return
 	}
 
@@ -1494,6 +1494,21 @@ func (s *Server) autoSuggestXPSpend(
 	talentsOwned, _ := stats["talents"].(string)
 	archetypeName, _ := stats["archetype"].(string)
 
+	// Extract W&G-specific context from stats.
+	tier := 1
+	if v, ok := stats["tier"].(float64); ok {
+		tier = int(v)
+	}
+	faction, _ := stats["faction"].(string)
+
+	// Look up archetype starting abilities to exclude from suggestions.
+	var startingAbilitiesStr string
+	if archetypeName != "" {
+		if def, ok := advancement.WGArchetypeDefFor(archetypeName); ok {
+			startingAbilitiesStr = strings.Join(def.Abilities(), ", ")
+		}
+	}
+
 	var statsJSON []byte
 	statsJSON, _ = json.Marshal(stats)
 
@@ -1501,9 +1516,12 @@ func (s *Server) autoSuggestXPSpend(
 
 Character: %s
 Archetype: %s
+Tier: %d
+Faction: %s
 Current %s: %d
 Current stats (JSON): %s
 Already-owned talents (pipe-delimited): %s
+Archetype starting abilities (do NOT suggest these): %s
 
 Cost rules for %s:
 %s
@@ -1524,9 +1542,12 @@ Do NOT suggest advances the character cannot afford.
 `,
 		advancement.XPLabel(system), system,
 		char.Name, archetypeName,
+		tier,
+		faction,
 		advancement.XPLabel(system), currentXP,
 		string(statsJSON),
 		talentsOwned,
+		startingAbilitiesStr,
 		system,
 		advancement.CostRulesDescription(system),
 	)
