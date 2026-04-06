@@ -1840,6 +1840,24 @@ mark {
 
 .npc-cancel-btn:hover { color: var(--text); }
 
+/* ── Reanalyze Button ────────────────────────────────────── */
+
+.reanalyze-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  padding: 0.3rem 0;
+  width: 100%;
+  text-align: left;
+  transition: color 0.15s;
+}
+.reanalyze-btn:hover:not(:disabled) { color: var(--gold); }
+.reanalyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .npc-add-btn {
   background: none;
   border: 1px dashed var(--border);

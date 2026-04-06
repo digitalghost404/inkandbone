@@ -86,7 +86,7 @@ export function NPCRosterPanel({ sessionId, lastEvent }: Props) {
       ))}
 
       <button
-        className="npc-reanalyze-btn"
+        className="reanalyze-btn"
         onClick={handleReanalyze}
         disabled={reanalyzing}
         title="Re-run AI analysis on full session history to add/remove NPCs"

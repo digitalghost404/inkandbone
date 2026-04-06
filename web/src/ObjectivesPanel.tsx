@@ -133,7 +133,7 @@ export function ObjectivesPanel({ campaignId, sessionId, lastEvent }: Objectives
     <div className="objectives-panel">
       {sessionId !== null && (
         <button
-          className="npc-reanalyze-btn"
+          className="reanalyze-btn"
           onClick={handleReanalyze}
           disabled={reanalyzing}
           title="Re-run AI analysis on full session history to update objectives"
