@@ -21,6 +21,15 @@ export function XPSuggestionsPanel({ event, onDismiss, onHide, onSpend }: Props)
     }
   }, [])
 
+  // Reset transient state whenever a new event arrives.
+  useEffect(() => {
+    if (!event) return
+    setSpending(false)
+    setSuccess(false)
+    setError(null)
+    setRemainingXP(null)
+  }, [event])
+
   if (!event) return null
 
   const handleSpend = async (sg: XPSuggestion) => {
