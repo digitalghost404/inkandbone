@@ -18,6 +18,8 @@ import { ManagePanel } from './ManagePanel'
 import { OraclePanel } from './OraclePanel'
 import { RelationshipsPanel } from './RelationshipsPanel'
 import AudioControls, { getAudioMuted } from './AudioControls'
+import { XPSuggestionsPanel } from './XPSuggestionsPanel'
+import type { XPSpendSuggestionsEvent } from './types'
 import { playDiceRoll, playNotification, playCombatStart } from './audio/sounds'
 import { setAmbientTrack } from './audio/ambient'
 import './App.css'
@@ -291,6 +293,7 @@ export default function App() {
   const [activeMapImagePath, setActiveMapImagePath] = useState<string | null>(null)
   const [manageOpen, setManageOpen] = useState(false)
   const [manageTab, setManageTab] = useState<'campaigns' | 'characters' | 'sessions' | 'rulebooks'>('campaigns')
+  const [xpSuggestionsEvent, setXPSuggestionsEvent] = useState<XPSpendSuggestionsEvent | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -331,6 +334,9 @@ export default function App() {
       if (event?.type === 'dice_rolled') playDiceRoll()
       else if (event?.type === 'message_created') playNotification()
       else if (event?.type === 'combat_started') playCombatStart()
+    }
+    if (event?.type === 'xp_spend_suggestions') {
+      setXPSuggestionsEvent(data as XPSpendSuggestionsEvent)
     }
   }, [loadContext])
   const { lastEvent } = useWebSocket(WS_URL, handleEvent)
@@ -381,6 +387,19 @@ export default function App() {
       setGeneratingMap(false)
     }
   }, [ctx, aiEnabled, generatingMap, messages])
+
+  const handleSpendXP = useCallback(async (characterId: number, field: string, newValue: number) => {
+    const res = await fetch(`/api/characters/${characterId}/advance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, new_value: newValue }),
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(text || 'Advance failed')
+    }
+    loadContext()
+  }, [loadContext])
 
   function handleExport() {
     if (!ctx) return
@@ -635,6 +654,12 @@ export default function App() {
             </div>
           </div>
         </main>
+
+        <XPSuggestionsPanel
+          event={xpSuggestionsEvent}
+          onDismiss={() => setXPSuggestionsEvent(null)}
+          onSpend={handleSpendXP}
+        />
 
         {/* Right Sidebar */}
         <aside className="sidebar-right">
