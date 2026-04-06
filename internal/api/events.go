@@ -32,7 +32,8 @@ const (
 	EventContextUpdated     EventType = "context_updated"
 	EventOracleRolled       EventType = "oracle_rolled"
 	EventTensionUpdated     EventType = "tension_updated"
-	EventRelationshipUpdated EventType = "relationship_updated"
+	EventRelationshipUpdated  EventType = "relationship_updated"
+	EventXPSpendSuggestions   EventType = "xp_spend_suggestions"
 )
 
 // Event is published by MCP tool handlers and broadcast to WebSocket clients.

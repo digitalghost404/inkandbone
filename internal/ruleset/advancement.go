@@ -338,6 +338,36 @@ func CanAffordAny(system string, currentXP int, statsJSON string) bool {
 	return false
 }
 
+// CostRulesDescription returns a brief human-readable summary of XP costs for a system.
+func CostRulesDescription(system string) string {
+	switch system {
+	case "wrath_glory":
+		return "Attribute advance: new_rating × 4 XP. Skill advance: new_rating × 4 XP. Talent: fixed XP cost per talent (10–60)."
+	case "dnd5e":
+		return "Level up when XP ≥ threshold. XP thresholds: 0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000."
+	case "vtm":
+		return "Attribute: new_dots × 4. Skill: new_dots × 3. In-clan Discipline: new_dots × 5. Out-of-clan Discipline: new_dots × 7. Blood Potency: new_dots × 10."
+	case "cyberpunk_red":
+		return "Skill advance: new_rating × 10 IP. Role ability rank: 30 IP flat."
+	case "shadowrun":
+		return "Attribute: new_rating × 5 Karma. Active skill: new_rating × 5 Karma. Knowledge skill: new_rating × 2 Karma. Specialization: 5 Karma."
+	case "wfrp":
+		return "Any characteristic, skill, or talent advance costs 10 XP each."
+	case "starwars":
+		return "Skill advance: new_rating × 5 XP."
+	case "l5r":
+		return "Ring advance: new_rank × 3 XP. Skill advance: new_rank × 2 XP."
+	case "theonering":
+		return "Skill advance: new_rank × 1 AP."
+	case "blades":
+		return "XP track fills to 8. On advance, XP resets to 0 and character gains 1 action dot or special ability."
+	case "ironsworn":
+		return "Asset: 2 XP. Asset upgrade: 1 XP."
+	default:
+		return "XP advance cost varies by system."
+	}
+}
+
 // WGRecalcDerived recalculates W&G derived stats that depend on the given field.
 // stats is the full character stats map (modified in place).
 // field is the attribute that was just advanced (e.g., "toughness").

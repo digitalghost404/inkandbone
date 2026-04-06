@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/digitalghost404/inkandbone/internal/ai"
 	"github.com/digitalghost404/inkandbone/internal/db"
@@ -12,12 +13,13 @@ import (
 
 // Server holds dependencies and registers routes.
 type Server struct {
-	db       *db.DB
-	hub      *Hub
-	bus      *Bus
-	mux      *http.ServeMux
-	dataDir  string
-	aiClient ai.Completer // nil when ANTHROPIC_API_KEY is unset
+	db               *db.DB
+	hub              *Hub
+	bus              *Bus
+	mux              *http.ServeMux
+	dataDir          string
+	aiClient         ai.Completer // nil when ANTHROPIC_API_KEY is unset
+	xpSuggestCounts  sync.Map     // sessionID int64 → int
 }
 
 // NewServer creates the HTTP server. dataDir is the base path for uploaded files

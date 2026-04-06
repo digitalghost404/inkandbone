@@ -13,7 +13,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	advancement "github.com/digitalghost404/inkandbone/internal/ruleset"
 	"github.com/digitalghost404/inkandbone/internal/ai"
 	"github.com/digitalghost404/inkandbone/internal/db"
 )
@@ -1403,15 +1405,29 @@ Return ONLY a JSON object with the fields that must change and their new values.
 		return
 	}
 
-	// Merge patch into existing data_json.
+	// Unmarshal existing stats.
 	var current map[string]any
 	if err := json.Unmarshal([]byte(char.DataJSON), &current); err != nil {
 		return
 	}
+
+	// Capture XP before applying patch.
+	xpFieldKey := advancement.XPKey(ruleset.Name)
+	beforeXP := 0
+	if v, ok := current[xpFieldKey].(float64); ok {
+		beforeXP = int(v)
+	}
+
 	for k, v := range patch {
 		if _, exists := current[k]; exists {
 			current[k] = v
 		}
+	}
+
+	// Capture XP after patch.
+	afterXP := 0
+	if v, ok := current[xpFieldKey].(float64); ok {
+		afterXP = int(v)
 	}
 
 	updated, err := json.Marshal(current)
@@ -1426,6 +1442,139 @@ Return ONLY a JSON object with the fields that must change and their new values.
 		"id":        charID,
 		"data_json": string(updated),
 	}})
+
+	// If XP increased, suggest advancements asynchronously.
+	if afterXP > beforeXP {
+		go s.autoSuggestXPSpend(sessionID, charID, char, ruleset, current, afterXP)
+	}
+}
+
+// autoSuggestXPSpend fires when XP increases after a GM response.
+// It calls Claude to generate 2–3 ranked advancement suggestions and pushes
+// them to the frontend as an xp_spend_suggestions WebSocket event.
+// A per-session cap of 20 suggestions is enforced to avoid spam.
+func (s *Server) autoSuggestXPSpend(
+	sessionID, charID int64,
+	char *db.Character,
+	ruleset *db.Ruleset,
+	stats map[string]any,
+	currentXP int,
+) {
+	const maxSuggestionsPerSession = 20
+
+	// Enforce per-session cap.
+	actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 0)
+	count := actual.(int)
+	if count >= maxSuggestionsPerSession {
+		return
+	}
+
+	system := ruleset.Name
+
+	// Skip systems without XP advancement.
+	switch system {
+	case "coc", "paranoia":
+		return
+	}
+
+	// Gate: can the character afford any advance?
+	if !advancement.CanAffordAny(system, currentXP, char.DataJSON) {
+		return
+	}
+
+	// Increment count before the AI call to avoid races.
+	s.xpSuggestCounts.Store(sessionID, count+1)
+
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+
+	// Build context for Claude.
+	talentsOwned, _ := stats["talents"].(string)
+	archetypeName, _ := stats["archetype"].(string)
+
+	var statsJSON []byte
+	statsJSON, _ = json.Marshal(stats)
+
+	prompt := fmt.Sprintf(`You are advising a tabletop RPG character on how to spend their %s (%s system).
+
+Character: %s
+Archetype: %s
+Current %s: %d
+Current stats (JSON): %s
+Already-owned talents (pipe-delimited): %s
+
+Cost rules for %s:
+%s
+
+Suggest 2–3 ranked advancement options. For each, output JSON with these exact fields:
+- field: the stat key (e.g. "toughness", "talent:Iron Will", "level")
+- display_name: human-readable name
+- current_value: current numeric value (0 for unowned talents)
+- new_value: value after advance
+- xp_cost: XP cost (recalculate server-side; this is just for display)
+- reasoning: one sentence explaining why this is a good choice
+
+Output a JSON array only — no other text. Example:
+[{"field":"toughness","display_name":"Toughness","current_value":4,"new_value":5,"xp_cost":20,"reasoning":"Boosts wounds, resilience, and determination."}]
+
+Do NOT suggest talents already owned or archetype starting abilities.
+Do NOT suggest advances the character cannot afford.
+`,
+		advancement.XPLabel(system), system,
+		char.Name, archetypeName,
+		advancement.XPLabel(system), currentXP,
+		string(statsJSON),
+		talentsOwned,
+		system,
+		advancement.CostRulesDescription(system),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	raw, err := completer.Generate(ctx, prompt, 512)
+	if err != nil {
+		log.Printf("autoSuggestXPSpend: AI error: %v", err)
+		return
+	}
+
+	// Extract JSON array from response (Claude may wrap in markdown).
+	start := strings.Index(raw, "[")
+	end := strings.LastIndex(raw, "]")
+	if start < 0 || end <= start {
+		log.Printf("autoSuggestXPSpend: no JSON array in response")
+		return
+	}
+	raw = raw[start : end+1]
+
+	var suggestions []map[string]any
+	if err := json.Unmarshal([]byte(raw), &suggestions); err != nil {
+		log.Printf("autoSuggestXPSpend: unmarshal error: %v", err)
+		return
+	}
+	if len(suggestions) == 0 {
+		return
+	}
+
+	// Recalculate XP costs server-side (never trust AI-supplied values).
+	for _, sg := range suggestions {
+		field, _ := sg["field"].(string)
+		newValF, _ := sg["new_value"].(float64)
+		newVal := int(newValF)
+		cost := advancement.XPCostFor(system, field, newVal, char.DataJSON)
+		sg["xp_cost"] = cost
+	}
+
+	payload := map[string]any{
+		"character_id":   charID,
+		"character_name": char.Name,
+		"current_xp":     currentXP,
+		"xp_label":       advancement.XPLabel(system),
+		"suggestions":    suggestions,
+	}
+	s.bus.Publish(Event{Type: EventXPSpendSuggestions, Payload: payload})
 }
 
 type rollCheckResult struct {
