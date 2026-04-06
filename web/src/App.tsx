@@ -22,6 +22,7 @@ import { XPSuggestionsPanel } from './XPSuggestionsPanel'
 import type { XPSpendSuggestionsEvent } from './types'
 import { playDiceRoll, playNotification, playCombatStart } from './audio/sounds'
 import { setAmbientTrack } from './audio/ambient'
+import { wgTalentDescription } from './wgTalentData'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -543,18 +544,32 @@ export default function App() {
                 <div className="talents-section">
                   <div className="talents-section-title">Talents</div>
                   {talents
-                    ? talents.split('\n').filter(Boolean).map((t, i) => (
-                        <div key={i} className="talents-entry">{t.replace(/^[-•]\s*/, '')}</div>
-                      ))
+                    ? talents.split(/[|\n]/).map(s => s.trim()).filter(Boolean).map((t, i) => {
+                        const name = t.replace(/^[-•]\s*/, '')
+                        const desc = wgTalentDescription(name)
+                        return (
+                          <div key={i} className="talents-entry">
+                            <div className="talents-entry-name">{name}</div>
+                            {desc && <div className="talents-entry-desc">{desc}</div>}
+                          </div>
+                        )
+                      })
                     : <div className="talents-empty">No talents recorded.</div>
                   }
                 </div>
                 {powers && (
                   <div className="talents-section">
                     <div className="talents-section-title">Psychic Powers</div>
-                    {powers.split('\n').filter(Boolean).map((p, i) => (
-                      <div key={i} className="talents-entry">{p.replace(/^[-•]\s*/, '')}</div>
-                    ))}
+                    {powers.split(/[|\n]/).map(s => s.trim()).filter(Boolean).map((p, i) => {
+                      const name = p.replace(/^[-•]\s*/, '')
+                      const desc = wgTalentDescription(name)
+                      return (
+                        <div key={i} className="talents-entry">
+                          <div className="talents-entry-name">{name}</div>
+                          {desc && <div className="talents-entry-desc">{desc}</div>}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

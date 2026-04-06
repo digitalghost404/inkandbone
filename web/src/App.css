@@ -1338,7 +1338,7 @@ mark {
   position: fixed;
   left: 0;
   top: 0;
-  width: 220px;
+  width: 300px;
   height: 100vh;
   background: var(--surface);
   border-right: 1px solid var(--gold-dim);
@@ -1393,12 +1393,22 @@ mark {
 }
 
 .talents-entry {
-  font-size: 12px;
-  color: var(--text);
   border-left: 2px solid var(--gold-dim);
   padding-left: 0.5rem;
-  margin-bottom: 0.3rem;
-  line-height: 1.4;
+  margin-bottom: 0.6rem;
+}
+
+.talents-entry-name {
+  font-size: 12px;
+  font-family: var(--serif);
+  color: var(--gold);
+  margin-bottom: 0.15rem;
+}
+
+.talents-entry-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.45;
 }
 
 .talents-empty {
