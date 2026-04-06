@@ -85,7 +85,7 @@ var wgArchetypes = map[string]wgArchetypeDef{
 		abilities: []string{"Psyker", "Unlock Disciplines"},
 	},
 	"Skitarius": {
-		faction: "Adeptus Mechanicus", species: "Human", tier: 1,
+		faction: "Adeptus Mechanicus", species: "Human", tier: 2,
 		attrMin:  [7]int{3, 3, 4, 3, 3, 3, 3},
 		skillMin: map[string]int{"tech": 1, "bs": 2},
 		abilities: []string{"Heavily Augmented"},
@@ -109,7 +109,7 @@ var wgArchetypes = map[string]wgArchetypeDef{
 		abilities: []string{"Warrant of Trade"},
 	},
 	"Scavvy": {
-		faction: "Underhive", species: "Human", tier: 1,
+		faction: "Underhive", species: "Human", tier: 2,
 		attrMin:  [7]int{3, 3, 3, 3, 3, 3, 3},
 		skillMin: map[string]int{"survival": 1, "cunning": 1},
 		abilities: []string{"Mutant"},
@@ -139,25 +139,25 @@ var wgArchetypes = map[string]wgArchetypeDef{
 		abilities: []string{"Psyker", "Unlock Disciplines", "Corruption"},
 	},
 	"Tech-Priest": {
-		faction: "Adeptus Mechanicus", species: "Human", tier: 2,
+		faction: "Adeptus Mechanicus", species: "Human", tier: 3,
 		attrMin:  [7]int{3, 3, 4, 5, 3, 3, 3},
 		skillMin: map[string]int{"tech": 3, "scholar": 2},
 		abilities: []string{"Rite of Repair"},
 	},
 	"Crusader": {
-		faction: "Adeptus Ministorum", species: "Human", tier: 2,
+		faction: "Adeptus Ministorum", species: "Human", tier: 3,
 		attrMin:  [7]int{4, 3, 4, 3, 4, 3, 3},
 		skillMin: map[string]int{"ws": 3, "fortitude": 2},
 		abilities: []string{"Armour of Faith"},
 	},
 	"Imperial Commissar": {
-		faction: "Astra Militarum", species: "Human", tier: 2,
+		faction: "Astra Militarum", species: "Human", tier: 3,
 		attrMin:  [7]int{3, 3, 3, 3, 5, 4, 3},
 		skillMin: map[string]int{"leadership": 3, "intimidation": 2},
 		abilities: []string{"Fearsome Respect"},
 	},
 	"Desperado": {
-		faction: "Rogue Traders", species: "Human", tier: 2,
+		faction: "Rogue Traders", species: "Human", tier: 3,
 		attrMin:  [7]int{3, 5, 3, 3, 3, 3, 5},
 		skillMin: map[string]int{"bs": 3, "cunning": 2},
 		abilities: []string{"Valuable Prey"},
@@ -193,13 +193,13 @@ var wgArchetypes = map[string]wgArchetypeDef{
 		abilities: []string{"Tactical Versatility", "Corruption"},
 	},
 	"Inquisitor": {
-		faction: "Inquisition", species: "Human", tier: 3,
+		faction: "Inquisition", species: "Human", tier: 4,
 		attrMin:  [7]int{4, 4, 4, 5, 5, 5, 4},
 		skillMin: map[string]int{"investigation": 4, "leadership": 3, "scholar": 3},
 		abilities: []string{"Unchecked Authority"},
 	},
 	"Primaris Intercessor": {
-		faction: "Adeptus Astartes", species: "Space Marine", tier: 3,
+		faction: "Adeptus Astartes", species: "Space Marine", tier: 4,
 		attrMin:  [7]int{6, 5, 6, 4, 5, 4, 5},
 		skillMin: map[string]int{"bs": 5, "athletics": 4},
 		abilities: []string{"Intercessor Focus"},
