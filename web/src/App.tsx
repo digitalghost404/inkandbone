@@ -483,7 +483,7 @@ export default function App() {
           initialTab={manageTab}
           onTabChange={setManageTab}
           onClose={() => setManageOpen(false)}
-          onContextChanged={() => { loadContext(); setManageOpen(false) }}
+          onContextChanged={() => { loadContext(); setManageOpen(false); setXPSuggestionsEvent(null) }}
         />
       )}
 
