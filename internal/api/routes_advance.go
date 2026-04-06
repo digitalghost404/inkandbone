@@ -126,7 +126,8 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		if system == "blades" {
-			if currentXP < 8 {
+			cost := ruleset.XPCostFor(system, field, newVal, "")
+			if currentXP < cost {
 				http.Error(w, "not enough XP (need 8)", http.StatusBadRequest)
 				return
 			}
