@@ -134,12 +134,14 @@ func (d *DB) ListCampaigns() ([]Campaign, error) {
 // --- Characters ---
 
 type Character struct {
-	ID           int64  `json:"id"`
-	CampaignID   int64  `json:"campaign_id"`
-	Name         string `json:"name"`
-	DataJSON     string `json:"data_json"`
-	PortraitPath string `json:"portrait_path"` // NOT NULL DEFAULT '' in schema; never nil
-	CreatedAt    string `json:"created_at"`
+	ID              int64  `json:"id"`
+	CampaignID      int64  `json:"campaign_id"`
+	Name            string `json:"name"`
+	DataJSON        string `json:"data_json"`
+	PortraitPath    string `json:"portrait_path"` // NOT NULL DEFAULT '' in schema; never nil
+	CurrencyBalance int64  `json:"currency_balance"`
+	CurrencyLabel   string `json:"currency_label"`
+	CreatedAt       string `json:"created_at"`
 }
 
 func (d *DB) CreateCharacter(campaignID int64, name string) (int64, error) {
@@ -156,8 +158,8 @@ func (d *DB) CreateCharacter(campaignID int64, name string) (int64, error) {
 func (d *DB) GetCharacter(id int64) (*Character, error) {
 	c := &Character{}
 	err := d.db.QueryRow(
-		"SELECT id, campaign_id, name, data_json, portrait_path, created_at FROM characters WHERE id = ?", id,
-	).Scan(&c.ID, &c.CampaignID, &c.Name, &c.DataJSON, &c.PortraitPath, &c.CreatedAt)
+		"SELECT id, campaign_id, name, data_json, portrait_path, currency_balance, currency_label, created_at FROM characters WHERE id = ?", id,
+	).Scan(&c.ID, &c.CampaignID, &c.Name, &c.DataJSON, &c.PortraitPath, &c.CurrencyBalance, &c.CurrencyLabel, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -194,9 +196,39 @@ func (d *DB) UpdateCharacterPortrait(id int64, portraitPath string) error {
 	return nil
 }
 
+func (d *DB) UpdateCharacterCurrencyBalance(id int64, balance int64) error {
+	res, err := d.db.Exec("UPDATE characters SET currency_balance = ? WHERE id = ?", balance, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("character %d not found", id)
+	}
+	return nil
+}
+
+func (d *DB) UpdateCharacterCurrencyLabel(id int64, label string) error {
+	res, err := d.db.Exec("UPDATE characters SET currency_label = ? WHERE id = ?", label, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("character %d not found", id)
+	}
+	return nil
+}
+
 func (d *DB) ListCharacters(campaignID int64) ([]Character, error) {
 	rows, err := d.db.Query(
-		"SELECT id, campaign_id, name, data_json, portrait_path, created_at FROM characters WHERE campaign_id = ? ORDER BY name",
+		"SELECT id, campaign_id, name, data_json, portrait_path, currency_balance, currency_label, created_at FROM characters WHERE campaign_id = ? ORDER BY name",
 		campaignID,
 	)
 	if err != nil {
@@ -206,7 +238,7 @@ func (d *DB) ListCharacters(campaignID int64) ([]Character, error) {
 	var out []Character
 	for rows.Next() {
 		var c Character
-		if err := rows.Scan(&c.ID, &c.CampaignID, &c.Name, &c.DataJSON, &c.PortraitPath, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.CampaignID, &c.Name, &c.DataJSON, &c.PortraitPath, &c.CurrencyBalance, &c.CurrencyLabel, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

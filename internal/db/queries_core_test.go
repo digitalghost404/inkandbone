@@ -147,6 +147,46 @@ func TestGetCampaignStats(t *testing.T) {
 	assert.Equal(t, 0, stats.Maps)
 }
 
+func TestCharacterCurrency(t *testing.T) {
+	d, err := Open(":memory:")
+	require.NoError(t, err)
+	defer d.Close()
+
+	rsID, err := d.CreateRuleset("test", "{}", "1")
+	require.NoError(t, err)
+	campID, err := d.CreateCampaign(rsID, "Camp", "")
+	require.NoError(t, err)
+	charID, err := d.CreateCharacter(campID, "Hero")
+	require.NoError(t, err)
+
+	// Defaults
+	c, err := d.GetCharacter(charID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), c.CurrencyBalance)
+	assert.Equal(t, "Gold", c.CurrencyLabel)
+
+	// Update balance
+	err = d.UpdateCharacterCurrencyBalance(charID, 50)
+	require.NoError(t, err)
+	c, err = d.GetCharacter(charID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(50), c.CurrencyBalance)
+
+	// Update label
+	err = d.UpdateCharacterCurrencyLabel(charID, "Coin")
+	require.NoError(t, err)
+	c, err = d.GetCharacter(charID)
+	require.NoError(t, err)
+	assert.Equal(t, "Coin", c.CurrencyLabel)
+
+	// ListCharacters includes currency
+	chars, err := d.ListCharacters(campID)
+	require.NoError(t, err)
+	require.Len(t, chars, 1)
+	assert.Equal(t, int64(50), chars[0].CurrencyBalance)
+	assert.Equal(t, "Coin", chars[0].CurrencyLabel)
+}
+
 func TestDeleteCampaign(t *testing.T) {
 	d := newTestDB(t)
 	rs, _ := d.GetRulesetByName("dnd5e")
