@@ -208,6 +208,9 @@ var wgArchetypes = map[string]wgArchetypeDef{
 
 // randPick returns a random element from the given slice.
 func randPick(options []string) string {
+	if len(options) == 0 {
+		return ""
+	}
 	return options[rand.Intn(len(options))]
 }
 
@@ -318,7 +321,7 @@ func RollStats(system string) map[string]any {
 			"essence":        6,
 			"physical_limit": (str*2+bod+rea)/3 + 1,
 			"mental_limit":   (log*2+intu+wil)/3 + 1,
-			"social_limit":   (cha*2+wil+10/3) / 3,
+			"social_limit":   (cha*2 + wil + 6) / 3,
 			"nuyen":          rollNd(2, 6) * 100,
 			"karma":          0,
 			"reputation":     0,

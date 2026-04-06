@@ -216,21 +216,76 @@ func TestValidFields_wrathGlory(t *testing.T) {
 }
 
 func TestWGRecalcDerived(t *testing.T) {
-	stats := map[string]any{
-		"toughness":  float64(5),
-		"willpower":  float64(4),
-		"fellowship": float64(3),
-		"initiative": float64(4),
-		"archetype":  "Imperial Guardsman",
+	base := func() map[string]any {
+		return map[string]any{
+			"toughness":  float64(5),
+			"willpower":  float64(4),
+			"fellowship": float64(3),
+			"initiative": float64(4),
+			"archetype":  "Imperial Guardsman", // tier 1
+		}
 	}
-	WGRecalcDerived(stats, "toughness")
-	if stats["wounds"] != 7 { // tier=1 → (1*2)+5=7
-		t.Errorf("wounds: got %v, want 7", stats["wounds"])
-	}
-	if stats["resilience"] != 6 { // toughness+1
-		t.Errorf("resilience: got %v, want 6", stats["resilience"])
-	}
-	if stats["determination"] != 5 {
-		t.Errorf("determination: got %v, want 5", stats["determination"])
-	}
+
+	t.Run("toughness", func(t *testing.T) {
+		stats := base()
+		WGRecalcDerived(stats, "toughness")
+		if stats["wounds"] != 7 { // (1*2)+5
+			t.Errorf("wounds: got %v, want 7", stats["wounds"])
+		}
+		if stats["resilience"] != 6 { // 5+1
+			t.Errorf("resilience: got %v, want 6", stats["resilience"])
+		}
+		if stats["determination"] != 5 {
+			t.Errorf("determination: got %v, want 5", stats["determination"])
+		}
+	})
+
+	t.Run("willpower", func(t *testing.T) {
+		stats := base()
+		WGRecalcDerived(stats, "willpower")
+		if stats["shock"] != 5 { // 4+1 (tier=1)
+			t.Errorf("shock: got %v, want 5", stats["shock"])
+		}
+		if stats["resolve"] != 3 { // max(1, 4-1)
+			t.Errorf("resolve: got %v, want 3", stats["resolve"])
+		}
+		if stats["conviction"] != 4 {
+			t.Errorf("conviction: got %v, want 4", stats["conviction"])
+		}
+	})
+
+	t.Run("willpower_floor", func(t *testing.T) {
+		// willpower=1 → resolve should be clamped to 1
+		stats := base()
+		stats["willpower"] = float64(1)
+		WGRecalcDerived(stats, "willpower")
+		if stats["resolve"] != 1 {
+			t.Errorf("resolve floor: got %v, want 1", stats["resolve"])
+		}
+	})
+
+	t.Run("fellowship", func(t *testing.T) {
+		stats := base()
+		WGRecalcDerived(stats, "fellowship")
+		if stats["influence"] != 2 { // 3-1
+			t.Errorf("influence: got %v, want 2", stats["influence"])
+		}
+	})
+
+	t.Run("fellowship_floor", func(t *testing.T) {
+		stats := base()
+		stats["fellowship"] = float64(1)
+		WGRecalcDerived(stats, "fellowship")
+		if stats["influence"] != 0 { // 1-1=0, not negative
+			t.Errorf("influence floor: got %v, want 0", stats["influence"])
+		}
+	})
+
+	t.Run("initiative", func(t *testing.T) {
+		stats := base()
+		WGRecalcDerived(stats, "initiative")
+		if stats["defence"] != 3 { // 4-1
+			t.Errorf("defence: got %v, want 3", stats["defence"])
+		}
+	})
 }

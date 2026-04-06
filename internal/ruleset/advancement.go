@@ -325,12 +325,12 @@ func CanAffordAny(system string, currentXP int, statsJSON string) bool {
 		}
 	}
 
-	// W&G: also check minimum talent cost (10 XP)
+	// W&G: cheapest purchasable talent costs 10 XP (see wgTalentTable minimum).
 	if system == "wrath_glory" && currentXP >= 10 {
 		return true
 	}
 
-	// VtM: check minimum discipline cost (in-clan tier 1 = 5 XP)
+	// VtM: cheapest discipline advance is in-clan tier 1 at new_dots*5 = 1*5 = 5 XP.
 	if system == "vtm" && currentXP >= 5 {
 		return true
 	}
@@ -377,9 +377,17 @@ func WGRecalcDerived(stats map[string]any, field string) {
 		stats["conviction"] = wil
 	case "fellowship":
 		fel := getInt("fellowship")
-		stats["influence"] = fel - 1
+		influence := fel - 1
+		if influence < 0 {
+			influence = 0
+		}
+		stats["influence"] = influence
 	case "initiative":
 		ini := getInt("initiative")
-		stats["defence"] = ini - 1
+		defence := ini - 1
+		if defence < 0 {
+			defence = 0
+		}
+		stats["defence"] = defence
 	}
 }
