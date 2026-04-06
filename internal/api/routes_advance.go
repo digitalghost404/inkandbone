@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -128,7 +129,7 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 		if system == "blades" {
 			cost := ruleset.XPCostFor(system, field, newVal, "")
 			if currentXP < cost {
-				http.Error(w, "not enough XP (need 8)", http.StatusBadRequest)
+				http.Error(w, fmt.Sprintf("not enough XP (need %d)", cost), http.StatusBadRequest)
 				return
 			}
 		} else if system != "dnd5e" {

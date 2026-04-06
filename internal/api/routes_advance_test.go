@@ -324,3 +324,26 @@ func TestHandleAdvanceCharacter_notFound(t *testing.T) {
 	s.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
+
+func TestHandleAdvanceCharacter_bladesNotEnoughXP(t *testing.T) {
+	s := newTestServer(t)
+	rs, err := s.db.GetRulesetByName("blades")
+	require.NoError(t, err)
+	campID, err := s.db.CreateCampaign(rs.ID, "Blades Campaign", "")
+	require.NoError(t, err)
+	charID, err := s.db.CreateCharacter(campID, "Nix")
+	require.NoError(t, err)
+
+	// 5 XP — less than the required 8 for a Blades advance
+	statsJSON := `{"xp":5,"action:Hunt":0}`
+	require.NoError(t, s.db.UpdateCharacterData(charID, statsJSON))
+
+	body := `{"field":"action:Hunt","new_value":1}`
+	req := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/api/characters/%d/advance", charID),
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
