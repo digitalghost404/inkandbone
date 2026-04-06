@@ -209,11 +209,19 @@ var wgArchetypes = map[string]wgArchetypeDef{
 // Abilities returns the archetype's starting abilities slice.
 func (d wgArchetypeDef) Abilities() []string { return d.abilities }
 
+// WGArchetypeView is an exported view of a wgArchetypeDef for use outside this package.
+type WGArchetypeView struct {
+	def wgArchetypeDef
+}
+
+// Abilities returns the archetype's starting abilities (free, cannot be repurchased).
+func (v WGArchetypeView) Abilities() []string { return v.def.abilities }
+
 // WGArchetypeDefFor looks up the W&G archetype definition for the given name.
-// Returns the def and true if found, or zero-value and false if not found.
-func WGArchetypeDefFor(name string) (wgArchetypeDef, bool) {
+// Returns an exported WGArchetypeView and true if found, or zero-value and false if not found.
+func WGArchetypeDefFor(name string) (WGArchetypeView, bool) {
 	def, ok := wgArchetypes[name]
-	return def, ok
+	return WGArchetypeView{def: def}, ok
 }
 
 // randPick returns a random element from the given slice.

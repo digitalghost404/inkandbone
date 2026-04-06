@@ -164,6 +164,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/campaigns/{id}/sessions", s.handleCreateSession)
 	s.mux.HandleFunc("DELETE /api/sessions/{id}", s.handleDeleteSession)
 	s.mux.HandleFunc("PATCH /api/settings", s.handlePatchSettings)
+	// XP advancement
+	s.mux.HandleFunc("POST /api/characters/{id}/advance", s.handleAdvanceCharacter)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
