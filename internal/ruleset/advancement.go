@@ -354,7 +354,7 @@ func CostRulesDescription(system string) string {
 	case "wfrp":
 		return "Any characteristic, skill, or talent advance costs 10 XP each."
 	case "starwars":
-		return "Skill advance: new_rating × 5 XP."
+		return "Skill advance: new_rating × 5 XP. Treat all skills as career for simplicity."
 	case "l5r":
 		return "Ring advance: new_rank × 3 XP. Skill advance: new_rank × 2 XP."
 	case "theonering":

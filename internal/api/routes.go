@@ -1444,6 +1444,8 @@ Return ONLY a JSON object with the fields that must change and their new values.
 	}})
 
 	// If XP increased, suggest advancements asynchronously.
+	// Use the updated stats JSON for goroutine (not stale pre-patch char.DataJSON).
+	char.DataJSON = string(updated)
 	if afterXP > beforeXP {
 		go s.autoSuggestXPSpend(sessionID, charID, char, ruleset, current, afterXP)
 	}
@@ -1470,20 +1472,22 @@ func (s *Server) autoSuggestXPSpend(
 
 	const maxSuggestionsPerSession = 20
 
-	// Enforce per-session cap.
-	actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 0)
-	count := actual.(int)
-	if count >= maxSuggestionsPerSession {
-		return
+	// Atomically check-and-increment the session suggestion count.
+	for {
+		actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 1)
+		count := actual.(int)
+		if count >= maxSuggestionsPerSession {
+			return
+		}
+		if s.xpSuggestCounts.CompareAndSwap(sessionID, count, count+1) {
+			break
+		}
 	}
 
 	// Gate: can the character afford any advance?
 	if !advancement.CanAffordAny(system, currentXP, char.DataJSON) {
 		return
 	}
-
-	// Increment count before the AI call to avoid races.
-	s.xpSuggestCounts.Store(sessionID, count+1)
 
 	completer, ok := s.aiClient.(ai.Completer)
 	if !ok {
