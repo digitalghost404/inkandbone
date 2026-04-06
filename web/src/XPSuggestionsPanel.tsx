@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { XPSpendSuggestionsEvent } from './types'
+import { useState, useEffect, useRef } from 'react'
+import type { XPSpendSuggestionsEvent, XPSuggestion } from './types'
 
 interface Props {
   event: XPSpendSuggestionsEvent | null
@@ -11,20 +11,29 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [spending, setSpending] = useState(false)
   const [success, setSuccess] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   if (!event) return null
 
-  const handleSpend = async (field: string, newValue: number) => {
+  const handleSpend = async (sg: XPSuggestion) => {
     setError(null)
     setSpending(true)
+    let succeeded = false
     try {
-      await onSpend(event.character_id, field, newValue)
+      await onSpend(event.character_id, sg.field, sg.new_value)
+      succeeded = true
       setSuccess(true)
-      setTimeout(() => onDismiss(), 600)
+      timerRef.current = setTimeout(() => onDismiss(), 600)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to spend XP')
     } finally {
-      setSpending(false)
+      if (!succeeded) setSpending(false)
     }
   }
 
@@ -32,7 +41,7 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
     <div className={`xp-suggestions-panel${success ? ' xp-success-flash' : ''}`}>
       <div className="xp-suggestions-header">
         <span>Advancement Suggestions — {event.current_xp} {event.xp_label} available</span>
-        <button className="xp-dismiss-btn" onClick={onDismiss} title="Dismiss">×</button>
+        <button className="xp-dismiss-btn" onClick={onDismiss} aria-label="Dismiss">×</button>
       </div>
 
       {success && <div className="xp-success-toast">Spent!</div>}
@@ -50,7 +59,7 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
             <button
               className="xp-spend-btn"
               disabled={spending}
-              onClick={() => handleSpend(sg.field, sg.new_value)}
+              onClick={() => handleSpend(sg)}
             >
               Spend
             </button>

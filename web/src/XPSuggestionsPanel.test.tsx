@@ -73,7 +73,7 @@ describe('XPSuggestionsPanel', () => {
     render(
       <XPSuggestionsPanel event={mockEvent} onDismiss={onDismiss} onSpend={() => Promise.resolve()} />
     )
-    fireEvent.click(screen.getByTitle('Dismiss'))
+    fireEvent.click(screen.getByLabelText('Dismiss'))
     expect(onDismiss).toHaveBeenCalledOnce()
   })
 
@@ -92,9 +92,7 @@ describe('XPSuggestionsPanel', () => {
     expect(screen.getByText('Spent!')).toBeTruthy()
     expect(onDismiss).not.toHaveBeenCalled()
     // Advance timers past the 600ms delay
-    act(() => {
-      vi.runAllTimers()
-    })
+    await act(async () => { vi.runAllTimers() })
     expect(onDismiss).toHaveBeenCalledOnce()
   })
 
