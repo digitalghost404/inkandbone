@@ -1,0 +1,58 @@
+-- Fix Wrath & Glory schema: move Initiative into attributes block, add Influence,
+-- correct ordering to match official character sheet layout.
+UPDATE rulesets SET schema_json = '[
+  {"key":"archetype","label":"Archetype","type":"text"},
+  {"key":"faction","label":"Faction","type":"text"},
+  {"key":"rank","label":"Rank","type":"number"},
+  {"key":"keywords","label":"Keywords","type":"text"},
+
+  {"key":"strength","label":"Strength","type":"number"},
+  {"key":"agility","label":"Agility","type":"number"},
+  {"key":"toughness","label":"Toughness","type":"number"},
+  {"key":"intellect","label":"Intellect","type":"number"},
+  {"key":"willpower","label":"Willpower","type":"number"},
+  {"key":"fellowship","label":"Fellowship","type":"number"},
+  {"key":"initiative","label":"Initiative","type":"number"},
+
+  {"key":"ws","label":"Weapon Skill","type":"number"},
+  {"key":"bs","label":"Ballistic Skill","type":"number"},
+  {"key":"athletics","label":"Athletics","type":"number"},
+  {"key":"awareness","label":"Awareness","type":"number"},
+  {"key":"cunning","label":"Cunning","type":"number"},
+  {"key":"deception","label":"Deception","type":"number"},
+  {"key":"fortitude","label":"Fortitude","type":"number"},
+  {"key":"insight","label":"Insight","type":"number"},
+  {"key":"intimidation","label":"Intimidation","type":"number"},
+  {"key":"investigation","label":"Investigation","type":"number"},
+  {"key":"leadership","label":"Leadership","type":"number"},
+  {"key":"medicae","label":"Medicae","type":"number"},
+  {"key":"persuasion","label":"Persuasion","type":"number"},
+  {"key":"pilot","label":"Pilot","type":"number"},
+  {"key":"psychic_mastery","label":"Psychic Mastery","type":"number"},
+  {"key":"scholar","label":"Scholar","type":"number"},
+  {"key":"stealth","label":"Stealth","type":"number"},
+  {"key":"survival","label":"Survival","type":"number"},
+  {"key":"tech","label":"Tech","type":"number"},
+
+  {"key":"speed","label":"Speed","type":"number"},
+  {"key":"defence","label":"Defence","type":"number"},
+  {"key":"resilience","label":"Resilience","type":"number"},
+  {"key":"determination","label":"Determination","type":"number"},
+  {"key":"resolve","label":"Resolve","type":"number"},
+  {"key":"conviction","label":"Conviction","type":"number"},
+  {"key":"influence","label":"Influence","type":"number"},
+
+  {"key":"wounds","label":"Wounds","type":"number"},
+  {"key":"shock","label":"Shock","type":"number"},
+  {"key":"corruption","label":"Corruption","type":"number"},
+
+  {"key":"wrath","label":"Wrath","type":"number"},
+  {"key":"glory","label":"Glory","type":"number"},
+  {"key":"ruin","label":"Ruin","type":"number"},
+  {"key":"wealth","label":"Wealth Tier","type":"number"},
+  {"key":"xp","label":"XP","type":"number"},
+
+  {"key":"talents","label":"Talents","type":"textarea"},
+  {"key":"powers","label":"Psychic Powers","type":"textarea"},
+  {"key":"notes","label":"Notes","type":"textarea"}
+]' WHERE name = 'wrath_glory';

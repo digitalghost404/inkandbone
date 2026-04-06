@@ -98,7 +98,7 @@ func (s *Server) handleCreateCharacter(_ context.Context, req mcplib.CallToolReq
 	if err := json.Unmarshal([]byte(rs.SchemaJSON), &schema); err != nil {
 		return mcplib.NewToolResultError("invalid ruleset schema: " + err.Error()), nil
 	}
-	stats := rollStats(schema.System)
+	stats := rollStats(schema.System, "")
 	if len(stats) > 0 {
 		dataJSON, err := json.Marshal(stats)
 		if err != nil {

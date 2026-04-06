@@ -245,7 +245,7 @@ func randPick(options []string) string {
 // given ruleset system. Every schema field is populated — text fields are
 // randomly chosen from canonical options. An unrecognised system returns an
 // empty map.
-func RollStats(system string) map[string]any {
+func RollStats(system, archetype string) map[string]any {
 	switch system {
 	case "dnd5e":
 		return map[string]any{
@@ -437,7 +437,7 @@ func RollStats(system string) map[string]any {
 			"notes":            "",
 		}
 	case "wrath_glory":
-		return rollWrathGloryStats()
+		return rollWrathGloryStats(archetype)
 	case "blades":
 		return bladesStats()
 
@@ -467,14 +467,17 @@ func RollStats(system string) map[string]any {
 
 // rollWrathGloryStats generates a W&G character using the wgArchetypes table.
 // Archetype starting abilities are pre-populated into the talents field.
-func rollWrathGloryStats() map[string]any {
-	// Pick a random archetype name then look up its definition.
-	names := make([]string, 0, len(wgArchetypes))
-	for k := range wgArchetypes {
-		names = append(names, k)
+// If archetypeName is empty or not found, a random archetype is chosen.
+func rollWrathGloryStats(archetypeName string) map[string]any {
+	def, ok := wgArchetypes[archetypeName]
+	if !ok {
+		names := make([]string, 0, len(wgArchetypes))
+		for k := range wgArchetypes {
+			names = append(names, k)
+		}
+		archetypeName = randPick(names)
+		def = wgArchetypes[archetypeName]
 	}
-	archetypeName := randPick(names)
-	def := wgArchetypes[archetypeName]
 
 	// Roll each attribute as minValue + rand.Intn(3), giving a range of
 	// [min, min+2] — always meets prerequisites and adds variety.
@@ -524,11 +527,14 @@ func rollWrathGloryStats() map[string]any {
 	_ = itl
 	_ = fel
 
+	// Build keyword string: SPECIES, ARCHETYPE, FACTION keywords.
+	keywords := strings.ToUpper(def.species) + ", " + strings.ToUpper(archetypeName) + ", " + strings.ToUpper(def.faction)
+
 	return map[string]any{
 		"archetype": archetypeName,
 		"faction":   def.faction,
 		"rank":      1,
-		"keywords":  def.faction,
+		"keywords":  keywords,
 
 		"strength":   str,
 		"agility":    agi,
