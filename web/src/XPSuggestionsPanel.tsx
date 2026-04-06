@@ -4,10 +4,11 @@ import type { XPSpendSuggestionsEvent, XPSuggestion } from './types'
 interface Props {
   event: XPSpendSuggestionsEvent | null
   onDismiss: () => void
+  onHide?: () => void
   onSpend: (characterId: number, field: string, newValue: number) => Promise<void>
 }
 
-export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
+export function XPSuggestionsPanel({ event, onDismiss, onHide, onSpend }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [spending, setSpending] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -43,7 +44,7 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
     <div className={`xp-suggestions-panel${success ? ' xp-success-flash' : ''}`}>
       <div className="xp-suggestions-header">
         <span>Advancement Suggestions — {remainingXP !== null ? remainingXP : event.current_xp} {event.xp_label} available</span>
-        <button className="xp-dismiss-btn" onClick={onDismiss} aria-label="Dismiss">×</button>
+        <button className="xp-dismiss-btn" onClick={onHide ?? onDismiss} aria-label="Dismiss">×</button>
       </div>
 
       {success && <div className="xp-success-toast">Spent!</div>}

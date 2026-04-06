@@ -761,6 +761,17 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 		if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
 			if char, err := s.db.GetCharacter(charID); err == nil && char != nil {
 				fmt.Fprintf(&sb, "Player character name: %s\n", char.Name)
+				// Inject common identity fields so the GM always knows the character's role.
+				if char.DataJSON != "" {
+					var stats map[string]any
+					if err := json.Unmarshal([]byte(char.DataJSON), &stats); err == nil {
+						for _, field := range []string{"archetype", "class", "race", "faction", "keywords", "species", "metatype", "playbook", "culture"} {
+							if v, ok := stats[field].(string); ok && v != "" {
+								fmt.Fprintf(&sb, "Character %s: %s\n", field, v)
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -875,7 +886,7 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 			sb.WriteString("GLORY: Characters earn Glory for heroic acts; 8 Glory = 1 Rank advancement.\n")
 			sb.WriteString("RUIN: Ruin tracks the tide of Chaos. At Ruin 10, dark forces escalate dramatically.\n")
 
-			// Inject live character resource values if available.
+			// Inject live character resource values and identity if available.
 			if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
 				if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
 					if char, err := s.db.GetCharacter(charID); err == nil && char != nil && char.DataJSON != "" {
@@ -886,6 +897,16 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 									fmt.Fprintf(&sb, "%s: %v\n", label, v)
 								}
 							}
+							// Character identity — must shape all narrative framing.
+							writeStatIfSet("archetype", "Character Archetype")
+							writeStatIfSet("faction", "Character Faction")
+							writeStatIfSet("keywords", "Character Keywords")
+							writeStatIfSet("species", "Character Species")
+							// Talents drive unique abilities in play.
+							if talents, ok := stats["talents"].(string); ok && talents != "" {
+								fmt.Fprintf(&sb, "Character Talents: %s\n", talents)
+							}
+							// Live resource values.
 							writeStatIfSet("rank", "Character Rank")
 							writeStatIfSet("wrath", "Wrath Tokens")
 							writeStatIfSet("glory", "Glory")

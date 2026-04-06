@@ -238,7 +238,6 @@ export function ManagePanel({
     try {
       await deleteSession(id)
       if (selectedCampaignId) loadSessions(selectedCampaignId)
-      if (activeSessionId === id) onContextChanged()
     } catch (e) {
       setError(String(e))
     } finally {

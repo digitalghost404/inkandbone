@@ -34,6 +34,7 @@ const (
 	EventTensionUpdated     EventType = "tension_updated"
 	EventRelationshipUpdated  EventType = "relationship_updated"
 	EventXPSpendSuggestions   EventType = "xp_spend_suggestions"
+	EventSessionDeleted       EventType = "session_deleted"
 )
 
 // Event is published by MCP tool handlers and broadcast to WebSocket clients.

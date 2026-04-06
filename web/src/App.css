@@ -2488,6 +2488,26 @@ mark {
   color: var(--bg);
 }
 
+.audio-pause-btn {
+  background: none;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0.15rem 0.4rem;
+  transition: background 0.12s, color 0.12s;
+}
+
+.audio-pause-btn:hover:not(:disabled) {
+  background: var(--gold-dim);
+  color: var(--bg);
+}
+
+.audio-pause-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .audio-volume-slider {
   width: 60px;
   accent-color: var(--gold);
@@ -2652,4 +2672,28 @@ mark {
   color: #f87171;
   font-size: 0.8rem;
   text-align: center;
+}
+
+.xp-available-badge {
+  background: none;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold-dim);
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 0.2rem 0.6rem;
+  text-transform: uppercase;
+  transition: background 0.12s, color 0.12s;
+  animation: xp-badge-pulse 2s ease-in-out infinite;
+}
+
+.xp-available-badge:hover {
+  background: var(--gold-dim);
+  color: var(--bg);
+}
+
+@keyframes xp-badge-pulse {
+  0%, 100% { box-shadow: 0 0 3px rgba(180, 140, 30, 0.2); }
+  50% { box-shadow: 0 0 8px rgba(180, 140, 30, 0.5); }
 }

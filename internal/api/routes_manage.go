@@ -138,7 +138,7 @@ func (s *Server) handleCreateCharacter(w http.ResponseWriter, r *http.Request) {
 	if err == nil && camp != nil {
 		rs, err := s.db.GetRuleset(camp.RulesetID)
 		if err == nil && rs != nil {
-			stats := ruleset.RollStats(rs.Name)
+			stats := ruleset.RollStats(rs.Name, body.Overrides["archetype"])
 			if len(stats) > 0 {
 				// Apply user-selected overrides (non-empty values only).
 				for k, v := range body.Overrides {
@@ -236,6 +236,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.bus.Publish(Event{Type: EventSessionDeleted, Payload: map[string]any{"session_id": id}})
 	w.WriteHeader(http.StatusNoContent)
 }
 

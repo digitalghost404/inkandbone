@@ -294,6 +294,7 @@ export default function App() {
   const [manageOpen, setManageOpen] = useState(false)
   const [manageTab, setManageTab] = useState<'campaigns' | 'characters' | 'sessions' | 'rulebooks'>('campaigns')
   const [xpSuggestionsEvent, setXPSuggestionsEvent] = useState<XPSpendSuggestionsEvent | null>(null)
+  const [xpPanelDismissed, setXpPanelDismissed] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -336,7 +337,8 @@ export default function App() {
       else if (event?.type === 'combat_started') playCombatStart()
     }
     if (event?.type === 'xp_spend_suggestions') {
-      setXPSuggestionsEvent(data as XPSpendSuggestionsEvent)
+      setXPSuggestionsEvent((data as { payload: XPSpendSuggestionsEvent }).payload)
+      setXpPanelDismissed(false)
     }
   }, [loadContext])
   const { lastEvent } = useWebSocket(WS_URL, handleEvent)
@@ -472,6 +474,15 @@ export default function App() {
         >
           ⚙ Manage
         </button>
+        {xpSuggestionsEvent && xpPanelDismissed && (
+          <button
+            className="xp-available-badge"
+            onClick={() => setXpPanelDismissed(false)}
+            title={`Advancement available — ${xpSuggestionsEvent.current_xp} ${xpSuggestionsEvent.xp_label}`}
+          >
+            ⬆ Advance
+          </button>
+        )}
         <AudioControls />
       </header>
 
@@ -656,8 +667,9 @@ export default function App() {
         </main>
 
         <XPSuggestionsPanel
-          event={xpSuggestionsEvent}
-          onDismiss={() => setXPSuggestionsEvent(null)}
+          event={xpPanelDismissed ? null : xpSuggestionsEvent}
+          onDismiss={() => { setXPSuggestionsEvent(null); setXpPanelDismissed(false) }}
+          onHide={() => setXpPanelDismissed(true)}
           onSpend={handleSpendXP}
         />
 
