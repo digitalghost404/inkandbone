@@ -206,35 +206,83 @@ func RollStats(system string) map[string]any {
 			"notes":            "",
 		}
 	case "wrath_glory":
+		str := rollNd(1, 3) + 3
 		agi := rollNd(1, 3) + 3
 		tgh := rollNd(1, 3) + 3
+		itl := rollNd(1, 3) + 3
 		wil := rollNd(1, 3) + 3
-		archetype := randPick([]string{"Adeptus Astartes", "Adeptus Mechanicus", "Astra Militarum", "Inquisitorial Agent", "Rogue Trader", "Ministorum Priest", "Sanctioned Psyker", "Heretic", "Chaos Space Marine", "Cultist"})
-		faction := randPick([]string{"Imperium of Man", "Adeptus Mechanicus", "Inquisition", "Rogue Traders", "Chaos Undivided", "Nurgle", "Tzeentch", "Khorne", "Slaanesh"})
+		fel := rollNd(1, 3) + 3
+		archetype := randPick([]string{
+			"Adeptus Astartes", "Adeptus Mechanicus", "Astra Militarum",
+			"Inquisitorial Agent", "Rogue Trader", "Ministorum Priest",
+			"Sanctioned Psyker", "Adepta Sororitas", "Commissar",
+			"Arbitrator", "Astropath", "Navigator", "Ogryn",
+			"Ratling", "Voidmaster", "Death Cult Assassin",
+			"Heretic", "Chaos Space Marine", "Cultist",
+		})
+		faction := randPick([]string{
+			"Imperium of Man", "Adeptus Mechanicus", "Inquisition",
+			"Adepta Sororitas", "Astra Militarum", "Adeptus Astartes",
+			"Rogue Traders", "Officio Assassinorum",
+			"Chaos Undivided", "Nurgle", "Tzeentch", "Khorne", "Slaanesh",
+			"Death Guard", "Thousand Sons", "World Eaters", "Emperor's Children",
+		})
 		return map[string]any{
-			"archetype":     archetype,
-			"faction":       faction,
-			"rank":          rollNd(1, 3),
-			"strength":      rollNd(1, 3) + 3,
-			"agility":       agi,
-			"toughness":     tgh,
-			"intellect":     rollNd(1, 3) + 3,
-			"willpower":     wil,
-			"fellowship":    rollNd(1, 3) + 3,
+			"archetype": archetype,
+			"faction":   faction,
+			"rank":      rollNd(1, 3),
+			"keywords":  faction,
+
+			"strength":  str,
+			"agility":   agi,
+			"toughness": tgh,
+			"intellect": itl,
+			"willpower": wil,
+			"fellowship": fel,
+
+			// Skills: start at 0; a few randomly bumped to 1 for variety
+			"ws":              wrathSkillRoll(),
+			"bs":              wrathSkillRoll(),
+			"athletics":       wrathSkillRoll(),
+			"awareness":       wrathSkillRoll(),
+			"cunning":         wrathSkillRoll(),
+			"deception":       wrathSkillRoll(),
+			"fortitude":       wrathSkillRoll(),
+			"insight":         wrathSkillRoll(),
+			"intimidation":    wrathSkillRoll(),
+			"investigation":   wrathSkillRoll(),
+			"leadership":      wrathSkillRoll(),
+			"medicae":         wrathSkillRoll(),
+			"persuasion":      wrathSkillRoll(),
+			"pilot":           wrathSkillRoll(),
+			"psychic_mastery": 0,
+			"scholar":         wrathSkillRoll(),
+			"stealth":         wrathSkillRoll(),
+			"survival":        wrathSkillRoll(),
+			"tech":            wrathSkillRoll(),
+
+			// Derived combat values
 			"initiative":    agi,
-			"wounds":        10,
-			"shock":         8,
+			"speed":         agi,
+			"defence":       agi,
 			"resilience":    tgh,
-			"determination": wil,
-			"defence":       3,
-			"resolve":       2,
-			"conviction":    2,
-			"wrath":         0,
-			"glory":         0,
-			"ruin":          0,
-			"xp":            0,
-			"keywords":      faction,
-			"notes":         "",
+			"determination": tgh + wil,
+			"resolve":       wil,
+			"conviction":    wil,
+
+			"wounds":     tgh * 2,
+			"shock":      wil + rollNd(1, 3),
+			"corruption": 0,
+
+			"wrath":  0,
+			"glory":  0,
+			"ruin":   0,
+			"wealth": 2,
+			"xp":     0,
+
+			"talents": "",
+			"powers":  "",
+			"notes":   "",
 		}
 	case "blades":
 		return bladesStats()
@@ -261,6 +309,20 @@ func RollStats(system string) map[string]any {
 	default:
 		return map[string]any{}
 	}
+}
+
+// wrathSkillRoll returns a starting skill rating for W&G: 70% chance of 0,
+// 25% chance of 1, 5% chance of 2 — representing an untrained recruit with
+// a few areas of natural aptitude.
+func wrathSkillRoll() int {
+	r := rand.Intn(20)
+	if r < 1 {
+		return 2
+	}
+	if r < 6 {
+		return 1
+	}
+	return 0
 }
 
 // roll4d6DropLowest rolls 4d6 and returns the sum of the top 3 (standard D&D method).
