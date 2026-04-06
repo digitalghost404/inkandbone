@@ -125,7 +125,7 @@ All fire after every GM response via `handleGMRespondStream`. Goroutines organiz
 - ironsworn, wrathglory, bitd, vtm, cthulhu, shadowrun, whfrp, sweoote, l5r, lotr, paranoia, dnd5e
 - Custom rulesets can be added via JSON schema insert into `rulesets` table
 
-Character creation options (race/class/archetype/faction dropdowns) are defined in `internal/ruleset/options.go`. Fully expanded for: dnd5e (race ×17, class ×14, background ×13, alignment ×9), wrath_glory (archetype ×19, faction ×17), shadowrun (metatype ×5, archetype ×10), theonering (culture ×8, calling ×8), blades (playbook, heritage, background, vice).
+Character creation options (race/class/archetype/faction dropdowns) are defined in `internal/ruleset/options.go`. Fully expanded for: dnd5e (race ×17, class ×14, background ×13, alignment ×9), wrath_glory (archetype ×23, faction ×13), shadowrun (metatype ×5, archetype ×10), theonering (culture ×8, calling ×8), blades (playbook, heritage, background, vice).
 
 wrath_glory character schema includes all 19 skills (ws, bs, athletics, awareness, cunning, deception, fortitude, insight, intimidation, investigation, leadership, medicae, persuasion, pilot, psychic_mastery, scholar, stealth, survival, tech), talents (textarea), powers (textarea), corruption, speed, wealth tier, plus all core attributes, derived values, and Wrath/Glory/Ruin/XP. Migration: 016_wrath_glory_skills.sql.
 

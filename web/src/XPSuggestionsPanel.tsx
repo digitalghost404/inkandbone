@@ -50,7 +50,7 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
       {error && <div className="xp-error-toast">{error}</div>}
 
       <div className="xp-suggestions-list">
-        {event.suggestions.map((sg) => (
+        {(event.suggestions ?? []).map((sg) => (
           <div key={sg.field} className="xp-suggestion-card">
             <div className="xp-suggestion-top">
               <span className="xp-suggestion-name">{sg.display_name}</span>

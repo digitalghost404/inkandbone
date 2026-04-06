@@ -224,6 +224,15 @@ func WGArchetypeDefFor(name string) (WGArchetypeView, bool) {
 	return WGArchetypeView{def: def}, ok
 }
 
+// wgSpeciesSpeed maps species to their base Speed value (core rulebook p.193).
+var wgSpeciesSpeed = map[string]int{
+	"Human":          6,
+	"Space Marine":   7,
+	"Primaris":       7,
+	"Aeldari":        8,
+	"Ork":            6,
+}
+
 // randPick returns a random element from the given slice.
 func randPick(options []string) string {
 	if len(options) == 0 {
@@ -459,95 +468,121 @@ func RollStats(system string) map[string]any {
 // rollWrathGloryStats generates a W&G character using the wgArchetypes table.
 // Archetype starting abilities are pre-populated into the talents field.
 func rollWrathGloryStats() map[string]any {
-	// Pick a random archetype key
-	archetypeKeys := make([]string, 0, len(wgArchetypes))
+	// Pick a random archetype name then look up its definition.
+	names := make([]string, 0, len(wgArchetypes))
 	for k := range wgArchetypes {
-		archetypeKeys = append(archetypeKeys, k)
+		names = append(names, k)
 	}
-	archetypeName := randPick(archetypeKeys)
+	archetypeName := randPick(names)
 	def := wgArchetypes[archetypeName]
 
-	// Roll attributes: base 1d3+3, apply archetype minimums
-	attrs := [7]int{}
-	attrNames := [7]string{"strength", "agility", "toughness", "intellect", "willpower", "fellowship", "initiative"}
-	for i := range attrs {
-		rolled := rollNd(1, 3) + 3
-		if rolled < def.attrMin[i] {
-			rolled = def.attrMin[i]
-		}
-		attrs[i] = rolled
+	// Roll each attribute as minValue + rand.Intn(3), giving a range of
+	// [min, min+2] — always meets prerequisites and adds variety.
+	attr := func(minVal int) int {
+		return minVal + rand.Intn(3)
 	}
-	str := attrs[0]
-	agi := attrs[1]
-	tgh := attrs[2]
-	itl := attrs[3]
-	wil := attrs[4]
-	fel := attrs[5]
-	ini := attrs[6]
+	str := attr(def.attrMin[0])
+	agi := attr(def.attrMin[1])
+	tgh := attr(def.attrMin[2])
+	itl := attr(def.attrMin[3])
+	wil := attr(def.attrMin[4])
+	fel := attr(def.attrMin[5])
+	ini := attr(def.attrMin[6])
 
-	// Build skill map with archetype minimums applied
-	skillKeys := []string{
-		"ws", "bs", "athletics", "awareness", "cunning", "deception", "fortitude",
-		"insight", "intimidation", "investigation", "leadership", "medicae",
-		"persuasion", "pilot", "psychic_mastery", "scholar", "stealth", "survival", "tech",
-	}
-	skillMap := map[string]any{}
-	for _, sk := range skillKeys {
-		val := wrathSkillRoll()
-		if min, ok := def.skillMin[sk]; ok && val < min {
-			val = min
+	// Roll each skill, enforcing any prerequisite floor from the archetype def.
+	skillVal := func(key string) int {
+		floor := def.skillMin[key]
+		rolled := wrathSkillRoll()
+		if rolled < floor {
+			return floor
 		}
-		skillMap[sk] = val
+		return rolled
 	}
 
-	// Pre-populate talents with archetype starting abilities
+	// Derived values per core rulebook.
+	resolve := wil - 1
+	if resolve < 1 {
+		resolve = 1
+	}
+	speed, ok := wgSpeciesSpeed[def.species]
+	if !ok {
+		speed = 6
+	}
+	wounds := (def.tier * 2) + tgh
+	shock := wil + def.tier
+
+	// Starting Wealth Tier: Tier 1-2 start at 2, Tier 3-4 start at 3.
+	wealthTier := 2
+	if def.tier >= 3 {
+		wealthTier = 3
+	}
+
+	// Pre-populate talents with archetype starting abilities.
 	talents := strings.Join(def.abilities, "|")
 
-	result := map[string]any{
+	_ = str
+	_ = itl
+	_ = fel
+
+	return map[string]any{
 		"archetype": archetypeName,
 		"faction":   def.faction,
-		"rank":      rollNd(1, 3),
+		"rank":      1,
 		"keywords":  def.faction,
 
-		// Derived combat values
-		"initiative":    ini,
-		"speed":         agi,
-		"defence":       agi - 1,
+		"strength":   str,
+		"agility":    agi,
+		"toughness":  tgh,
+		"intellect":  itl,
+		"willpower":  wil,
+		"fellowship": fel,
+		"initiative": ini,
+
+		"ws":              skillVal("ws"),
+		"bs":              skillVal("bs"),
+		"athletics":       skillVal("athletics"),
+		"awareness":       skillVal("awareness"),
+		"cunning":         skillVal("cunning"),
+		"deception":       skillVal("deception"),
+		"fortitude":       skillVal("fortitude"),
+		"insight":         skillVal("insight"),
+		"intimidation":    skillVal("intimidation"),
+		"investigation":   skillVal("investigation"),
+		"leadership":      skillVal("leadership"),
+		"medicae":         skillVal("medicae"),
+		"persuasion":      skillVal("persuasion"),
+		"pilot":           skillVal("pilot"),
+		"psychic_mastery": skillVal("psychic_mastery"),
+		"scholar":         skillVal("scholar"),
+		"stealth":         skillVal("stealth"),
+		"survival":        skillVal("survival"),
+		"tech":            skillVal("tech"),
+
+		// Derived stats per core rulebook formulas.
+		"speed":         speed,
+		"defence":       ini - 1,
 		"resilience":    tgh + 1,
 		"determination": tgh,
-		"resolve":       wil - 1,
+		"resolve":       resolve,
 		"conviction":    wil,
+		"influence":     fel - 1,
 
-		"wounds":     (def.tier * 2) + tgh,
-		"shock":      wil + def.tier,
+		// Maximum Wounds = (Tier×2) + Toughness
+		// Maximum Shock  = Willpower + Tier
+		"wounds":     wounds,
+		"shock":      shock,
 		"corruption": 0,
 
 		"wrath":  0,
 		"glory":  0,
 		"ruin":   0,
-		"wealth": 2,
+		"wealth": wealthTier,
 		"xp":     0,
 
 		"talents": talents,
 		"powers":  "",
 		"notes":   "",
 	}
-
-	// Inject attributes
-	for i, name := range attrNames {
-		result[name] = attrs[i]
-	}
-	// Suppress unused variable warnings
-	_ = str
-	_ = itl
-	_ = fel
-
-	// Inject skills
-	for k, v := range skillMap {
-		result[k] = v
-	}
-
-	return result
 }
 
 // wrathSkillRoll returns a starting skill rating for W&G: 70% chance of 0,

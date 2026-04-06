@@ -864,6 +864,44 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 		}
 	}
 
+	// Wrath & Glory: inject system-specific mechanics and live character resources.
+	if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+		if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "wrath_glory" {
+			sb.WriteString("[W&G MECHANICS]\n")
+			sb.WriteString("WEALTH: This campaign uses WEALTH TIER (1-5 abstract), NOT gold or coins. Never award currency amounts. Refer to 'Wealth Tier' only.\n")
+			sb.WriteString("WRATH DIE: On any dice pool, a 6 on the Wrath die grants the player a Wrath token. A 1 on the Wrath die triggers a Complication set by the GM.\n")
+			sb.WriteString("CORRUPTION: Characters accumulate Corruption from psychic taint, Chaos exposure, and forbidden acts. At Corruption >= Rank*2+8, the character must pass a Corruption test or gain a Mutation.\n")
+			sb.WriteString("WRATH TOKENS: Spending a Wrath token lets the player re-roll any number of dice OR triggers a Soak save vs lethal damage.\n")
+			sb.WriteString("GLORY: Characters earn Glory for heroic acts; 8 Glory = 1 Rank advancement.\n")
+			sb.WriteString("RUIN: Ruin tracks the tide of Chaos. At Ruin 10, dark forces escalate dramatically.\n")
+
+			// Inject live character resource values if available.
+			if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
+				if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
+					if char, err := s.db.GetCharacter(charID); err == nil && char != nil && char.DataJSON != "" {
+						var stats map[string]any
+						if err := json.Unmarshal([]byte(char.DataJSON), &stats); err == nil {
+							writeStatIfSet := func(key, label string) {
+								if v, ok := stats[key]; ok {
+									fmt.Fprintf(&sb, "%s: %v\n", label, v)
+								}
+							}
+							writeStatIfSet("rank", "Character Rank")
+							writeStatIfSet("wrath", "Wrath Tokens")
+							writeStatIfSet("glory", "Glory")
+							writeStatIfSet("ruin", "Ruin")
+							writeStatIfSet("corruption", "Corruption")
+							writeStatIfSet("wounds", "Current Wounds")
+							writeStatIfSet("shock", "Current Shock")
+							writeStatIfSet("wealth", "Wealth Tier")
+						}
+					}
+				}
+			}
+			sb.WriteString("[/W&G MECHANICS]\n")
+		}
+	}
+
 	sb.WriteString("[/WORLD STATE]")
 	return sb.String()
 }
@@ -977,10 +1015,23 @@ func (s *Server) appendRulebookContext(ctx context.Context, sessionID int64, pla
 		return
 	}
 
+	const maxChunkChars = 1200 // per-chunk content limit
+	const maxTotalChars = 5000 // total rulebook injection limit
+
 	var sb strings.Builder
 	sb.WriteString("\n[RULEBOOK REFERENCES]\n")
+	totalChars := 0
 	for _, c := range chunks {
-		fmt.Fprintf(&sb, "## %s (from %s)\n%s\n\n", c.Heading, c.Source, c.Content)
+		content := c.Content
+		if len(content) > maxChunkChars {
+			content = content[:maxChunkChars] + "…"
+		}
+		entry := fmt.Sprintf("## %s (from %s)\n%s\n\n", c.Heading, c.Source, content)
+		if totalChars+len(entry) > maxTotalChars {
+			break
+		}
+		sb.WriteString(entry)
+		totalChars += len(entry)
 	}
 	sb.WriteString("[/RULEBOOK REFERENCES]")
 	*worldCtx += sb.String()
@@ -2703,6 +2754,17 @@ func (s *Server) autoUpdateCurrency(ctx context.Context, sessionID int64, gmText
 	completer, ok := s.aiClient.(ai.Completer)
 	if !ok {
 		return
+	}
+
+	// Skip for systems that use abstract wealth rather than tracked currency.
+	if sess, err := s.db.GetSession(sessionID); err == nil && sess != nil {
+		if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+			if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil {
+				if rs.Name == "wrath_glory" {
+					return
+				}
+			}
+		}
 	}
 
 	// Resolve active character.

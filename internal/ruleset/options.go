@@ -115,20 +115,33 @@ func CharacterOptions(system string) map[string][]string {
 
 	case "wrath_glory":
 		return map[string][]string{
+			// Official archetypes from the Cubicle 7 Wrath & Glory core rulebook,
+			// organised by tier (Tier 1–4).
 			"archetype": {
-				"Adeptus Astartes", "Adeptus Mechanicus", "Astra Militarum",
-				"Inquisitorial Agent", "Rogue Trader", "Ministorum Priest",
-				"Sanctioned Psyker", "Adepta Sororitas", "Commissar",
-				"Arbitrator", "Astropath", "Navigator", "Ogryn",
-				"Ratling", "Voidmaster", "Death Cult Assassin",
-				"Heretic", "Chaos Space Marine", "Cultist",
+				// Tier 1
+				"Sister Hospitaller", "Ministorum Priest", "Imperial Guardsman",
+				"Inquisitorial Acolyte", "Inquisitorial Sage", "Ganger",
+				"Corsair", "Boy", "Cultist",
+				// Tier 2
+				"Sister of Battle", "Sanctioned Psyker", "Skitarius",
+				"Death Cult Assassin", "Tempestus Scion", "Rogue Trader",
+				"Scavvy", "Space Marine Scout", "Ranger", "Kommando",
+				"Rogue Psyker",
+				// Tier 3
+				"Tech-Priest", "Crusader", "Imperial Commissar", "Desperado",
+				"Tactical Space Marine", "Warlock", "Nob",
+				"Heretek", "Chaos Space Marine",
+				// Tier 4
+				"Inquisitor", "Primaris Intercessor",
 			},
+			// Official factions from Chapter 3 of the core rulebook.
 			"faction": {
-				"Imperium of Man", "Adeptus Mechanicus", "Inquisition",
-				"Adepta Sororitas", "Astra Militarum", "Adeptus Astartes",
-				"Rogue Traders", "Officio Assassinorum",
-				"Chaos Undivided", "Nurgle", "Tzeentch", "Khorne", "Slaanesh",
-				"Death Guard", "Thousand Sons", "World Eaters", "Emperor's Children",
+				"Adepta Sororitas", "Adeptus Astra Telepathica",
+				"Adeptus Mechanicus", "Adeptus Ministorum",
+				"Astra Militarum", "The Inquisition",
+				"Rogue Trader Dynasties", "Scum",
+				"Adeptus Astartes",
+				"Aeldari", "Orks", "Chaos",
 			},
 		}
 

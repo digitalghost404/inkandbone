@@ -1,13 +1,12 @@
 package api
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
 
 	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
@@ -137,9 +136,8 @@ func chunkByHeadingsWithSource(text, source string) []db.RulebookChunk {
 	return chunks
 }
 
-// extractPDFText validates the PDF and extracts readable text from its content streams.
-// It writes content streams to a temp directory, reads them, and extracts text
-// from PDF text operators (Tj, TJ).
+// extractPDFText validates the PDF then extracts text using pdftotext (poppler),
+// which correctly handles CIDFont/hex-encoded PDFs used by commercial TTRPG books.
 func extractPDFText(r io.ReadSeeker) (string, error) {
 	conf := model.NewDefaultConfiguration()
 	if err := pdfapi.Validate(r, conf); err != nil {
@@ -149,85 +147,23 @@ func extractPDFText(r io.ReadSeeker) (string, error) {
 		return "", err
 	}
 
-	tmpDir, err := os.MkdirTemp("", "rulebook-*")
+	// Write to a temp file so pdftotext can read it by path.
+	tmp, err := os.CreateTemp("", "rulebook-*.pdf")
 	if err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.Remove(tmp.Name())
 
-	if err := pdfapi.ExtractContent(r, tmpDir, "rulebook.pdf", nil, conf); err != nil {
+	if _, err := io.Copy(tmp, r); err != nil {
+		tmp.Close()
 		return "", err
 	}
+	tmp.Close()
 
-	var sb strings.Builder
-	entries, err := os.ReadDir(tmpDir)
+	// pdftotext with "-" as output writes to stdout.
+	out, err := exec.Command("pdftotext", tmp.Name(), "-").Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("pdftotext: %w (install poppler-utils)", err)
 	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".txt") {
-			continue
-		}
-		f, err := os.Open(filepath.Join(tmpDir, entry.Name()))
-		if err != nil {
-			return "", err
-		}
-		text := extractTextFromContentStream(f)
-		f.Close()
-		sb.WriteString(text)
-		sb.WriteString("\n")
-	}
-	return sb.String(), nil
-}
-
-// extractTextFromContentStream reads a PDF content stream and extracts text
-// from Tj and TJ text-showing operators.
-func extractTextFromContentStream(r io.Reader) string {
-	var sb strings.Builder
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := scanner.Text()
-		trimmed := strings.TrimSpace(line)
-		// Extract text from Tj operator: (text) Tj
-		if strings.HasSuffix(trimmed, "Tj") {
-			if t := extractParenText(line); t != "" {
-				sb.WriteString(t)
-			}
-		}
-		// Extract text from TJ operator: [(text) ...] TJ
-		if strings.HasSuffix(trimmed, "TJ") {
-			if t := extractParenText(line); t != "" {
-				sb.WriteString(t)
-			}
-		}
-	}
-	return sb.String()
-}
-
-// extractParenText extracts all text between unescaped parentheses in a line.
-func extractParenText(line string) string {
-	var sb strings.Builder
-	inParen := false
-	for i := 0; i < len(line); i++ {
-		ch := line[i]
-		if ch == '\\' && i+1 < len(line) {
-			if inParen {
-				sb.WriteByte(line[i+1])
-			}
-			i++
-			continue
-		}
-		if ch == '(' {
-			inParen = true
-			continue
-		}
-		if ch == ')' {
-			inParen = false
-			continue
-		}
-		if inParen {
-			sb.WriteByte(ch)
-		}
-	}
-	return sb.String()
+	return string(out), nil
 }
