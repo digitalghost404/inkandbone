@@ -295,6 +295,7 @@ export default function App() {
   const [manageTab, setManageTab] = useState<'campaigns' | 'characters' | 'sessions' | 'rulebooks'>('campaigns')
   const [xpSuggestionsEvent, setXPSuggestionsEvent] = useState<XPSpendSuggestionsEvent | null>(null)
   const [xpPanelDismissed, setXpPanelDismissed] = useState(false)
+  const [showTalentsPanel, setShowTalentsPanel] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -464,6 +465,15 @@ export default function App() {
         >
           ⚔ Actions
         </button>
+        {ctx.character && (
+          <button
+            className={`h-actions-btn${showTalentsPanel ? ' active' : ''}`}
+            onClick={() => setShowTalentsPanel((v) => !v)}
+            title="Character talents & psychic powers"
+          >
+            ✦ Talents
+          </button>
+        )}
         <button className="h-export" onClick={handleExport} title="Export session">
           ↓ Export
         </button>
@@ -516,6 +526,41 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Talents & Powers Overlay */}
+        {showTalentsPanel && ctx.character && (() => {
+          let charData: Record<string, unknown> = {}
+          try { charData = JSON.parse(ctx.character.data_json || '{}') } catch { /* ignore */ }
+          const talents = String(charData.talents ?? '').trim()
+          const powers = String(charData.powers ?? '').trim()
+          return (
+            <div className="talents-overlay">
+              <div className="talents-overlay-header">
+                <span>Talents &amp; Powers — {ctx.character.name}</span>
+                <button onClick={() => setShowTalentsPanel(false)}>×</button>
+              </div>
+              <div className="talents-overlay-body">
+                <div className="talents-section">
+                  <div className="talents-section-title">Talents</div>
+                  {talents
+                    ? talents.split('\n').filter(Boolean).map((t, i) => (
+                        <div key={i} className="talents-entry">{t.replace(/^[-•]\s*/, '')}</div>
+                      ))
+                    : <div className="talents-empty">No talents recorded.</div>
+                  }
+                </div>
+                {powers && (
+                  <div className="talents-section">
+                    <div className="talents-section-title">Psychic Powers</div>
+                    {powers.split('\n').filter(Boolean).map((p, i) => (
+                      <div key={i} className="talents-entry">{p.replace(/^[-•]\s*/, '')}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Left Sidebar */}
         <aside className="sidebar-left">
