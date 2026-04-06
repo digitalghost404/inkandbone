@@ -3,7 +3,208 @@ package ruleset
 import (
 	"math/rand"
 	"sort"
+	"strings"
 )
+
+// wgArchetypeDef defines the properties of a W&G archetype used during character creation.
+type wgArchetypeDef struct {
+	faction   string
+	species   string
+	tier      int
+	attrMin   [7]int // strength, agility, toughness, intellect, willpower, fellowship, initiative
+	skillMin  map[string]int
+	abilities []string // starting archetype abilities (free, cannot be repurchased)
+}
+
+// wgArchetypes maps W&G archetype names to their definitions.
+var wgArchetypes = map[string]wgArchetypeDef{
+	"Sister Hospitaller": {
+		faction: "Adepta Sororitas", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 3, 3, 3, 4, 3},
+		skillMin: map[string]int{"medicae": 2, "persuasion": 1},
+		abilities: []string{"Loyal Compassion"},
+	},
+	"Ministorum Priest": {
+		faction: "Adeptus Ministorum", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 3, 3, 4, 4, 3},
+		skillMin: map[string]int{"leadership": 1, "persuasion": 2},
+		abilities: []string{"Fiery Invective"},
+	},
+	"Imperial Guardsman": {
+		faction: "Astra Militarum", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 3, 3, 3, 3, 3},
+		skillMin: map[string]int{"ws": 1, "bs": 1},
+		abilities: []string{"Look Out, Sir!"},
+	},
+	"Inquisitorial Acolyte": {
+		faction: "Inquisition", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 3, 3, 3, 3, 3},
+		skillMin: map[string]int{"investigation": 1, "insight": 1},
+		abilities: []string{"Inquisitorial Decree"},
+	},
+	"Inquisitorial Sage": {
+		faction: "Inquisition", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 3, 4, 3, 3, 3},
+		skillMin: map[string]int{"scholar": 2, "investigation": 1},
+		abilities: []string{"Administratum Records"},
+	},
+	"Ganger": {
+		faction: "Underhive", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 4, 3, 3, 3, 3, 3},
+		skillMin: map[string]int{"cunning": 1, "stealth": 1},
+		abilities: []string{"Scrounger"},
+	},
+	"Corsair": {
+		faction: "Rogue Traders", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 4, 3, 3, 3, 3, 4},
+		skillMin: map[string]int{"pilot": 1, "bs": 1},
+		abilities: []string{"Dancing the Blade's Edge"},
+	},
+	"Boy": {
+		faction: "Orks", species: "Ork", tier: 1,
+		attrMin:  [7]int{4, 3, 4, 2, 3, 3, 3},
+		skillMin: map[string]int{"ws": 1, "intimidation": 1},
+		abilities: []string{"Get Stuck In"},
+	},
+	"Cultist": {
+		faction: "Chaos Undivided", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 3, 3, 3, 3, 3},
+		skillMin: map[string]int{"deception": 1, "stealth": 1},
+		abilities: []string{"Enemy Within", "Corruption"},
+	},
+	"Sister of Battle": {
+		faction: "Adepta Sororitas", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 3, 4, 3, 4, 3, 3},
+		skillMin: map[string]int{"ws": 2, "fortitude": 2},
+		abilities: []string{"Purity of Faith"},
+	},
+	"Sanctioned Psyker": {
+		faction: "Astra Militarum", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 3, 3, 4, 4, 3, 3},
+		skillMin: map[string]int{"psychic_mastery": 2, "scholar": 1},
+		abilities: []string{"Psyker", "Unlock Disciplines"},
+	},
+	"Skitarius": {
+		faction: "Adeptus Mechanicus", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 4, 3, 3, 3, 3},
+		skillMin: map[string]int{"tech": 1, "bs": 2},
+		abilities: []string{"Heavily Augmented"},
+	},
+	"Death Cult Assassin": {
+		faction: "Officio Assassinorum", species: "Human", tier: 2,
+		attrMin:  [7]int{4, 5, 3, 3, 3, 3, 5},
+		skillMin: map[string]int{"ws": 3, "stealth": 2},
+		abilities: []string{"Glancing Blow"},
+	},
+	"Tempestus Scion": {
+		faction: "Astra Militarum", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 4, 4, 3, 4, 3, 4},
+		skillMin: map[string]int{"bs": 3, "athletics": 2},
+		abilities: []string{"Elite Soldier"},
+	},
+	"Rogue Trader": {
+		faction: "Rogue Traders", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 3, 3, 3, 4, 5, 3},
+		skillMin: map[string]int{"leadership": 2, "persuasion": 2},
+		abilities: []string{"Warrant of Trade"},
+	},
+	"Scavvy": {
+		faction: "Underhive", species: "Human", tier: 1,
+		attrMin:  [7]int{3, 3, 3, 3, 3, 3, 3},
+		skillMin: map[string]int{"survival": 1, "cunning": 1},
+		abilities: []string{"Mutant"},
+	},
+	"Space Marine Scout": {
+		faction: "Adeptus Astartes", species: "Space Marine", tier: 2,
+		attrMin:  [7]int{4, 4, 5, 3, 4, 3, 4},
+		skillMin: map[string]int{"stealth": 2, "awareness": 2},
+		abilities: []string{"Use the Terrain"},
+	},
+	"Ranger": {
+		faction: "Aeldari", species: "Aeldari", tier: 2,
+		attrMin:  [7]int{3, 4, 3, 4, 3, 3, 5},
+		skillMin: map[string]int{"stealth": 3, "survival": 2},
+		abilities: []string{"From the Shadows"},
+	},
+	"Kommando": {
+		faction: "Orks", species: "Ork", tier: 2,
+		attrMin:  [7]int{4, 4, 4, 3, 3, 3, 4},
+		skillMin: map[string]int{"stealth": 2, "cunning": 1},
+		abilities: []string{"Kunnin' Plan"},
+	},
+	"Rogue Psyker": {
+		faction: "Chaos Undivided", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 3, 3, 4, 5, 3, 3},
+		skillMin: map[string]int{"psychic_mastery": 3, "deception": 1},
+		abilities: []string{"Psyker", "Unlock Disciplines", "Corruption"},
+	},
+	"Tech-Priest": {
+		faction: "Adeptus Mechanicus", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 3, 4, 5, 3, 3, 3},
+		skillMin: map[string]int{"tech": 3, "scholar": 2},
+		abilities: []string{"Rite of Repair"},
+	},
+	"Crusader": {
+		faction: "Adeptus Ministorum", species: "Human", tier: 2,
+		attrMin:  [7]int{4, 3, 4, 3, 4, 3, 3},
+		skillMin: map[string]int{"ws": 3, "fortitude": 2},
+		abilities: []string{"Armour of Faith"},
+	},
+	"Imperial Commissar": {
+		faction: "Astra Militarum", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 3, 3, 3, 5, 4, 3},
+		skillMin: map[string]int{"leadership": 3, "intimidation": 2},
+		abilities: []string{"Fearsome Respect"},
+	},
+	"Desperado": {
+		faction: "Rogue Traders", species: "Human", tier: 2,
+		attrMin:  [7]int{3, 5, 3, 3, 3, 3, 5},
+		skillMin: map[string]int{"bs": 3, "cunning": 2},
+		abilities: []string{"Valuable Prey"},
+	},
+	"Tactical Space Marine": {
+		faction: "Adeptus Astartes", species: "Space Marine", tier: 3,
+		attrMin:  [7]int{5, 4, 6, 4, 5, 4, 4},
+		skillMin: map[string]int{"ws": 4, "bs": 4, "athletics": 3},
+		abilities: []string{"Tactical Versatility"},
+	},
+	"Warlock": {
+		faction: "Aeldari", species: "Aeldari", tier: 3,
+		attrMin:  [7]int{4, 4, 4, 5, 5, 4, 5},
+		skillMin: map[string]int{"psychic_mastery": 4, "ws": 3},
+		abilities: []string{"Runes of Battle", "Unlock Disciplines"},
+	},
+	"Nob": {
+		faction: "Orks", species: "Ork", tier: 3,
+		attrMin:  [7]int{6, 4, 6, 3, 4, 4, 4},
+		skillMin: map[string]int{"ws": 4, "intimidation": 3},
+		abilities: []string{"The Green Tide"},
+	},
+	"Heretek": {
+		faction: "Chaos Undivided", species: "Human", tier: 3,
+		attrMin:  [7]int{3, 3, 5, 6, 3, 3, 3},
+		skillMin: map[string]int{"tech": 4, "scholar": 3},
+		abilities: []string{"Rite of Repair", "Corruption"},
+	},
+	"Chaos Space Marine": {
+		faction: "Chaos Undivided", species: "Space Marine", tier: 3,
+		attrMin:  [7]int{6, 4, 6, 4, 5, 4, 4},
+		skillMin: map[string]int{"ws": 4, "bs": 4, "intimidation": 3},
+		abilities: []string{"Tactical Versatility", "Corruption"},
+	},
+	"Inquisitor": {
+		faction: "Inquisition", species: "Human", tier: 3,
+		attrMin:  [7]int{4, 4, 4, 5, 5, 5, 4},
+		skillMin: map[string]int{"investigation": 4, "leadership": 3, "scholar": 3},
+		abilities: []string{"Unchecked Authority"},
+	},
+	"Primaris Intercessor": {
+		faction: "Adeptus Astartes", species: "Space Marine", tier: 3,
+		attrMin:  [7]int{6, 5, 6, 4, 5, 4, 5},
+		skillMin: map[string]int{"bs": 5, "athletics": 4},
+		abilities: []string{"Intercessor Focus"},
+	},
+}
 
 // randPick returns a random element from the given slice.
 func randPick(options []string) string {
@@ -206,84 +407,7 @@ func RollStats(system string) map[string]any {
 			"notes":            "",
 		}
 	case "wrath_glory":
-		str := rollNd(1, 3) + 3
-		agi := rollNd(1, 3) + 3
-		tgh := rollNd(1, 3) + 3
-		itl := rollNd(1, 3) + 3
-		wil := rollNd(1, 3) + 3
-		fel := rollNd(1, 3) + 3
-		archetype := randPick([]string{
-			"Adeptus Astartes", "Adeptus Mechanicus", "Astra Militarum",
-			"Inquisitorial Agent", "Rogue Trader", "Ministorum Priest",
-			"Sanctioned Psyker", "Adepta Sororitas", "Commissar",
-			"Arbitrator", "Astropath", "Navigator", "Ogryn",
-			"Ratling", "Voidmaster", "Death Cult Assassin",
-			"Heretic", "Chaos Space Marine", "Cultist",
-		})
-		faction := randPick([]string{
-			"Imperium of Man", "Adeptus Mechanicus", "Inquisition",
-			"Adepta Sororitas", "Astra Militarum", "Adeptus Astartes",
-			"Rogue Traders", "Officio Assassinorum",
-			"Chaos Undivided", "Nurgle", "Tzeentch", "Khorne", "Slaanesh",
-			"Death Guard", "Thousand Sons", "World Eaters", "Emperor's Children",
-		})
-		return map[string]any{
-			"archetype": archetype,
-			"faction":   faction,
-			"rank":      rollNd(1, 3),
-			"keywords":  faction,
-
-			"strength":  str,
-			"agility":   agi,
-			"toughness": tgh,
-			"intellect": itl,
-			"willpower": wil,
-			"fellowship": fel,
-
-			// Skills: start at 0; a few randomly bumped to 1 for variety
-			"ws":              wrathSkillRoll(),
-			"bs":              wrathSkillRoll(),
-			"athletics":       wrathSkillRoll(),
-			"awareness":       wrathSkillRoll(),
-			"cunning":         wrathSkillRoll(),
-			"deception":       wrathSkillRoll(),
-			"fortitude":       wrathSkillRoll(),
-			"insight":         wrathSkillRoll(),
-			"intimidation":    wrathSkillRoll(),
-			"investigation":   wrathSkillRoll(),
-			"leadership":      wrathSkillRoll(),
-			"medicae":         wrathSkillRoll(),
-			"persuasion":      wrathSkillRoll(),
-			"pilot":           wrathSkillRoll(),
-			"psychic_mastery": 0,
-			"scholar":         wrathSkillRoll(),
-			"stealth":         wrathSkillRoll(),
-			"survival":        wrathSkillRoll(),
-			"tech":            wrathSkillRoll(),
-
-			// Derived combat values
-			"initiative":    agi,
-			"speed":         agi,
-			"defence":       agi,
-			"resilience":    tgh,
-			"determination": tgh + wil,
-			"resolve":       wil,
-			"conviction":    wil,
-
-			"wounds":     tgh * 2,
-			"shock":      wil + rollNd(1, 3),
-			"corruption": 0,
-
-			"wrath":  0,
-			"glory":  0,
-			"ruin":   0,
-			"wealth": 2,
-			"xp":     0,
-
-			"talents": "",
-			"powers":  "",
-			"notes":   "",
-		}
+		return rollWrathGloryStats()
 	case "blades":
 		return bladesStats()
 
@@ -309,6 +433,100 @@ func RollStats(system string) map[string]any {
 	default:
 		return map[string]any{}
 	}
+}
+
+// rollWrathGloryStats generates a W&G character using the wgArchetypes table.
+// Archetype starting abilities are pre-populated into the talents field.
+func rollWrathGloryStats() map[string]any {
+	// Pick a random archetype key
+	archetypeKeys := make([]string, 0, len(wgArchetypes))
+	for k := range wgArchetypes {
+		archetypeKeys = append(archetypeKeys, k)
+	}
+	archetypeName := randPick(archetypeKeys)
+	def := wgArchetypes[archetypeName]
+
+	// Roll attributes: base 1d3+3, apply archetype minimums
+	attrs := [7]int{}
+	attrNames := [7]string{"strength", "agility", "toughness", "intellect", "willpower", "fellowship", "initiative"}
+	for i := range attrs {
+		rolled := rollNd(1, 3) + 3
+		if rolled < def.attrMin[i] {
+			rolled = def.attrMin[i]
+		}
+		attrs[i] = rolled
+	}
+	str := attrs[0]
+	agi := attrs[1]
+	tgh := attrs[2]
+	itl := attrs[3]
+	wil := attrs[4]
+	fel := attrs[5]
+	ini := attrs[6]
+
+	// Build skill map with archetype minimums applied
+	skillKeys := []string{
+		"ws", "bs", "athletics", "awareness", "cunning", "deception", "fortitude",
+		"insight", "intimidation", "investigation", "leadership", "medicae",
+		"persuasion", "pilot", "psychic_mastery", "scholar", "stealth", "survival", "tech",
+	}
+	skillMap := map[string]any{}
+	for _, sk := range skillKeys {
+		val := wrathSkillRoll()
+		if min, ok := def.skillMin[sk]; ok && val < min {
+			val = min
+		}
+		skillMap[sk] = val
+	}
+
+	// Pre-populate talents with archetype starting abilities
+	talents := strings.Join(def.abilities, "|")
+
+	result := map[string]any{
+		"archetype": archetypeName,
+		"faction":   def.faction,
+		"rank":      rollNd(1, 3),
+		"keywords":  def.faction,
+
+		// Derived combat values
+		"initiative":    ini,
+		"speed":         agi,
+		"defence":       agi - 1,
+		"resilience":    tgh + 1,
+		"determination": tgh,
+		"resolve":       wil - 1,
+		"conviction":    wil,
+
+		"wounds":     (def.tier * 2) + tgh,
+		"shock":      wil + def.tier,
+		"corruption": 0,
+
+		"wrath":  0,
+		"glory":  0,
+		"ruin":   0,
+		"wealth": 2,
+		"xp":     0,
+
+		"talents": talents,
+		"powers":  "",
+		"notes":   "",
+	}
+
+	// Inject attributes
+	for i, name := range attrNames {
+		result[name] = attrs[i]
+	}
+	// Suppress unused variable warnings
+	_ = str
+	_ = itl
+	_ = fel
+
+	// Inject skills
+	for k, v := range skillMap {
+		result[k] = v
+	}
+
+	return result
 }
 
 // wrathSkillRoll returns a starting skill rating for W&G: 70% chance of 0,
