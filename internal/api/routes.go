@@ -2357,13 +2357,14 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 	}
 
 	type slimObjective struct {
-		ID     int64  `json:"id"`
-		Title  string `json:"title"`
-		Status string `json:"status"`
+		ID          int64  `json:"id"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Status      string `json:"status"`
 	}
 	slim := make([]slimObjective, 0, len(existing))
 	for _, o := range existing {
-		slim = append(slim, slimObjective{ID: o.ID, Title: o.Title, Status: o.Status})
+		slim = append(slim, slimObjective{ID: o.ID, Title: o.Title, Description: o.Description, Status: o.Status})
 	}
 	existingJSON, err := json.Marshal(slim)
 	if err != nil {
@@ -2372,22 +2373,23 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 
 	prompt := fmt.Sprintf(`You are a TTRPG quest tracker. Analyze this story passage and update objectives accordingly.
 
-Existing objectives (JSON array, only "active" ones can be resolved): %s
+Existing objectives (JSON array — "active" ones can be resolved, others are informational):
+%s
 
 Story passage:
 %s
 
 Return ONLY a JSON object with two fields:
-- "new": array of {title, description} for brand-new objectives introduced in this passage (quests given, tasks revealed, explicit goals stated). Empty array if none.
-- "resolved": array of {id, status} for ACTIVE objectives that are now completed or impossible. Be aggressive: if a target is dead, captured, fled, destroyed, or the goal is clearly achieved or permanently blocked — mark it. "status" must be "completed" or "failed".
+- "new": array of {title, description} for brand-new objectives introduced in this passage (quests given, tasks revealed, goals explicitly stated). Empty array if none.
+- "resolved": array of {id, status} for ACTIVE objectives that have been completed or made impossible. Be AGGRESSIVE: err on the side of resolving. If the objective's goal has been substantially achieved, the situation has clearly moved on, a target died/fled/converted, evidence of success or permanent failure appears — mark it. Do not require explicit confirmation; infer from story logic. "status" must be "completed" or "failed".
 
-Examples of failed: target died, location destroyed, time ran out, goal became impossible, key person fled permanently.
-Examples of completed: task explicitly done, item delivered, enemy defeated, location reached.
+Examples of completed: task explicitly done, item delivered, enemy defeated, person converted/recruited, location secured, plan executed, any clear story resolution of the goal.
+Examples of failed: target died before goal achieved, location destroyed, time ran out, goal became permanently impossible.
 
 Example output: {"new":[{"title":"Secure the harbor","description":"Take control of the docks before dawn"}],"resolved":[{"id":3,"status":"completed"},{"id":7,"status":"failed"}]}
 
 If nothing changed: {"new":[],"resolved":[]}
-No explanation, no markdown.`, string(existingJSON), gmText)
+No explanation, no markdown, no code fences.`, string(existingJSON), gmText)
 
 	raw, err := completer.Generate(ctx, prompt, 512)
 	if err != nil {
