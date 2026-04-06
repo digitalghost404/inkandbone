@@ -76,11 +76,6 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 		}
 		talentName := strings.TrimPrefix(field, "talent:")
 
-		if !ruleset.WGTalentExists(talentName) {
-			http.Error(w, "unknown or non-purchasable talent", http.StatusBadRequest)
-			return
-		}
-
 		ownedStr, _ := stats["talents"].(string)
 		archetypeName, _ := stats["archetype"].(string)
 		if isWGTalentOwned(ownedStr, archetypeName, talentName) {
