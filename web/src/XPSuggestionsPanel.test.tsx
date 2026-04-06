@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
 import { XPSuggestionsPanel } from './XPSuggestionsPanel'
 import type { XPSpendSuggestionsEvent } from './types'
 
@@ -8,6 +8,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   cleanup()
 })
 
@@ -77,16 +78,24 @@ describe('XPSuggestionsPanel', () => {
   })
 
   it('calls onSpend with correct args and dismisses on success', async () => {
+    vi.useFakeTimers()
     const onSpend = vi.fn().mockResolvedValue(undefined)
     const onDismiss = vi.fn()
     render(
       <XPSuggestionsPanel event={mockEvent} onDismiss={onDismiss} onSpend={onSpend} />
     )
-    fireEvent.click(screen.getAllByText('Spend')[0])
-    await waitFor(() => {
-      expect(onSpend).toHaveBeenCalledWith(7, 'toughness', 5)
-      expect(onDismiss).toHaveBeenCalledOnce()
+    await act(async () => {
+      fireEvent.click(screen.getAllByText('Spend')[0])
     })
+    expect(onSpend).toHaveBeenCalledWith(7, 'toughness', 5)
+    // Green flash visible before dismissal
+    expect(screen.getByText('Spent!')).toBeTruthy()
+    expect(onDismiss).not.toHaveBeenCalled()
+    // Advance timers past the 600ms delay
+    act(() => {
+      vi.runAllTimers()
+    })
+    expect(onDismiss).toHaveBeenCalledOnce()
   })
 
   it('shows error toast on spend failure', async () => {

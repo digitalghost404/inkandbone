@@ -10,6 +10,7 @@ interface Props {
 export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [spending, setSpending] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   if (!event) return null
 
@@ -18,7 +19,8 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
     setSpending(true)
     try {
       await onSpend(event.character_id, field, newValue)
-      onDismiss()
+      setSuccess(true)
+      setTimeout(() => onDismiss(), 600)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to spend XP')
     } finally {
@@ -27,12 +29,13 @@ export function XPSuggestionsPanel({ event, onDismiss, onSpend }: Props) {
   }
 
   return (
-    <div className="xp-suggestions-panel">
+    <div className={`xp-suggestions-panel${success ? ' xp-success-flash' : ''}`}>
       <div className="xp-suggestions-header">
         <span>Advancement Suggestions — {event.current_xp} {event.xp_label} available</span>
         <button className="xp-dismiss-btn" onClick={onDismiss} title="Dismiss">×</button>
       </div>
 
+      {success && <div className="xp-success-toast">Spent!</div>}
       {error && <div className="xp-error-toast">{error}</div>}
 
       <div className="xp-suggestions-list">

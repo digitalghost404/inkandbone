@@ -2527,3 +2527,14 @@ mark {
   border-color: var(--gold);
   color: var(--bg);
 }
+
+.xp-success-flash {
+  background-color: #22c55e;
+  transition: background-color 0.2s ease;
+}
+
+.xp-success-toast {
+  color: #16a34a;
+  font-weight: bold;
+  padding: 0.25rem 0.5rem;
+}
