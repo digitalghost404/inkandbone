@@ -80,6 +80,60 @@ func TestPatchCharacter(t *testing.T) {
 	assert.Equal(t, charID, payload["id"])
 }
 
+func TestPatchCharacter_currency(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	charID, err := s.db.CreateCharacter(campID, "Kael")
+	require.NoError(t, err)
+
+	ch := s.bus.Subscribe()
+
+	body := `{"currency_balance":75,"currency_label":"Coin"}`
+	req := httptest.NewRequest(http.MethodPatch,
+		fmt.Sprintf("/api/characters/%d", charID),
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	char, err := s.db.GetCharacter(charID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(75), char.CurrencyBalance)
+	assert.Equal(t, "Coin", char.CurrencyLabel)
+
+	var got Event
+	select {
+	case got = <-ch:
+	default:
+		t.Fatal("expected character_updated event")
+	}
+	assert.Equal(t, EventCharacterUpdated, got.Type)
+	payload := got.Payload.(map[string]any)
+	assert.Equal(t, charID, payload["id"])
+}
+
+func TestPatchCharacter_currencyBalanceOnly(t *testing.T) {
+	s := newTestServer(t)
+	campID, _ := seedCampaign(t, s.db)
+	charID, err := s.db.CreateCharacter(campID, "Kael")
+	require.NoError(t, err)
+
+	body := `{"currency_balance":30}`
+	req := httptest.NewRequest(http.MethodPatch,
+		fmt.Sprintf("/api/characters/%d", charID),
+		strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	char, err := s.db.GetCharacter(charID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(30), char.CurrencyBalance)
+	assert.Equal(t, "Gold", char.CurrencyLabel) // label unchanged
+}
+
 func TestUploadPortrait(t *testing.T) {
 	dir := t.TempDir()
 	s := newTestServerWithDir(t, dir)

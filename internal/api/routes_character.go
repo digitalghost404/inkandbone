@@ -35,17 +35,37 @@ func (s *Server) handlePatchCharacter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		DataJSON string `json:"data_json"`
+		DataJSON        *string `json:"data_json"`
+		CurrencyBalance *int64  `json:"currency_balance"`
+		CurrencyLabel   *string `json:"currency_label"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if err := s.db.UpdateCharacterData(id, body.DataJSON); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if body.DataJSON != nil {
+		if err := s.db.UpdateCharacterData(id, *body.DataJSON); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
-	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": id, "data_json": body.DataJSON}})
+	if body.CurrencyBalance != nil {
+		balance := *body.CurrencyBalance
+		if balance < 0 {
+			balance = 0
+		}
+		if err := s.db.UpdateCharacterCurrencyBalance(id, balance); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	if body.CurrencyLabel != nil {
+		if err := s.db.UpdateCharacterCurrencyLabel(id, *body.CurrencyLabel); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": id}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
