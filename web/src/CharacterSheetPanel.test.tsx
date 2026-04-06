@@ -17,6 +17,8 @@ const mockCharacter = {
   campaign_id: 1,
   portrait_path: '',
   created_at: '',
+  currency_balance: 0,
+  currency_label: 'Gold',
 }
 
 const mockRuleset = {

@@ -1,16 +1,51 @@
-import { useState, useEffect } from 'react'
-import { fetchItems, createItem, patchItem, deleteItem } from './api'
+import { useState, useEffect, useRef } from 'react'
+import { fetchItems, createItem, patchItem, deleteItem, patchCurrency } from './api'
 import type { Item } from './types'
 
 interface InventoryPanelProps {
   characterId: number | null
+  characterCurrencyBalance: number
+  characterCurrencyLabel: string
   lastEvent: unknown
 }
 
-export function InventoryPanel({ characterId, lastEvent }: InventoryPanelProps) {
+interface CurrencyToast {
+  delta: number
+  label: string
+  prevBalance: number
+  newBalance: number
+}
+
+export function InventoryPanel({
+  characterId,
+  characterCurrencyBalance,
+  characterCurrencyLabel,
+  lastEvent,
+}: InventoryPanelProps) {
   const [items, setItems] = useState<Item[]>([])
   const [addName, setAddName] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Currency state (mirrors props but allows inline edit)
+  const [balance, setBalance] = useState(characterCurrencyBalance)
+  const [label, setLabel] = useState(characterCurrencyLabel)
+  const [editingBalance, setEditingBalance] = useState(false)
+  const [editingLabel, setEditingLabel] = useState(false)
+  const [balanceDraft, setBalanceDraft] = useState('')
+  const [labelDraft, setLabelDraft] = useState('')
+
+  // Toast
+  const [toast, setToast] = useState<CurrencyToast | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync currency from parent when not editing
+  useEffect(() => {
+    if (!editingBalance) setBalance(characterCurrencyBalance)
+  }, [characterCurrencyBalance, editingBalance])
+
+  useEffect(() => {
+    if (!editingLabel) setLabel(characterCurrencyLabel)
+  }, [characterCurrencyLabel, editingLabel])
 
   useEffect(() => {
     if (characterId === null) return
@@ -18,11 +53,83 @@ export function InventoryPanel({ characterId, lastEvent }: InventoryPanelProps) 
   }, [characterId])
 
   useEffect(() => {
-    const ev = lastEvent as { type?: string } | null
-    if (ev?.type === 'item_updated' && characterId !== null) {
+    const ev = lastEvent as { type?: string; payload?: Record<string, unknown> } | null
+    if (!ev) return
+
+    if (ev.type === 'item_updated' && characterId !== null) {
       fetchItems(characterId).then(setItems).catch(() => {})
     }
-  }, [lastEvent, characterId])
+
+    if (ev.type === 'character_updated') {
+      const p = ev.payload
+      if (p && typeof p.currency_delta === 'number' && p.currency_delta !== 0) {
+        const delta = p.currency_delta as number
+        const newBal = p.currency_balance as number
+        const lbl = (p.currency_label as string) ?? label
+
+        // Clear any existing timer
+        if (toastTimer.current) clearTimeout(toastTimer.current)
+
+        setToast({
+          delta,
+          label: lbl,
+          prevBalance: newBal - delta,
+          newBalance: newBal,
+        })
+        setBalance(newBal)
+        setLabel(lbl)
+
+        toastTimer.current = setTimeout(() => setToast(null), 5000)
+      } else if (p && typeof p.currency_balance === 'number') {
+        // Manual patch (no delta) — just sync silently
+        setBalance(p.currency_balance as number)
+        if (typeof p.currency_label === 'string') setLabel(p.currency_label as string)
+      }
+    }
+  }, [lastEvent, characterId, label])
+
+  async function handleUndoToast() {
+    if (!toast || characterId === null) return
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast(null)
+    setBalance(toast.prevBalance)
+    try {
+      await patchCurrency(characterId, { currency_balance: toast.prevBalance })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function handleBalanceSave() {
+    const parsed = parseInt(balanceDraft, 10)
+    if (isNaN(parsed) || characterId === null) {
+      setEditingBalance(false)
+      return
+    }
+    const clamped = Math.max(0, parsed)
+    setBalance(clamped)
+    setEditingBalance(false)
+    try {
+      await patchCurrency(characterId, { currency_balance: clamped })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function handleLabelSave() {
+    const trimmed = labelDraft.trim()
+    if (!trimmed || characterId === null) {
+      setEditingLabel(false)
+      return
+    }
+    setLabel(trimmed)
+    setEditingLabel(false)
+    try {
+      await patchCurrency(characterId, { currency_label: trimmed })
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   async function handleAdd() {
     if (!addName.trim() || characterId === null) return
@@ -65,9 +172,76 @@ export function InventoryPanel({ characterId, lastEvent }: InventoryPanelProps) 
     ...items.filter((i) => !i.equipped),
   ]
 
+  const deltaSign = toast && toast.delta > 0 ? '+' : ''
+
   return (
     <div className="inventory-panel">
       <div className="inventory-panel-label">Inventory</div>
+
+      {/* Currency row */}
+      <div className="currency-row">
+        <span className="currency-icon">◈</span>
+
+        {editingLabel ? (
+          <input
+            className="currency-label-input"
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onBlur={handleLabelSave}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleLabelSave()
+              if (e.key === 'Escape') setEditingLabel(false)
+            }}
+            autoFocus
+          />
+        ) : (
+          <span
+            className="currency-label-text"
+            onClick={() => { setLabelDraft(label); setEditingLabel(true) }}
+            title="Click to rename"
+          >
+            {label}
+          </span>
+        )}
+
+        {editingBalance ? (
+          <input
+            className="currency-input"
+            value={balanceDraft}
+            onChange={(e) => setBalanceDraft(e.target.value)}
+            onBlur={handleBalanceSave}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleBalanceSave()
+              if (e.key === 'Escape') setEditingBalance(false)
+            }}
+            autoFocus
+          />
+        ) : (
+          <span
+            className="currency-value"
+            onClick={() => { setBalanceDraft(String(balance)); setEditingBalance(true) }}
+            title="Click to correct"
+          >
+            {balance}
+          </span>
+        )}
+
+        <button
+          className="currency-edit-btn"
+          title="Correct balance"
+          onClick={() => { setBalanceDraft(String(balance)); setEditingBalance(true) }}
+        >
+          ✎
+        </button>
+      </div>
+
+      {/* Undo toast */}
+      {toast && (
+        <div className="currency-toast">
+          <span>AI: {deltaSign}{toast.delta} {toast.label}</span>
+          <button className="currency-toast-undo" onClick={handleUndoToast}>Undo</button>
+        </div>
+      )}
 
       {sorted.length === 0 && (
         <p className="empty">No items yet.</p>

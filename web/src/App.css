@@ -2004,6 +2004,112 @@ mark {
 .inventory-add-btn:hover:not(:disabled) { background: var(--gold-dim); color: var(--bg); }
 .inventory-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ── Currency Row ────────────────────────────────────────── */
+
+.currency-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0 0.4rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.4rem;
+}
+
+.currency-icon { color: var(--gold); font-size: 12px; flex-shrink: 0; }
+
+.currency-label-text {
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.currency-label-text:hover { color: var(--gold); }
+
+.currency-value {
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--gold);
+  margin-left: auto;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.currency-value:hover { color: var(--text); }
+
+.currency-edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 0.1rem;
+  transition: color 0.12s;
+  flex-shrink: 0;
+}
+.currency-edit-btn:hover { color: var(--gold); }
+
+.currency-input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--gold-dim);
+  color: var(--gold);
+  font-family: var(--serif);
+  font-size: 14px;
+  outline: none;
+  width: 70px;
+  text-align: right;
+}
+
+.currency-label-input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--gold-dim);
+  color: var(--text-dim);
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 1px;
+  outline: none;
+  width: 60px;
+}
+
+/* ── Currency Undo Toast ─────────────────────────────────── */
+
+.currency-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--gold-dim);
+  border-radius: 2px;
+  padding: 0.3rem 0.6rem;
+  margin-bottom: 0.4rem;
+  font-family: var(--serif);
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+  animation: toast-in 0.15s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.currency-toast-undo {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-family: var(--serif);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.currency-toast-undo:hover { color: var(--gold); border-color: var(--gold-dim); }
+
 /* ── Management Panel ─────────────────────────────────────── */
 
 .manage-backdrop {

@@ -498,7 +498,12 @@ export default function App() {
             <DiceRoller sessionId={ctx.session.id} />
           )}
           {ctx.character && (
-            <InventoryPanel characterId={ctx.character.id} lastEvent={lastEvent} />
+            <InventoryPanel
+              characterId={ctx.character.id}
+              characterCurrencyBalance={ctx.character.currency_balance ?? 0}
+              characterCurrencyLabel={ctx.character.currency_label ?? 'Gold'}
+              lastEvent={lastEvent}
+            />
           )}
           <hr className="sidebar-rule" />
           {ctx.session && (
