@@ -1423,6 +1423,11 @@ mark {
   line-height: 1.45;
 }
 
+.talents-entry-loading {
+  font-style: italic;
+  opacity: 0.5;
+}
+
 .talents-empty {
   font-size: 12px;
   color: var(--text-dim);

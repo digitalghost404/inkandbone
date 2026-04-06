@@ -632,3 +632,10 @@ export async function patchCurrency(
   })
   if (!res.ok) throw new Error(`patchCurrency failed: ${res.status}`)
 }
+
+export async function fetchTalentDescription(name: string, system = 'wrath_glory'): Promise<string> {
+  const res = await fetch(`/api/talent-description?name=${encodeURIComponent(name)}&system=${encodeURIComponent(system)}`)
+  if (!res.ok) return ''
+  const data = await res.json() as { description: string }
+  return data.description ?? ''
+}

@@ -166,6 +166,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("PATCH /api/settings", s.handlePatchSettings)
 	// XP advancement
 	s.mux.HandleFunc("POST /api/characters/{id}/advance", s.handleAdvanceCharacter)
+	s.mux.HandleFunc("GET /api/talent-description", s.handleTalentDescription)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

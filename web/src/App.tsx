@@ -23,6 +23,7 @@ import type { XPSpendSuggestionsEvent } from './types'
 import { playDiceRoll, playNotification, playCombatStart } from './audio/sounds'
 import { setAmbientTrack } from './audio/ambient'
 import { wgTalentDescription } from './wgTalentData'
+import { fetchTalentDescription } from './api'
 import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
@@ -297,6 +298,7 @@ export default function App() {
   const [xpSuggestionsEvent, setXPSuggestionsEvent] = useState<XPSpendSuggestionsEvent | null>(null)
   const [xpPanelDismissed, setXpPanelDismissed] = useState(false)
   const [showTalentsPanel, setShowTalentsPanel] = useState(false)
+  const [aiTalentDescs, setAiTalentDescs] = useState<Record<string, string>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -350,6 +352,28 @@ export default function App() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, streamingText])
+
+  // When the talents panel opens, fetch AI descriptions for any talent/power
+  // that has no static description.
+  useEffect(() => {
+    if (!showTalentsPanel || !ctx?.character) return
+    let charData: Record<string, unknown> = {}
+    try { charData = JSON.parse(ctx.character.data_json || '{}') } catch { /* ignore */ }
+    const system = ctx?.campaign?.ruleset_id ? 'wrath_glory' : 'wrath_glory' // best effort
+    const allNames: string[] = []
+    const talentsStr = String(charData.talents ?? '').trim()
+    const powersStr = String(charData.powers ?? '').trim()
+    for (const s of [talentsStr, powersStr]) {
+      if (s) s.split(/[|\n]/).map(t => t.trim().replace(/^[-•]\s*/, '')).filter(Boolean).forEach(n => allNames.push(n))
+    }
+    const unknown = allNames.filter(n => !wgTalentDescription(n) && !aiTalentDescs[n])
+    if (unknown.length === 0) return
+    unknown.forEach(name => {
+      fetchTalentDescription(name, system).then(desc => {
+        if (desc) setAiTalentDescs(prev => ({ ...prev, [name]: desc }))
+      })
+    })
+  }, [showTalentsPanel, ctx?.character]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -548,13 +572,16 @@ export default function App() {
                     ? talents.split(/[|\n]/).map(s => s.trim()).filter(Boolean).map((t, i) => {
                         const name = t.replace(/^[-•]\s*/, '')
                         const rank = talentRanks[name] ?? 1
-                        const desc = wgTalentDescription(name)
+                        const desc = wgTalentDescription(name) || aiTalentDescs[name] || ''
                         return (
                           <div key={i} className="talents-entry">
                             <div className="talents-entry-name">
                               {name}{rank > 1 && <span className="talents-rank-badge">Rank {rank}</span>}
                             </div>
-                            {desc && <div className="talents-entry-desc">{desc}</div>}
+                            {desc
+                              ? <div className="talents-entry-desc">{desc}</div>
+                              : <div className="talents-entry-desc talents-entry-loading">Loading description…</div>
+                            }
                           </div>
                         )
                       })
@@ -566,11 +593,14 @@ export default function App() {
                     <div className="talents-section-title">Psychic Powers</div>
                     {powers.split(/[|\n]/).map(s => s.trim()).filter(Boolean).map((p, i) => {
                       const name = p.replace(/^[-•]\s*/, '')
-                      const desc = wgTalentDescription(name)
+                      const desc = wgTalentDescription(name) || aiTalentDescs[name] || ''
                       return (
                         <div key={i} className="talents-entry">
                           <div className="talents-entry-name">{name}</div>
-                          {desc && <div className="talents-entry-desc">{desc}</div>}
+                          {desc
+                            ? <div className="talents-entry-desc">{desc}</div>
+                            : <div className="talents-entry-desc talents-entry-loading">Loading description…</div>
+                          }
                         </div>
                       )
                     })}
