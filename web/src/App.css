@@ -1403,6 +1403,18 @@ mark {
   font-family: var(--serif);
   color: var(--gold);
   margin-bottom: 0.15rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.talents-rank-badge {
+  font-size: 10px;
+  font-family: var(--serif);
+  color: var(--gold-dim);
+  border: 1px solid var(--gold-dim);
+  padding: 0 4px;
+  letter-spacing: 0.5px;
 }
 
 .talents-entry-desc {

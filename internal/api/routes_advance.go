@@ -78,9 +78,25 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 
 		ownedStr, _ := stats["talents"].(string)
 		archetypeName, _ := stats["archetype"].(string)
-		if isWGTalentOwned(ownedStr, archetypeName, talentName) {
-			http.Error(w, "talent already owned", http.StatusBadRequest)
-			return
+		owned := isWGTalentOwned(ownedStr, archetypeName, talentName)
+
+		if newVal <= 1 {
+			// Initial purchase: must not already own it.
+			if owned {
+				http.Error(w, "talent already owned", http.StatusBadRequest)
+				return
+			}
+		} else {
+			// Upgrade: must already own it at rank newVal-1.
+			if !owned {
+				http.Error(w, "talent not yet owned; purchase at rank 1 first", http.StatusBadRequest)
+				return
+			}
+			currentRank := wgTalentRank(stats, talentName)
+			if newVal != currentRank+1 {
+				http.Error(w, "new_value must be current rank + 1", http.StatusBadRequest)
+				return
+			}
 		}
 
 		cost := ruleset.WGTalentCost(talentName)
@@ -153,12 +169,17 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 		talentName := strings.TrimPrefix(field, "talent:")
 		cost := ruleset.WGTalentCost(talentName)
 		stats[xpKey] = float64(currentXP - cost)
-		ownedStr, _ := stats["talents"].(string)
-		if ownedStr == "" {
-			stats["talents"] = talentName
-		} else {
-			stats["talents"] = ownedStr + "|" + talentName
+		if newVal <= 1 {
+			// Initial purchase: add to owned talents string.
+			ownedStr, _ := stats["talents"].(string)
+			if ownedStr == "" {
+				stats["talents"] = talentName
+			} else {
+				stats["talents"] = ownedStr + "|" + talentName
+			}
 		}
+		// Track rank in talent_ranks map.
+		setWGTalentRank(stats, talentName, newVal)
 
 	case system == "blades":
 		stats[xpKey] = float64(0)
@@ -228,4 +249,27 @@ func isWGTalentOwned(ownedStr, archetypeName, talentName string) bool {
 		}
 	}
 	return false
+}
+
+// wgTalentRank returns the current rank of a talent from stats["talent_ranks"].
+// Returns 1 if owned but no rank recorded (legacy), 0 if not owned.
+func wgTalentRank(stats map[string]any, talentName string) int {
+	ranks, _ := stats["talent_ranks"].(map[string]any)
+	if ranks == nil {
+		return 1 // owned but no rank map — treat as rank 1
+	}
+	if v, ok := ranks[talentName].(float64); ok {
+		return int(v)
+	}
+	return 1
+}
+
+// setWGTalentRank persists the talent rank into stats["talent_ranks"].
+func setWGTalentRank(stats map[string]any, talentName string, rank int) {
+	ranks, _ := stats["talent_ranks"].(map[string]any)
+	if ranks == nil {
+		ranks = map[string]any{}
+	}
+	ranks[talentName] = float64(rank)
+	stats["talent_ranks"] = ranks
 }

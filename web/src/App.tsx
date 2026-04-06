@@ -534,6 +534,7 @@ export default function App() {
           try { charData = JSON.parse(ctx.character.data_json || '{}') } catch { /* ignore */ }
           const talents = String(charData.talents ?? '').trim()
           const powers = String(charData.powers ?? '').trim()
+          const talentRanks = (charData.talent_ranks ?? {}) as Record<string, number>
           return (
             <div className="talents-overlay">
               <div className="talents-overlay-header">
@@ -546,10 +547,13 @@ export default function App() {
                   {talents
                     ? talents.split(/[|\n]/).map(s => s.trim()).filter(Boolean).map((t, i) => {
                         const name = t.replace(/^[-•]\s*/, '')
+                        const rank = talentRanks[name] ?? 1
                         const desc = wgTalentDescription(name)
                         return (
                           <div key={i} className="talents-entry">
-                            <div className="talents-entry-name">{name}</div>
+                            <div className="talents-entry-name">
+                              {name}{rank > 1 && <span className="talents-rank-badge">Rank {rank}</span>}
+                            </div>
                             {desc && <div className="talents-entry-desc">{desc}</div>}
                           </div>
                         )
