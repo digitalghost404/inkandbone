@@ -620,3 +620,15 @@ export async function reanalyzeSession(sessionId: number): Promise<void> {
   const res = await fetch(`/api/sessions/${sessionId}/reanalyze`, { method: 'POST' })
   if (!res.ok) throw new Error('Reanalyze failed')
 }
+
+export async function patchCurrency(
+  characterId: number,
+  updates: { currency_balance?: number; currency_label?: string },
+): Promise<void> {
+  const res = await fetch(`/api/characters/${characterId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) throw new Error(`patchCurrency failed: ${res.status}`)
+}

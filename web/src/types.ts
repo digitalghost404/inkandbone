@@ -13,6 +13,8 @@ export interface Character {
   name: string
   data_json: string
   portrait_path: string
+  currency_balance: number
+  currency_label: string
   created_at: string
 }
 
