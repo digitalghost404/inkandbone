@@ -8,7 +8,7 @@ A private, local AI Game Master for 13 tabletop RPG systems. Single-binary Go se
 - Go 1.22+
 - SQLite (persisted to `~/.ttrpg`)
 - HTTP + WebSocket + SSE
-- Claude Haiku (MCP tools for AI GM)
+- AI clients: Claude Haiku (Anthropic), Ollama (local), HybridClient (Ollama GM + Claude automation), DualOllamaClient (two local models)
 
 **Frontend:**
 - React 18 + TypeScript
@@ -28,8 +28,8 @@ A private, local AI Game Master for 13 tabletop RPG systems. Single-binary Go se
 cmd/ttrpg/            - Binary entrypoint
 internal/
   api/                - HTTP handlers, WebSocket hub, event bus, automation goroutines
-  db/                 - SQLite layer, migrations (15 files: initial + 14 features)
-  ai/                 - Claude API client, system prompt injection, SSE streaming
+  db/                 - SQLite layer, migrations (20 files: initial + 19 features)
+  ai/                 - AI client implementations (Claude Haiku, Ollama, Hybrid, DualOllama), system prompt injection, SSE streaming
   utils/              - Dice roller, validation, rulebook parsing
 web/                  - React frontend (src/components, src/pages, src/hooks)
 Makefile              - build, install, dev, test, clean
@@ -38,6 +38,7 @@ Makefile              - build, install, dev, test, clean
 ## Key Database Tables
 
 - `campaigns` (ruleset reference)
+- `rulesets` (name, schema as JSON, `gm_context` TEXT for per-system narrative guidance — 13 rulesets seeded with tone, vocabulary, honorifics, and mechanical language)
 - `characters` (stats as JSON, portrait path, `currency_balance` INTEGER DEFAULT 0, `currency_label` TEXT DEFAULT 'Gold')
 - `sessions` (title, date, summary, `tension_level` 1-10)
 - `messages` (full conversation history)
@@ -109,7 +110,7 @@ Makefile              - build, install, dev, test, clean
 All fire after every GM response via `handleGMRespondStream`. Goroutines organized in separate files:
 
 1. **autoExtractNPCs** — Parse proper names from GM text, add to session NPC roster.
-2. **autoGenerateMap** — Detect new location names, generate SVG via Claude.
+2. **autoGenerateMap** — Detect new location names, generate SVG via Claude. Post-processes output via `extractSVG()` to ensure `xmlns="http://www.w3.org/2000/svg"` is present (required for browser rendering via `<img>`).
 3. **autoUpdateCharacterStats** — Analyze story events, apply ruleset-based stat changes.
 4. **autoUpdateRecap** — Every 4 GM messages, regenerate session journal.
 5. **autoDetectObjectives** — Detect story goals, add to Objectives tab.
@@ -128,6 +129,37 @@ All fire after every GM response via `handleGMRespondStream`. Goroutines organiz
 Character creation options (race/class/archetype/faction dropdowns) are defined in `internal/ruleset/options.go`. Fully expanded for: dnd5e (race ×17, class ×14, background ×13, alignment ×9), wrath_glory (archetype ×23, faction ×13), shadowrun (metatype ×5, archetype ×10), theonering (culture ×8, calling ×8), blades (playbook, heritage, background, vice).
 
 wrath_glory character schema includes all 19 skills (ws, bs, athletics, awareness, cunning, deception, fortitude, insight, intimidation, investigation, leadership, medicae, persuasion, pilot, psychic_mastery, scholar, stealth, survival, tech), talents (textarea), powers (textarea), corruption, speed, wealth tier, plus all core attributes, derived values, and Wrath/Glory/Ruin/XP. Migration: 016_wrath_glory_skills.sql.
+
+### Database Migrations
+
+20 total migrations in `internal/db/migrations/`:
+- **001–017:** Core schema, features (rulesets, rulebooks, NPCs, objectives, items, combat, phases A–E, currency, W&G skills)
+- **018:** `018_ruleset_gm_context.sql` — Adds `gm_context` TEXT column to rulesets table. Seeded with narrative guidance (tone, vocabulary, NPC conventions, mechanical language) for all 13 built-in rulesets. GM context is injected into the system prompt to ensure consistent ruleset flavor.
+- **019:** `019_wrath_glory_honorifics.sql` — Appends honorific rules to W&G gm_context (Space Marines = "Brother", Sisters of Battle = "Sister"). Prevents misgendering and breaks immersion.
+- **020:** `020_wrath_glory_prose_directives.sql` — Appends prose quality directives to W&G gm_context (length, second person, no purple prose, specificity, no repeated phrases, sentence variety, show-don't-tell).
+
+## AI Client Configuration
+
+The binary in `cmd/ttrpg/main.go` detects and configures the AI client based on environment variables (checked in this order):
+
+| Config | Env Vars | Behavior | Use Case |
+|--------|----------|----------|----------|
+| **Hybrid** | `OLLAMA_GM_MODEL` + `ANTHROPIC_API_KEY` | Ollama for GM narration (no API cost), Claude Haiku for automation (NPC extraction, maps, etc.) | Best of both: free local prose + reliable structured tasks |
+| **Claude** | `ANTHROPIC_API_KEY` only | All operations via Claude Haiku | Simple, low-latency, low-cost production |
+| **Dual Ollama** | `OLLAMA_GM_MODEL` + `OLLAMA_AI_MODEL` | Two local models: one for narrative, one for structured tasks | Full local, different models for different jobs |
+| **Single Ollama** | `OLLAMA_MODEL` only | Same local model for both GM and automation | Simplest local setup, single model does all work |
+| **Disabled** | None set | AI client is nil; all endpoints that call AI fail gracefully | Testing/dev without API costs |
+
+**NewOllamaGMClient** (internal/ai/ollama.go) is tuned for prose quality:
+- `num_ctx`: 16384 (full session history available)
+- `temperature`: 0.85 (creative but not random)
+- `repeat_penalty`: 1.15 (prevents loopy prose)
+- `repeat_last_n`: 128
+- `top_p`: 0.92, `top_k`: 60
+
+**Qwen3 Think Mode:** Ollama clients can enable `/think` reasoning mode for models like Qwen3 that support it. The streaming path buffers and strips `<think>…</think>` blocks so only visible output reaches the client. Non-streaming path uses `stripThinkBlock()`.
+
+**SVG Map Generation:** Always uses the structured AI client (Claude Haiku or fallback automation model) — Ollama GM narration is not used for maps because map generation requires precise SVG syntax. The `extractSVG()` function in routes.go post-processes AI output to ensure `xmlns="http://www.w3.org/2000/svg"` is present so browsers render SVG via `<img>` tags.
 
 ## Key Implementation Details
 
@@ -172,7 +204,7 @@ make dev     # Hot reload: air (Go) + Vite (React) concurrently
 make test    # Run all tests
 ```
 
-Wrapper script at `~/bin/ttrpg` passes `ANTHROPIC_API_KEY` to the binary.
+Wrapper script at `~/bin/ttrpg` passes AI configuration to the binary. See README.md **AI Configuration** for examples: Claude Haiku, Ollama single-model, dual-model, or hybrid modes.
 
 ## Notes for Contributors
 

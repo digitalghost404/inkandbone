@@ -83,7 +83,11 @@ Repeat. That's it. You play from Claude Code. The browser is your always-open re
 
 ### Prerequisites
 
-- **An API key for Claude** — Set `ANTHROPIC_API_KEY` in your shell environment. Get one free at [console.anthropic.com](https://console.anthropic.com).
+Choose one AI backend:
+- **Claude Haiku (recommended):** Set `ANTHROPIC_API_KEY` in your shell. Get a free API key at [console.anthropic.com](https://console.anthropic.com). Cost: fractions of a cent per message.
+- **Local Ollama:** Install [Ollama](https://ollama.ai) and run a model locally. No API keys, no cloud calls, completely private.
+
+Other tools:
 - **Go 1.22+** — Download from [golang.org](https://golang.org/dl).
 - **Node.js 18+ and npm 9+** — Download from [nodejs.org](https://nodejs.org).
 - **Claude Code** — Install from [claude.com/claude-code](https://claude.com/claude-code) and configure the `~/bin/ttrpg` wrapper.
@@ -100,7 +104,15 @@ make install
 
 This builds the Go server with embedded React frontend and installs the binary to `~/bin/ttrpg-bin`.
 
-You must also have a wrapper script at `~/bin/ttrpg` that passes your API key to the binary:
+You must also have a wrapper script at `~/bin/ttrpg` that passes your AI configuration to the binary. See **AI Configuration** below for examples.
+
+### AI Configuration
+
+ink & bone supports multiple AI backends. Choose one and configure your wrapper script:
+
+**Option 1: Claude Haiku (Recommended)**
+
+Use Anthropic's Claude Haiku for all GM narration and automation. Fast, accurate, and low-cost.
 
 ```bash
 #!/bin/bash
@@ -108,7 +120,51 @@ export ANTHROPIC_API_KEY="your-key-here"
 ~/bin/ttrpg-bin "$@"
 ```
 
-Make it executable:
+**Option 2: Ollama (Single Model)**
+
+Use a local model (via Ollama) for both GM narration and automation tasks.
+
+```bash
+#!/bin/bash
+export OLLAMA_MODEL="mistral:latest"
+~/bin/ttrpg-bin "$@"
+```
+
+Recommended models: `mistral:7b`, `neural-chat:7b`, or any RP-tuned model.
+
+**Option 3: Ollama Dual-Model**
+
+Route GM responses to one Ollama model and automation tasks to another. Useful when you have a narrative model (fast, roleplay-focused) and a reasoning model (stronger instruction-following for JSON tasks).
+
+```bash
+#!/bin/bash
+export OLLAMA_GM_MODEL="hermes3:8b"
+export OLLAMA_AI_MODEL="phi4:14b"
+~/bin/ttrpg-bin "$@"
+```
+
+**Option 4: Hybrid (Ollama + Claude)**
+
+Use a local Ollama model for GM narration (no API costs for prose) and Claude Haiku for all automation tasks (NPC extraction, map generation, etc.). Best of both worlds.
+
+```bash
+#!/bin/bash
+export OLLAMA_GM_MODEL="neural-chat:7b"
+export ANTHROPIC_API_KEY="your-key-here"
+~/bin/ttrpg-bin "$@"
+```
+
+**Optional Ollama Tuning**
+
+If using Option 1 with Ollama, the GM client uses these defaults for prose quality:
+- `num_ctx`: 16384 (full session history)
+- `temperature`: 0.85 (creative but focused)
+- `repeat_penalty`: 1.15 (prevents repetitive prose)
+- `top_p`: 0.92, `top_k`: 60 (nucleus sampling)
+
+These are automatically applied by the binary — no configuration needed.
+
+Make your wrapper script executable:
 
 ```bash
 chmod +x ~/bin/ttrpg
@@ -627,11 +683,11 @@ Supported scene tags (13 total): `tavern`, `dungeon`, `forest`, `city`, `ocean`,
 ### Tech Stack
 
 - **Go 1.22+:** HTTP server, SQLite database layer, MCP integration.
-- **SQLite:** Persistent session, character, and campaign data in a single local file (`~/.ttrpg`).
+- **SQLite:** Persistent session, character, and campaign data in a single local file (`~/.ttrpg`). 20 migrations, including per-ruleset GM context and Wrath & Glory prose directives.
 - **React 18 + TypeScript:** Vite-bundled frontend, embedded in the binary.
 - **WebSocket:** Live dashboard updates from server to browser.
 - **SSE (Server-Sent Events):** Streaming GM responses for character-by-character prose display.
-- **Claude Haiku (MCP tools):** AI GM reasoning and context injection.
+- **AI:** Claude Haiku (Anthropic API, MCP tools) OR local Ollama models (single-model, dual-model, or hybrid modes).
 - **Dice library:** Dice roll expression parsing and evaluation.
 
 ### Project Layout
