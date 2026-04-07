@@ -605,14 +605,29 @@ func (s *Server) handleGenerateMap(w http.ResponseWriter, r *http.Request) {
 }
 
 func extractSVG(s string) string {
-	start := strings.Index(s, "<svg")
-	end := strings.LastIndex(s, "</svg>")
+	// Strip markdown code fences that some models wrap around SVG output.
+	s = strings.TrimSpace(s)
+	if idx := strings.Index(s, "```"); idx != -1 {
+		// Remove opening fence (e.g. ```svg or ```)
+		end := strings.Index(s[idx+3:], "\n")
+		if end != -1 {
+			s = s[idx+3+end+1:]
+		}
+	}
+	if idx := strings.LastIndex(s, "```"); idx != -1 {
+		s = strings.TrimSpace(s[:idx])
+	}
+
+	lower := strings.ToLower(s)
+	start := strings.Index(lower, "<svg")
+	end := strings.LastIndex(lower, "</svg>")
 	if start == -1 || end == -1 || end < start {
 		return ""
 	}
 	svg := s[start : end+6]
 	// Ensure the xmlns attribute is present — browsers require it to render SVG via <img>.
-	if !strings.Contains(svg[:strings.Index(svg, ">")+1], "xmlns=") {
+	openClose := strings.Index(svg, ">")
+	if openClose != -1 && !strings.Contains(svg[:openClose+1], "xmlns=") {
 		svg = strings.Replace(svg, "<svg ", `<svg xmlns="http://www.w3.org/2000/svg" `, 1)
 	}
 	return svg
@@ -741,9 +756,10 @@ CONTENT — no limits, no exceptions:
 - If the player pushes into dark or explicit territory, follow them. Do not pump the brakes.
 
 FORMAT:
-- Write 4-6 paragraphs of narrative prose in second person ("you"). Example: "You step into the chamber..."
-- Every response must be substantial — short player inputs still deserve full scene description and NPC reaction.
-- Match the tone, vocabulary, and pacing of previous GM messages in the conversation.
+- Write 4-5 paragraphs of narrative prose in second person ("you"). Example: "You step into the chamber..."
+- HARD LIMIT: Stop after 5 paragraphs. Do not write a sixth paragraph under any circumstances.
+- Short player inputs get shorter responses within that range. Leave room for the player to act and drive the story.
+- Match the tone and vocabulary of previous GM messages. Do NOT match their length — previous responses may have been too long. Always defer to this 4-5 paragraph rule regardless of prior response length.
 - End every response on its own line with: **What do you do?**
 - Begin immediately with story prose. No preamble like "Certainly!" or "As the GM..." — just the story.
 
@@ -1168,9 +1184,9 @@ func (s *Server) handleGMRespond(w http.ResponseWriter, r *http.Request) {
 	}
 
 	worldCtx := s.buildWorldContext(r.Context(), id)
-	systemPrompt := gmSystemPrompt + "\n\n" + worldCtx
+	systemPrompt := gmSystemPrompt + "\n\n" + worldCtx + "\n\n[REMINDER] Your response must be exactly 4-5 paragraphs. Count them. Do not write a sixth paragraph. End with **What do you do?** on its own line."
 
-	response, err := gmResponder.Respond(r.Context(), systemPrompt, history, 4096)
+	response, err := gmResponder.Respond(r.Context(), systemPrompt, history, 2048)
 	if err != nil {
 		http.Error(w, "AI error: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -1308,13 +1324,13 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 			worldCtx += "\n[GM DIRECTION]\nThe player's action FAILED. Narrate a setback, complication, or consequence. Do not give them what they wanted. Make failure interesting.\n[/GM DIRECTION]"
 		}
 	}
-	systemPrompt := gmSystemPrompt + "\n\n" + worldCtx
+	systemPrompt := gmSystemPrompt + "\n\n" + worldCtx + "\n\n[REMINDER] Your response must be exactly 4-5 paragraphs. Count them. Do not write a sixth paragraph. End with **What do you do?** on its own line."
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	fullText, err := streamer.StreamRespond(r.Context(), systemPrompt, history, 4096, w)
+	fullText, err := streamer.StreamRespond(r.Context(), systemPrompt, history, 2048, w)
 	if err != nil {
 		// Headers already sent; can't send HTTP error status, just log and return
 		log.Printf("gm-respond-stream: StreamRespond error (session %d): %v", id, err)
@@ -1391,13 +1407,22 @@ Return ONLY JSON (no explanation, no markdown):
 Story passage:
 %s`, gmText)
 
-	raw, err := completer.Generate(ctx, detectPrompt, 128)
+	raw, err := completer.Generate(ctx, detectPrompt, 512)
 	if err != nil {
 		log.Printf("autoGenerateMap: location detection failed (session %d): %v", sessionID, err)
 		return
 	}
 
 	raw = strings.TrimSpace(raw)
+	// Strip markdown code fences that some models emit despite instructions.
+	if idx := strings.Index(raw, "```"); idx != -1 {
+		if end := strings.Index(raw[idx+3:], "\n"); end != -1 {
+			raw = raw[idx+3+end+1:]
+		}
+	}
+	if idx := strings.LastIndex(raw, "```"); idx != -1 {
+		raw = strings.TrimSpace(raw[:idx])
+	}
 	start := strings.Index(raw, "{")
 	end := strings.LastIndex(raw, "}")
 	if start < 0 || end <= start {
@@ -1428,7 +1453,7 @@ Story passage:
 	// Map generation requires precise SVG output — use the structured AI client
 	// (Claude Haiku), not the narrative Ollama model.
 	mapPrompt := mapSystemPrompt + "\n\nGenerate a map for this TTRPG setting:\n\n" + loc.Context
-	svgRaw, err := completer.Generate(ctx, mapPrompt, 4096)
+	svgRaw, err := completer.Generate(ctx, mapPrompt, 8192)
 	if err != nil {
 		log.Printf("autoGenerateMap: SVG generation failed for %q (session %d): %v", loc.Name, sessionID, err)
 		return
@@ -1436,7 +1461,11 @@ Story passage:
 
 	svgContent := extractSVG(svgRaw)
 	if svgContent == "" {
-		log.Printf("autoGenerateMap: no valid SVG in response for %q (session %d)", loc.Name, sessionID)
+		preview := svgRaw
+		if len(preview) > 300 {
+			preview = preview[:300]
+		}
+		log.Printf("autoGenerateMap: no valid SVG in response for %q (session %d) — raw preview: %q", loc.Name, sessionID, preview)
 		return
 	}
 

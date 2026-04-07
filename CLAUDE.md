@@ -132,11 +132,14 @@ wrath_glory character schema includes all 19 skills (ws, bs, athletics, awarenes
 
 ### Database Migrations
 
-20 total migrations in `internal/db/migrations/`:
+23 total migrations in `internal/db/migrations/`:
 - **001–017:** Core schema, features (rulesets, rulebooks, NPCs, objectives, items, combat, phases A–E, currency, W&G skills)
 - **018:** `018_ruleset_gm_context.sql` — Adds `gm_context` TEXT column to rulesets table. Seeded with narrative guidance (tone, vocabulary, NPC conventions, mechanical language) for all 13 built-in rulesets. GM context is injected into the system prompt to ensure consistent ruleset flavor.
 - **019:** `019_wrath_glory_honorifics.sql` — Appends honorific rules to W&G gm_context (Space Marines = "Brother", Sisters of Battle = "Sister"). Prevents misgendering and breaks immersion.
 - **020:** `020_wrath_glory_prose_directives.sql` — Appends prose quality directives to W&G gm_context (length, second person, no purple prose, specificity, no repeated phrases, sentence variety, show-don't-tell).
+- **021:** `021_wrath_glory_response_length.sql` — Fixes conflicting LENGTH directive; changes "at least 3 substantial paragraphs" to "exactly 4-5 paragraphs" to align with base system prompt.
+- **022:** `022_wrath_glory_response_length_v2.sql` — Intermediate length adjustment (3-4 paragraphs); superseded by 023.
+- **023:** `023_wrath_glory_response_length_v3.sql` — Final response length: 4-5 paragraphs. Matches base gmSystemPrompt FORMAT rule.
 
 ## AI Client Configuration
 
@@ -168,6 +171,8 @@ The binary in `cmd/ttrpg/main.go` detects and configures the AI client based on 
 - `[NPC: Name]` personality cards — For every NPC world note with non-empty `personality_json`, the personality definition is injected
 - `[RULEBOOK REFERENCES]` — Up to 5 rulebook chunks searched from player message keywords (with mechanic term expansion); injected before GM responds. Governed by a `RULEBOOK ADHERENCE` directive in the system prompt that binds Claude to apply referenced rules exactly.
 - Ensures NPCs stay consistent, plot threads remain visible, and GM rulings follow the actual rulebook.
+
+**GM Response Length:** Hard-enforced at 4-5 paragraphs via three mechanisms: (1) `gmSystemPrompt` FORMAT rule, (2) per-ruleset `gm_context` LENGTH directive (migrations 021-023), (3) `[REMINDER]` block appended as the final line of every system prompt. The FORMAT rule explicitly tells the model not to match the length of prior responses — necessary because the conversation history may contain longer responses from before the limit was tuned.
 
 **Em-dash Strip:** All output em-dashes (`—`) programmatically stripped before display.
 
