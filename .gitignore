@@ -23,3 +23,6 @@ tmp/
 # Worktrees
 .worktrees/
 .superpowers/
+
+# Internal planning docs
+docs/superpowers/
