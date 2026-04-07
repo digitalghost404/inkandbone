@@ -31,6 +31,10 @@ func main() {
 
 	var aiClient ai.Completer
 	switch {
+	case os.Getenv("OLLAMA_GM_MODEL") != "" && os.Getenv("ANTHROPIC_API_KEY") != "":
+		gmModel := os.Getenv("OLLAMA_GM_MODEL")
+		aiClient = ai.NewHybridClient(gmModel, os.Getenv("ANTHROPIC_API_KEY"))
+		log.Printf("AI: Hybrid (GM=%s via Ollama, automation=Claude Haiku)", gmModel)
 	case os.Getenv("ANTHROPIC_API_KEY") != "":
 		aiClient = ai.NewClient(os.Getenv("ANTHROPIC_API_KEY"))
 		log.Println("AI: Anthropic Claude Haiku")

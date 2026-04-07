@@ -516,6 +516,37 @@ func TestBuildWorldContext_NPCPersonality(t *testing.T) {
 	assert.Contains(t, ctx, "cunning")
 }
 
+func TestBuildWorldContext_Setting(t *testing.T) {
+	s := newTestServer(t)
+
+	// Use a seeded ruleset that has gm_context populated by migration 018.
+	rs, err := s.db.GetRulesetByName("dnd5e")
+	require.NoError(t, err)
+	require.NotNil(t, rs)
+	require.NotEmpty(t, rs.GMContext, "dnd5e gm_context must be set by migration 018")
+
+	campID, err := s.db.CreateCampaign(rs.ID, "Test Campaign", "")
+	require.NoError(t, err)
+	sessID, err := s.db.CreateSession(campID, "S1", "2026-04-06")
+	require.NoError(t, err)
+
+	ctx := s.buildWorldContext(t.Context(), sessID)
+	assert.Contains(t, ctx, "[SETTING]")
+	assert.Contains(t, ctx, "[/SETTING]")
+	// Verify the actual ruleset content is present (dnd5e context mentions high fantasy).
+	assert.Contains(t, ctx, rs.GMContext)
+}
+
+func TestBuildWorldContext_SettingAbsentForCustomRuleset(t *testing.T) {
+	s := newTestServer(t)
+
+	// seedCampaign creates a custom ruleset with empty gm_context — no [SETTING] block expected.
+	_, sessID := seedCampaign(t, s.db)
+
+	ctx := s.buildWorldContext(t.Context(), sessID)
+	assert.NotContains(t, ctx, "[SETTING]")
+}
+
 func TestPatchWorldNotePersonality(t *testing.T) {
 	s := newTestServer(t)
 	campID, _ := seedCampaign(t, s.db)

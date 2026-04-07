@@ -19,6 +19,8 @@ type OllamaClient struct {
 	model   string
 	baseURL string
 	http    *http.Client
+	options map[string]any // extra Ollama model options (num_ctx, temperature, etc.)
+	think   bool           // prepend /think to system prompt for Qwen3 reasoning mode
 }
 
 // NewOllamaClient creates an OllamaClient for the given model using the default
@@ -32,6 +34,28 @@ func NewOllamaClientWithURL(model, baseURL string) *OllamaClient {
 	return &OllamaClient{model: model, baseURL: baseURL, http: &http.Client{}}
 }
 
+// NewOllamaGMClient creates an OllamaClient tuned for GM roleplay:
+//   - num_ctx 8192: enough for full session history
+//   - temperature 0.72: focused but not mechanical
+//   - repeat_penalty 1.05: prevents looping prose
+//   - think: prepends /think to system prompt so Qwen3 reasons before responding
+func NewOllamaGMClient(model string) *OllamaClient {
+	return &OllamaClient{
+		model:   model,
+		baseURL: defaultOllamaURL,
+		http:    &http.Client{},
+		options: map[string]any{
+			"num_ctx":        16384,
+			"temperature":    0.85,
+			"repeat_penalty": 1.15,
+			"repeat_last_n":  128,
+			"top_p":          0.92,
+			"top_k":          60,
+		},
+		think: false,
+	}
+}
+
 // Generate implements Completer. Sends a single-turn prompt and returns the response.
 func (c *OllamaClient) Generate(ctx context.Context, prompt string, maxTokens int) (string, error) {
 	return c.chatOnce(ctx, "", []ChatMessage{{Role: "user", Content: prompt}}, maxTokens)
@@ -43,18 +67,25 @@ func (c *OllamaClient) Respond(ctx context.Context, system string, history []Cha
 	if err != nil {
 		return "", err
 	}
+	if c.think {
+		text = stripThinkBlock(text)
+	}
 	return stripEmDash(text), nil
 }
 
 // StreamRespond implements Streamer. Streams the response as SSE data lines to w.
 func (c *OllamaClient) StreamRespond(ctx context.Context, system string, history []ChatMessage, maxTokens int, w http.ResponseWriter) (string, error) {
-	msgs := ollamaMessages(system, history)
-	body, err := json.Marshal(map[string]any{
+	msgs := ollamaMessages(c.applyThink(system), history)
+	payload := map[string]any{
 		"model":      c.model,
 		"messages":   msgs,
 		"max_tokens": maxTokens,
 		"stream":     true,
-	})
+	}
+	if len(c.options) > 0 {
+		payload["options"] = c.options
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +108,11 @@ func (c *OllamaClient) StreamRespond(ctx context.Context, system string, history
 	}
 
 	flusher, canFlush := w.(http.Flusher)
-	var fullText strings.Builder
+	var (
+		fullText     strings.Builder
+		thinkBuf     strings.Builder
+		thinkingDone = !c.think // if think mode is off, stream immediately
+	)
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -95,8 +130,62 @@ func (c *OllamaClient) StreamRespond(ctx context.Context, system string, history
 		if err := json.Unmarshal([]byte(data), &event); err != nil {
 			continue
 		}
-		if len(event.Choices) > 0 && event.Choices[0].Delta.Content != "" {
-			text := stripEmDash(event.Choices[0].Delta.Content)
+		if len(event.Choices) == 0 || event.Choices[0].Delta.Content == "" {
+			continue
+		}
+		chunk := event.Choices[0].Delta.Content
+		if !thinkingDone {
+			// Buffer until we see </think>. Everything inside is reasoning — never stream it.
+			thinkBuf.WriteString(chunk)
+			buf := thinkBuf.String()
+
+			// Early exit from think-buffering: if we've accumulated enough to know the
+			// model didn't open a <think> block (e.g. abliterated models that ignore /think),
+			// switch to streaming immediately rather than swallowing the entire response.
+			const thinkOpen = "<think>"
+			if thinkBuf.Len() >= len(thinkOpen) && !strings.HasPrefix(buf, thinkOpen) {
+				thinkingDone = true
+				thinkBuf.Reset()
+				text := stripEmDash(buf)
+				fullText.WriteString(text)
+				fmt.Fprintf(w, "data: %s\n\n", text) //nolint:errcheck
+				if canFlush {
+					flusher.Flush()
+				}
+				continue
+			}
+
+			if idx := strings.Index(buf, "</think>"); idx != -1 {
+				thinkingDone = true
+				after := strings.TrimLeft(buf[idx+len("</think>"):], "\n")
+				thinkBuf.Reset()
+				if after != "" {
+					after = stripEmDash(after)
+					fullText.WriteString(after)
+					fmt.Fprintf(w, "data: %s\n\n", after) //nolint:errcheck
+					if canFlush {
+						flusher.Flush()
+					}
+				}
+			}
+			continue
+		}
+		text := stripEmDash(chunk)
+		fullText.WriteString(text)
+		fmt.Fprintf(w, "data: %s\n\n", text) //nolint:errcheck
+		if canFlush {
+			flusher.Flush()
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fullText.String(), fmt.Errorf("read stream: %w", err)
+	}
+	// End-of-stream safety: if think-buffering never resolved (model stopped mid-think-block
+	// or never emitted </think>), flush whatever is buffered as the response — but only if
+	// the buffer doesn't start with <think> (which would mean it's reasoning, not content).
+	if !thinkingDone && thinkBuf.Len() > 0 {
+		if !strings.HasPrefix(thinkBuf.String(), "<think>") {
+			text := stripEmDash(thinkBuf.String())
 			fullText.WriteString(text)
 			fmt.Fprintf(w, "data: %s\n\n", text) //nolint:errcheck
 			if canFlush {
@@ -104,20 +193,21 @@ func (c *OllamaClient) StreamRespond(ctx context.Context, system string, history
 			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return fullText.String(), fmt.Errorf("read stream: %w", err)
-	}
 	return fullText.String(), nil
 }
 
 func (c *OllamaClient) chatOnce(ctx context.Context, system string, history []ChatMessage, maxTokens int) (string, error) {
-	msgs := ollamaMessages(system, history)
-	body, err := json.Marshal(map[string]any{
+	msgs := ollamaMessages(c.applyThink(system), history)
+	payload := map[string]any{
 		"model":      c.model,
 		"messages":   msgs,
 		"max_tokens": maxTokens,
 		"stream":     false,
-	})
+	}
+	if len(c.options) > 0 {
+		payload["options"] = c.options
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
@@ -153,6 +243,39 @@ func (c *OllamaClient) chatOnce(ctx context.Context, system string, history []Ch
 		return "", fmt.Errorf("empty response from Ollama")
 	}
 	return result.Choices[0].Message.Content, nil
+}
+
+// stripThinkBlock removes all <think>...</think> blocks from s.
+// Qwen3 thinking models emit chain-of-thought inside these tags; occasionally
+// multiple blocks appear (e.g. mid-response reasoning). This is called on the
+// non-streaming path; the streaming path buffers tokens until it sees </think>
+// and discards them inline.
+func stripThinkBlock(s string) string {
+	for {
+		end := strings.Index(s, "</think>")
+		if end == -1 {
+			break
+		}
+		after := strings.TrimLeft(s[end+len("</think>"):], "\n")
+		start := strings.Index(s, "<think>")
+		if start == -1 || start > end {
+			// No opening tag before the closing tag — strip everything up to </think>.
+			s = after
+		} else {
+			s = s[:start] + after
+		}
+	}
+	return strings.TrimLeft(s, "\n")
+}
+
+// applyThink prepends /think to the system prompt when thinking mode is enabled.
+// Qwen3 models recognise this token and reason silently before generating output,
+// which significantly improves instruction following without changing visible output.
+func (c *OllamaClient) applyThink(system string) string {
+	if c.think && system != "" {
+		return "/think\n\n" + system
+	}
+	return system
 }
 
 // ollamaMessages converts a system prompt and history into OpenAI-format messages.
@@ -194,4 +317,34 @@ func (d *DualOllamaClient) Respond(ctx context.Context, system string, history [
 
 func (d *DualOllamaClient) StreamRespond(ctx context.Context, system string, history []ChatMessage, maxTokens int, w http.ResponseWriter) (string, error) {
 	return d.gm.StreamRespond(ctx, system, history, maxTokens, w)
+}
+
+// HybridClient routes GM streaming/response calls to a local Ollama model and
+// all automation Generate calls to the Anthropic API (Claude Haiku). Use this
+// when you want an uncensored local model for roleplay but Claude for structured
+// JSON tasks (objective detection, NPC extraction, recaps, etc.).
+type HybridClient struct {
+	gm   *OllamaClient // handles Respond + StreamRespond
+	auto *Client       // handles Generate
+}
+
+// NewHybridClient creates a client that sends GM calls to Ollama and automation
+// calls to Anthropic. The GM client is tuned for roleplay quality (see NewOllamaGMClient).
+func NewHybridClient(gmModel, anthropicKey string) *HybridClient {
+	return &HybridClient{
+		gm:   NewOllamaGMClient(gmModel),
+		auto: NewClient(anthropicKey),
+	}
+}
+
+func (h *HybridClient) Generate(ctx context.Context, prompt string, maxTokens int) (string, error) {
+	return h.auto.Generate(ctx, prompt, maxTokens)
+}
+
+func (h *HybridClient) Respond(ctx context.Context, system string, history []ChatMessage, maxTokens int) (string, error) {
+	return h.gm.Respond(ctx, system, history, maxTokens)
+}
+
+func (h *HybridClient) StreamRespond(ctx context.Context, system string, history []ChatMessage, maxTokens int, w http.ResponseWriter) (string, error) {
+	return h.gm.StreamRespond(ctx, system, history, maxTokens, w)
 }

@@ -306,7 +306,7 @@ body {
 .prose-gm h2 { font-size: 18px; }
 .prose-gm h3 { font-size: 15px; color: var(--text-dim); }
 
-.prose-gm strong { color: var(--gold); font-weight: 600; }
+.prose-gm strong { color: var(--gold); font-weight: 700; font-style: italic; }
 .prose-gm em { color: var(--text); font-style: italic; }
 
 .prose-gm ul, .prose-gm ol {

@@ -47,6 +47,43 @@ func TestRulesets(t *testing.T) {
 	assert.Len(t, list, 13)
 }
 
+func TestRulesetGMContext(t *testing.T) {
+	d := newTestDB(t)
+
+	// Every seeded ruleset must have a non-empty gm_context after migration 018.
+	allRulesets := []string{
+		"dnd5e", "ironsworn", "vtm", "coc", "cyberpunk",
+		"shadowrun", "wfrp", "starwars", "l5r", "theonering",
+		"wrath_glory", "blades", "paranoia",
+	}
+
+	for _, name := range allRulesets {
+		t.Run(name, func(t *testing.T) {
+			r, err := d.GetRulesetByName(name)
+			require.NoError(t, err)
+			require.NotNil(t, r, "ruleset %q not found", name)
+			assert.NotEmpty(t, r.GMContext, "ruleset %q has empty gm_context", name)
+		})
+	}
+
+	// ListRulesets also returns gm_context.
+	list, err := d.ListRulesets()
+	require.NoError(t, err)
+	for _, r := range list {
+		assert.NotEmpty(t, r.GMContext, "ListRulesets: ruleset %q has empty gm_context", r.Name)
+	}
+
+	// GetRuleset (by ID) also returns gm_context.
+	r, err := d.GetRulesetByName("blades")
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	byID, err := d.GetRuleset(r.ID)
+	require.NoError(t, err)
+	require.NotNil(t, byID)
+	assert.NotEmpty(t, byID.GMContext)
+	assert.Equal(t, r.GMContext, byID.GMContext)
+}
+
 func TestCampaigns(t *testing.T) {
 	d := newTestDB(t)
 	rs, err := d.GetRulesetByName("ironsworn")

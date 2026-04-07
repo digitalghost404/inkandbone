@@ -168,6 +168,12 @@ interface ProseJournalProps {
   activeMapImagePath: string | null
 }
 
+// Ensure "What do you do?" at the end of GM responses is always its own paragraph
+// and rendered bold+italic gold to stand out as the player prompt cue.
+function normalizeGMContent(text: string): string {
+  return text.replace(/\s*(\*\*)?What do you do\??(\*\*)?\s*$/, '\n\n**What do you do?**')
+}
+
 function ProseJournal({
   messages,
   characterName,
@@ -186,7 +192,7 @@ function ProseJournal({
     if (m.role === 'assistant') {
       nodes.push(
         <div key={m.id} className="prose-gm prose-gm-wrap">
-          <ReactMarkdown>{m.content}</ReactMarkdown>
+          <ReactMarkdown>{normalizeGMContent(m.content)}</ReactMarkdown>
           {activeMapId !== null && activeMapImagePath !== null && (
             <button
               className="prose-pin-btn"
@@ -681,7 +687,7 @@ export default function App() {
             />
             {streamingText && (
               <div className="prose-gm streaming">
-                <ReactMarkdown>{streamingText}</ReactMarkdown>
+                <ReactMarkdown>{normalizeGMContent(streamingText)}</ReactMarkdown>
               </div>
             )}
             {gmResponding && !streamingText && (

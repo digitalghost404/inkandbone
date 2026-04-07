@@ -20,6 +20,7 @@ type Server struct {
 	dataDir          string
 	aiClient         ai.Completer // nil when ANTHROPIC_API_KEY is unset
 	xpSuggestCounts  sync.Map     // sessionID int64 → int
+	settingCache     sync.Map     // rulesetID int64 → string (cached [SETTING]...[/SETTING] block)
 }
 
 // NewServer creates the HTTP server. dataDir is the base path for uploaded files

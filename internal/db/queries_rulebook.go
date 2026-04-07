@@ -25,8 +25,8 @@ type RulebookSource struct {
 func (d *DB) GetRuleset(id int64) (*Ruleset, error) {
 	var r Ruleset
 	err := d.db.QueryRow(
-		"SELECT id, name, schema_json, version FROM rulesets WHERE id = ?", id,
-	).Scan(&r.ID, &r.Name, &r.SchemaJSON, &r.Version)
+		"SELECT id, name, schema_json, version, gm_context FROM rulesets WHERE id = ?", id,
+	).Scan(&r.ID, &r.Name, &r.SchemaJSON, &r.Version, &r.GMContext)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

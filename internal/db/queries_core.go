@@ -31,6 +31,7 @@ type Ruleset struct {
 	Name       string `json:"name"`
 	SchemaJSON string `json:"schema_json"`
 	Version    string `json:"version"`
+	GMContext  string `json:"gm_context"`
 }
 
 func (d *DB) CreateRuleset(name, schemaJSON, version string) (int64, error) {
@@ -47,8 +48,8 @@ func (d *DB) CreateRuleset(name, schemaJSON, version string) (int64, error) {
 func (d *DB) GetRulesetByName(name string) (*Ruleset, error) {
 	r := &Ruleset{}
 	err := d.db.QueryRow(
-		"SELECT id, name, schema_json, version FROM rulesets WHERE name = ?", name,
-	).Scan(&r.ID, &r.Name, &r.SchemaJSON, &r.Version)
+		"SELECT id, name, schema_json, version, gm_context FROM rulesets WHERE name = ?", name,
+	).Scan(&r.ID, &r.Name, &r.SchemaJSON, &r.Version, &r.GMContext)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -56,7 +57,7 @@ func (d *DB) GetRulesetByName(name string) (*Ruleset, error) {
 }
 
 func (d *DB) ListRulesets() ([]Ruleset, error) {
-	rows, err := d.db.Query("SELECT id, name, schema_json, version FROM rulesets ORDER BY name")
+	rows, err := d.db.Query("SELECT id, name, schema_json, version, gm_context FROM rulesets ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,7 @@ func (d *DB) ListRulesets() ([]Ruleset, error) {
 	var out []Ruleset
 	for rows.Next() {
 		var r Ruleset
-		if err := rows.Scan(&r.ID, &r.Name, &r.SchemaJSON, &r.Version); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.SchemaJSON, &r.Version, &r.GMContext); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
