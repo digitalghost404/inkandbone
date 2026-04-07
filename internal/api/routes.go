@@ -2459,10 +2459,13 @@ func (s *Server) handleDeduplicateObjectives(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, map[string]any{"deleted": n})
 }
 
+// objectiveNewKeywords gates autoDetectObjectives when there are no active objectives.
+// Kept narrow: only words that strongly signal a quest/contract being issued, not generic
+// action words like "kill" or "find" which appear in every combat narrative.
 var objectiveNewKeywords = []string{
-	"quest", "task", "mission", "objective", "goal",
-	"find", "bring", "kill", "slay", "defeat", "protect", "rescue", "retrieve", "discover", "investigate",
-	"reward", "bounty", "contract", "assignment", "must", "need to", "have to",
+	"quest", "mission", "objective", "bounty", "contract", "assignment",
+	"reward", "tasked", "ordered to", "charged with", "your mission", "your task",
+	"you must", "you need to", "you have to",
 }
 
 // autoDetectObjectives uses the AI to detect new objectives introduced in a GM
@@ -2510,28 +2513,31 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 		}
 	}
 
-	// Build a case-insensitive set of existing titles for dedup.
+	// Split objectives: active ones are candidates for resolution; all titles go into the dedup set.
 	existingTitleSet := make(map[string]bool, len(existing))
 	type slimObjective struct {
 		ID          int64  `json:"id"`
 		Title       string `json:"title"`
 		Description string `json:"description"`
-		Status      string `json:"status"`
 	}
-	slim := make([]slimObjective, 0, len(existing))
+	var activeSlim []slimObjective
+	var allTitles []string
 	for _, o := range existing {
-		slim = append(slim, slimObjective{ID: o.ID, Title: o.Title, Description: o.Description, Status: o.Status})
-		existingTitleSet[strings.ToLower(strings.TrimSpace(o.Title))] = true
+		key := strings.ToLower(strings.TrimSpace(o.Title))
+		existingTitleSet[key] = true
+		allTitles = append(allTitles, o.Title)
+		if o.Status == "active" {
+			activeSlim = append(activeSlim, slimObjective{ID: o.ID, Title: o.Title, Description: o.Description})
+		}
 	}
-	existingJSON, err := json.Marshal(slim)
+	activeJSON, err := json.Marshal(activeSlim)
 	if err != nil {
 		return
 	}
 
-	// Fetch recent session history to give the AI enough context for resolution.
-	// A single GM message is often too narrow; we include the last ~4000 chars of
-	// prior assistant messages as a "recent story" prefix so the AI can tell whether
-	// an active objective was resolved in an earlier turn.
+	// Fetch recent session history to give the AI resolution context.
+	// Include the last ~6000 chars of prior GM messages so the AI can detect
+	// objectives that were resolved in earlier turns, not just the current one.
 	recentContext := ""
 	if msgs, merr := s.db.ListMessages(sessionID); merr == nil {
 		var sb strings.Builder
@@ -2542,37 +2548,51 @@ func (s *Server) autoDetectObjectives(ctx context.Context, sessionID int64, gmTe
 			}
 		}
 		prior := strings.TrimSpace(sb.String())
-		// Exclude the current gmText from the prior (it's appended separately).
 		prior = strings.TrimSuffix(prior, strings.TrimSpace(gmText))
 		prior = strings.TrimSpace(prior)
-		if len(prior) > 4000 {
-			prior = prior[len(prior)-4000:]
+		if len(prior) > 6000 {
+			prior = prior[len(prior)-6000:]
 		}
 		if prior != "" {
-			recentContext = "\n\nRecent prior story (for resolution context only — do NOT add objectives already tracked):\n" + prior
+			recentContext = "\n\nRecent prior story:\n" + prior
 		}
 	}
 
-	prompt := fmt.Sprintf(`You are a TTRPG quest tracker. Analyze the story passage and update objectives.
+	// Build the all-titles list for dedup instruction.
+	allTitlesStr := "none"
+	if len(allTitles) > 0 {
+		allTitlesStr = strings.Join(allTitles, "; ")
+	}
 
-Existing objectives (ALL statuses — do NOT suggest any title that already exists here, even paraphrased):
+	prompt := fmt.Sprintf(`You are a TTRPG objective tracker. Your job is to maintain a clean, meaningful quest log — not a transcript of every action.
+
+ACTIVE objectives (these are the only ones you can resolve):
 %s
 
-Current story passage:
+ALL tracked objective titles — do NOT add anything that matches these, even paraphrased: %s
+
+Current GM narrative:
 %s%s
 
-Return ONLY a JSON object with exactly two fields:
-- "new": array of {title, description} for objectives that are GENUINELY NEW and NOT already tracked above (quests given, tasks revealed, goals explicitly stated). If the goal already exists under any wording, omit it. Empty array if none.
-- "resolved": array of {id, status} where "status" is "completed" or "failed". Only resolve ACTIVE objectives. Be AGGRESSIVE: if a goal has been substantially achieved, the situation clearly moved on, a target died/fled/converted/recruited, or the goal became permanently impossible — mark it. Infer from story logic; do not require explicit confirmation.
+RULES FOR ADDING NEW OBJECTIVES:
+Only add an objective if the story introduces a clear, named goal with stakes — a formal quest, contract, order, or mission. Do NOT add:
+- Incidental actions the player is currently doing ("cross the bridge", "search the room")
+- Combat encounters unless they are the named goal of a quest
+- Things that will resolve within 1-2 turns
+- Anything already in the tracked titles list above
 
-Examples resolved as completed: task explicitly done, item delivered, person converted or recruited, location secured, enemy defeated, plan executed.
-Examples resolved as failed: target died before completion, location destroyed, time ran out, goal permanently blocked.
+RULES FOR RESOLVING OBJECTIVES:
+Resolve an active objective the moment the story makes it clearly finished:
+- completed: the goal was achieved — enemy killed, item retrieved, person found, location reached, mission accomplished
+- failed: the goal became impossible — target died first, location destroyed, time ran out, player chose to abandon it
+If the recent story shows the goal was achieved or failed in a prior turn and it's still active, resolve it now.
+Do NOT leave an objective active if the story has clearly moved past it.
 
-Output format: {"new":[{"title":"...","description":"..."}],"resolved":[{"id":3,"status":"completed"}]}
+Output ONLY: {"new":[{"title":"...","description":"..."}],"resolved":[{"id":3,"status":"completed"}]}
 No changes: {"new":[],"resolved":[]}
-No explanation, no markdown, no code fences.`, string(existingJSON), gmText, recentContext)
+No markdown, no explanation.`, string(activeJSON), allTitlesStr, gmText, recentContext)
 
-	raw, err := completer.Generate(ctx, prompt, 600)
+	raw, err := completer.Generate(ctx, prompt, 1024)
 	if err != nil {
 		return
 	}
