@@ -206,6 +206,8 @@ Replace `ironsworn` with any supported ruleset (see list below). The server star
 
 Click "+ New Character" in the dashboard. You'll fill out a character sheet for your chosen ruleset. All numeric fields are auto-rolled; all choice fields are auto-selected from canonical options. Nothing is left blank.
 
+![Manage Campaign panel — campaign, character, and session creation](docs/ui-manage-panel.png)
+
 Example for Ironsworn: Edge 2, Heart 1, Iron 3, Shadow 2, Wits 2. Health 5, Spirit 5, Supply 5, Momentum 1.
 
 ### 3. Start a Session
@@ -245,6 +247,8 @@ As you tell your story, you'll discover features unlocking automatically:
 
 The interface is called the "Worn Grimoire" — a parchment-dark theme with warm gold accents, serif typography, and ornamental separators.
 
+![ink & bone UI — main gameplay view](docs/ui-screenshot.png)
+
 ### Header (Breadcrumb & Controls)
 
 At the top:
@@ -257,6 +261,8 @@ At the top:
 ### Left Sidebar — Character Sheet
 
 Your character's live stats and tracker:
+
+![Character sheet — live-editable skills and attributes (light theme)](docs/ui-talents.png)
 
 - **Portrait area:** Circular 80px image. Click to upload a JPG, PNG, GIF, or WebP (up to 5 MB). Shows character initial if no portrait.
 - **Attributes & Tracks (system-specific):** For Ironsworn, attribute pips and track bars. For D&D, six ability scores. All fields are live-editable.
@@ -286,6 +292,9 @@ Below the story scroll:
 At the bottom:
 
 - **Map drawer:** Expandable/collapsible section showing campaign maps. Collapsed state shows a thin bar (`[ CAMPAIGN NAME ▾ ]`). Expanded state fills ~60% of column height and displays the full map image with clickable pins (hover to see label and notes). The 📍 button on GM messages opens a modal to place that message as a map pin.
+
+![Map drawer — AI-generated SVG location map with labeled rooms](docs/ui-map.png)
+
 - **Generate Map button (AI enabled only):** Click to generate a new map using Claude based on recent session context. Auto-selects the new map in the drawer.
 
 ### Right Sidebar — Notes, Journal, NPCs, and Objectives
