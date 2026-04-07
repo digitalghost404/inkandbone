@@ -368,6 +368,47 @@ func CostRulesDescription(system string) string {
 	}
 }
 
+// FieldHints returns a string listing valid field keys for the system, suitable for
+// injection into an AI prompt. This prevents the AI from guessing human-readable
+// names (e.g. "ballistic_skill") instead of the actual JSON stat keys (e.g. "bs").
+func FieldHints(system string) string {
+	switch system {
+	case "wrath_glory":
+		return `Valid field keys (use EXACTLY as shown):
+Attributes: strength, agility, toughness, intellect, willpower, fellowship, initiative
+Skills: ws (Weapon Skill), bs (Ballistic Skill), athletics, awareness, cunning, deception,
+  fortitude, insight, intimidation, investigation, leadership, medicae, persuasion,
+  pilot, psychic_mastery, scholar, stealth, survival, tech
+Talents: talent:<Name> (e.g. "talent:Iron Will") — use exact talent name`
+
+	case "wfrp":
+		return `Valid field keys (use EXACTLY as shown):
+Characteristics: ws, bs, s, t, ag, i, dex, int, wp, fel
+Skills: athletics, bribery, charm, cool, consume_alcohol, dodge, endurance, evaluate,
+  gamble, gossip, haggle, intimidate, intuition, leadership, melee, navigation,
+  outdoor_survival, perception, ride, row, stealth`
+
+	case "shadowrun":
+		return `Valid field keys (use EXACTLY as shown):
+Attributes: body, agility, reaction, strength, willpower, logic, intuition, charisma, edge, magic, resonance
+Active skills: firearms, close_combat, piloting, electronics, cracking, engineering, biotech, stealth, athletics, perception
+Other: specialization`
+
+	case "blades":
+		return `Valid field keys (use EXACTLY as shown):
+Actions: action:Hunt, action:Study, action:Survey, action:Tinker,
+  action:Finesse, action:Prowl, action:Skirmish, action:Wreck,
+  action:Attune, action:Command, action:Consort, action:Sway`
+
+	default:
+		fields := ValidFields(system)
+		if len(fields) == 0 {
+			return ""
+		}
+		return "Valid field keys: " + strings.Join(fields, ", ")
+	}
+}
+
 // WGRecalcDerived recalculates W&G derived stats that depend on the given field.
 // stats is the full character stats map (modified in place).
 // field is the attribute that was just advanced (e.g., "toughness").

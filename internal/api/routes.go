@@ -1686,6 +1686,12 @@ func (s *Server) autoSuggestXPSpend(
 	var statsJSON []byte
 	statsJSON, _ = json.Marshal(stats)
 
+	fieldHints := advancement.FieldHints(system)
+	fieldHintsSection := ""
+	if fieldHints != "" {
+		fieldHintsSection = "\n" + fieldHints + "\n"
+	}
+
 	prompt := fmt.Sprintf(`You are advising a tabletop RPG character on how to spend their %s (%s system).
 
 Character: %s
@@ -1699,9 +1705,9 @@ Archetype starting abilities (do NOT suggest these): %s
 
 Cost rules for %s:
 %s
-
+%s
 Suggest 2–3 ranked advancement options. For each, output JSON with these exact fields:
-- field: the stat key (e.g. "toughness", "talent:Iron Will", "level")
+- field: the stat key — MUST match exactly the keys listed above or in the stats JSON
 - display_name: human-readable name
 - current_value: current numeric value (0 for unowned talents)
 - new_value: value after advance
@@ -1724,6 +1730,7 @@ Do NOT suggest advances the character cannot afford.
 		startingAbilitiesStr,
 		system,
 		advancement.CostRulesDescription(system),
+		fieldHintsSection,
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
