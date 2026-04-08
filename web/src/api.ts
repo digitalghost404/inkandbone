@@ -480,6 +480,20 @@ export async function deleteCampaign(id: number): Promise<void> {
   if (!res.ok) throw new Error(`deleteCampaign failed: ${res.status}`)
 }
 
+export async function patchCampaign(id: number, updates: { chronicle_night?: number; active?: boolean }): Promise<void> {
+  const res = await fetch(`/api/campaigns/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) throw new Error(`patchCampaign failed: ${res.status}`)
+}
+
+export async function suggestAdvances(characterId: number): Promise<void> {
+  const res = await fetch(`/api/characters/${characterId}/suggest-advances`, { method: 'POST' })
+  if (!res.ok) throw new Error(`suggestAdvances failed: ${res.status}`)
+}
+
 export async function fetchCharacterOptions(rulesetId: number): Promise<Record<string, string[]>> {
   const res = await fetch(`/api/rulesets/${rulesetId}/character-options`)
   if (!res.ok) throw new Error(`fetchCharacterOptions failed: ${res.status}`)

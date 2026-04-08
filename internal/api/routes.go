@@ -377,14 +377,33 @@ func (s *Server) handlePatchCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Active *bool `json:"active"`
+		Active         *bool `json:"active"`
+		ChronicleNight *int  `json:"chronicle_night"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
-	if body.Active == nil {
-		http.Error(w, "active is required", http.StatusBadRequest)
+	if body.Active == nil && body.ChronicleNight == nil {
+		http.Error(w, "active or chronicle_night is required", http.StatusBadRequest)
+		return
+	}
+	if body.ChronicleNight != nil {
+		if err := s.db.UpdateCampaignChronicleNight(id, *body.ChronicleNight); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		campaign, err := s.db.GetCampaign(id)
+		if err != nil || campaign == nil {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		s.bus.Publish(Event{Type: "campaign_updated", Payload: map[string]any{"campaign_id": id, "chronicle_night": *body.ChronicleNight}})
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	var err error
@@ -1578,6 +1597,9 @@ var statChangeKeywords = []string{
 	"critical", "fail", "success",
 	// Wrath & Glory specific
 	"glory", "ruin", "wrath", "rank", "heretic", "chaos", "enemy", "slain", "defeated",
+	// Vampire: The Masquerade specific
+	"feed", "fed", "hunt", "hunted", "blood", "bite", "embrace", "frenzy", "masquerade",
+	"torpor", "diablerie", "discipline", "vitae", "hunger", "humanity", "kindred",
 }
 
 func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, playerAction, gmText string) {
@@ -1626,10 +1648,9 @@ func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, 
 		return
 	}
 
-	// VtM: detect Humanity-violating acts and increment stains.
+	// VtM: detect Humanity-violating acts and increment stains (async, non-blocking).
 	if ruleset.Name == "vtm" {
-		s.detectAndApplyVtMStains(ctx, playerAction+" "+gmText)
-		return
+		go s.detectAndApplyVtMStains(context.Background(), playerAction+" "+gmText)
 	}
 
 	schema := ruleset.SchemaJSON
@@ -1638,13 +1659,23 @@ func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, 
 	}
 
 	systemNote := ""
-	if ruleset.Name == "wrath_glory" {
+	switch ruleset.Name {
+	case "wrath_glory":
 		systemNote = `
 Wrath & Glory rules:
 - XP: Award 1 XP for completing a significant scene (combat victory, key objective, notable roleplay). Award 2 XP for an exceptional scene (boss fight, major story milestone). Update the "xp" field by adding the award to current value.
 - Wrath tokens: increment "wrath" by 1 when the GM narrates a Wrath die result of 6.
 - Corruption: increment "corruption" when the character is exposed to the warp, Chaos artefacts, or forbidden acts.
 - Wounds/Shock: decrement when the character takes damage; set to 0 minimum.
+`
+	case "vtm":
+		systemNote = `
+Vampire: The Masquerade rules:
+- XP: Award 1 XP after any meaningful scene (a tense social encounter, avoiding Final Death, a significant feeding). Award 2 XP for a major story milestone (completing a story arc, surviving a powerful enemy, a pivotal Masquerade breach). Update the "xp" field by ADDING the award to the current value.
+- Hunger: If the character fed successfully, reduce hunger by 1-2 (minimum 0). If the character used Disciplines without feeding, increase hunger by 1 (maximum 5). Do NOT change hunger unless the scene explicitly involved feeding or heavy Discipline use.
+- Willpower: If the character spent willpower (Compulsion resisted, Desperation roll), decrement "willpower_superficial" by 1. If they rested fully, restore willpower_superficial to max.
+- Stains: DO NOT update stains here — handled separately.
+- Only update fields that exist in the current stats JSON. If nothing changed, return {}.
 `
 	}
 
@@ -1751,20 +1782,24 @@ func (s *Server) autoSuggestXPSpend(
 
 	const maxSuggestionsPerSession = 20
 
-	// Atomically check-and-increment the session suggestion count.
-	for {
-		actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 0)
-		count := actual.(int)
-		if count >= maxSuggestionsPerSession {
-			return
-		}
-		if s.xpSuggestCounts.CompareAndSwap(sessionID, count, count+1) {
-			break
+	// sessionID == 0 is the "manual trigger" sentinel — skip the per-session cap.
+	if sessionID != 0 {
+		// Atomically check-and-increment the session suggestion count.
+		for {
+			actual, _ := s.xpSuggestCounts.LoadOrStore(sessionID, 0)
+			count := actual.(int)
+			if count >= maxSuggestionsPerSession {
+				return
+			}
+			if s.xpSuggestCounts.CompareAndSwap(sessionID, count, count+1) {
+				break
+			}
 		}
 	}
 
 	// Gate: can the character afford any advance?
-	if !advancement.CanAffordAny(system, currentXP, char.DataJSON) {
+	// Manual triggers (sessionID == 0) bypass this so the user can see what they could spend on.
+	if sessionID != 0 && !advancement.CanAffordAny(system, currentXP, char.DataJSON) {
 		return
 	}
 
@@ -1774,24 +1809,6 @@ func (s *Server) autoSuggestXPSpend(
 	}
 
 	// Build context for Claude.
-	talentsOwned, _ := stats["talents"].(string)
-	archetypeName, _ := stats["archetype"].(string)
-
-	// Extract W&G-specific context from stats.
-	tier := 1
-	if v, ok := stats["tier"].(float64); ok {
-		tier = int(v)
-	}
-	faction, _ := stats["faction"].(string)
-
-	// Look up archetype starting abilities to exclude from suggestions.
-	var startingAbilitiesStr string
-	if archetypeName != "" {
-		if def, ok := advancement.WGArchetypeDefFor(archetypeName); ok {
-			startingAbilitiesStr = strings.Join(def.Abilities(), ", ")
-		}
-	}
-
 	var statsJSON []byte
 	statsJSON, _ = json.Marshal(stats)
 
@@ -1801,16 +1818,62 @@ func (s *Server) autoSuggestXPSpend(
 		fieldHintsSection = "\n" + fieldHints + "\n"
 	}
 
+	// Build system-specific context block.
+	var systemContext string
+	switch system {
+	case "wrath_glory":
+		archetypeName, _ := stats["archetype"].(string)
+		tier := 1
+		if v, ok := stats["tier"].(float64); ok {
+			tier = int(v)
+		}
+		faction, _ := stats["faction"].(string)
+		talentsOwned, _ := stats["talents"].(string)
+		var startingAbilitiesStr string
+		if archetypeName != "" {
+			if def, ok := advancement.WGArchetypeDefFor(archetypeName); ok {
+				startingAbilitiesStr = strings.Join(def.Abilities(), ", ")
+			}
+		}
+		systemContext = fmt.Sprintf(`Archetype: %s
+Tier: %d
+Faction: %s
+Already-owned talents (pipe-delimited): %s
+Archetype starting abilities (do NOT suggest these): %s`,
+			archetypeName, tier, faction, talentsOwned, startingAbilitiesStr)
+	case "vtm":
+		clan, _ := stats["clan"].(string)
+		bloodPotency := 1
+		if v, ok := stats["blood_potency"].(float64); ok {
+			bloodPotency = int(v)
+		}
+		inClanStr := ""
+		if clan != "" {
+			if discs, ok := advancement.VtMInClanDisciplinesFor(clan); ok {
+				inClanStr = strings.Join(discs, ", ")
+			}
+		}
+		systemContext = fmt.Sprintf(`Clan: %s
+Blood Potency: %d
+In-clan disciplines (cost 5 XP per dot): %s
+Out-of-clan disciplines cost 7 XP per dot.
+Do NOT suggest raising Blood Potency unless the character has enough XP to spend (cost 10 XP per dot).`,
+			clan, bloodPotency, inClanStr)
+	default:
+		// Generic: no additional system context.
+		systemContext = ""
+	}
+
+	contextSection := ""
+	if systemContext != "" {
+		contextSection = systemContext + "\n"
+	}
+
 	prompt := fmt.Sprintf(`You are advising a tabletop RPG character on how to spend their %s (%s system).
 
 Character: %s
-Archetype: %s
-Tier: %d
-Faction: %s
 Current %s: %d
-Current stats (JSON): %s
-Already-owned talents (pipe-delimited): %s
-Archetype starting abilities (do NOT suggest these): %s
+%sCurrent stats (JSON): %s
 
 Cost rules for %s:
 %s
@@ -1818,26 +1881,22 @@ Cost rules for %s:
 Suggest 2–3 ranked advancement options. For each, output JSON with these exact fields:
 - field: the stat key — MUST match exactly the keys listed above or in the stats JSON
 - display_name: human-readable name
-- current_value: current numeric value (0 for unowned talents)
+- current_value: current numeric value
 - new_value: value after advance
 - xp_cost: XP cost (recalculate server-side; this is just for display)
 - reasoning: one sentence explaining why this is a good choice
 
 Output a JSON array only — no other text. Example:
-[{"field":"toughness","display_name":"Toughness","current_value":4,"new_value":5,"xp_cost":20,"reasoning":"Boosts wounds, resilience, and determination."}]
+[{"field":"strength","display_name":"Strength","current_value":2,"new_value":3,"xp_cost":16,"reasoning":"Core physical stat with wide utility."}]
 
-Do NOT suggest talents already owned or archetype starting abilities.
 Do NOT suggest advances the character cannot afford.
 If there are no good suggestions, return an empty JSON array: []
 `,
 		advancement.XPLabel(system), system,
-		char.Name, archetypeName,
-		tier,
-		faction,
+		char.Name,
 		advancement.XPLabel(system), currentXP,
+		contextSection,
 		string(statsJSON),
-		talentsOwned,
-		startingAbilitiesStr,
 		system,
 		advancement.CostRulesDescription(system),
 		fieldHintsSection,

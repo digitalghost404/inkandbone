@@ -2650,6 +2650,52 @@ mark {
   color: var(--bg);
 }
 
+/* Chronicle Night Tracker (VtM only) */
+.chronicle-night-tracker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+
+.chronicle-label {
+  font-family: var(--font-display, serif);
+  color: var(--gold);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  min-width: 8rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.chronicle-day {
+  color: var(--gold-dim);
+  font-size: 0.8rem;
+}
+
+.chronicle-btn {
+  background: none;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold);
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.chronicle-btn:hover:not(:disabled) {
+  background: var(--gold-dim);
+  border-color: var(--gold);
+}
+
+.chronicle-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 .xp-success-flash {
   background-color: var(--health) !important;
   transition: background-color 0.2s ease;

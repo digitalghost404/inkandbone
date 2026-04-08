@@ -202,6 +202,20 @@ function VtMCharacterSheet({ character, fields, onChange }: VtMSheetProps) {
         ))}
       </div>
 
+      {/* XP */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          XP
+          <input
+            type="number"
+            min={0}
+            value={fields['xp'] ?? '0'}
+            onChange={(e) => onChange('xp', e.target.value)}
+            style={{ ...inputStyle, width: '60px', marginTop: 0 }}
+          />
+        </label>
+      </div>
+
       {/* Damage tracks */}
       <DamageTrack
         label="Health"
@@ -393,9 +407,9 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
         })
         patchCharacter(character!.id, updates).catch(console.error)
       } else {
-        // VtM (or any schema-free ruleset): patch only the changed key
+        // VtM (schema-free): send ALL current fields so UpdateCharacterData (full-replace) doesn't lose stats.
         const numericKeys = new Set([
-          'hunger','blood_potency','bane_severity','humanity','stains',
+          'hunger','blood_potency','bane_severity','humanity','stains','xp',
           'strength','dexterity','stamina','charisma','manipulation','composure',
           'intelligence','wits','resolve','health_max','health_superficial','health_aggravated',
           'willpower_max','willpower_superficial','willpower_aggravated',
@@ -406,8 +420,9 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
           'animalism','auspex','blood_sorcery','celerity','dominate','fortitude',
           'obfuscate','oblivion','potence','presence','protean',
         ])
-        const updates: Record<string, unknown> = {
-          [key]: numericKeys.has(key) ? (value === '' ? null : Number(value)) : value,
+        const updates: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(next)) {
+          updates[k] = numericKeys.has(k) ? (v === '' ? null : Number(v)) : v
         }
         patchCharacter(character!.id, updates).catch(console.error)
       }

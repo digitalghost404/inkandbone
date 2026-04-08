@@ -29,21 +29,21 @@ func XPLabel(system string) string {
 	}
 }
 
-// vtmInClanDisciplines maps VtM clan → set of in-clan discipline names.
+// vtmInClanDisciplines maps VtM clan → set of in-clan discipline field keys (lowercase, matching character sheet).
 var vtmInClanDisciplines = map[string][]string{
-	"Brujah":    {"Celerity", "Potence", "Presence"},
-	"Gangrel":   {"Animalism", "Fortitude", "Protean"},
-	"Malkavian": {"Auspex", "Dominate", "Obfuscate"},
-	"Nosferatu": {"Animalism", "Obfuscate", "Potence"},
-	"Toreador":  {"Auspex", "Celerity", "Presence"},
-	"Tremere":   {"Auspex", "Blood Sorcery", "Dominate"},
-	"Ventrue":   {"Dominate", "Fortitude", "Presence"},
-	"Lasombra":  {"Dominate", "Oblivion", "Potence"},
-	"Tzimisce":  {"Animalism", "Dominate", "Protean"},
-	"Assamite":  {"Blood Sorcery", "Celerity", "Obfuscate"},
-	"Giovanni":  {"Dominate", "Fortitude", "Oblivion"},
-	"Ravnos":    {"Animalism", "Obfuscate", "Presence"},
-	"Setite":    {"Obfuscate", "Presence", "Protean"},
+	"Brujah":    {"celerity", "potence", "presence"},
+	"Gangrel":   {"animalism", "fortitude", "protean"},
+	"Malkavian": {"auspex", "dominate", "obfuscate"},
+	"Nosferatu": {"animalism", "obfuscate", "potence"},
+	"Toreador":  {"auspex", "celerity", "presence"},
+	"Tremere":   {"auspex", "blood_sorcery", "dominate"},
+	"Ventrue":   {"dominate", "fortitude", "presence"},
+	"Lasombra":  {"dominate", "oblivion", "potence"},
+	"Tzimisce":  {"animalism", "dominate", "protean"},
+	"Assamite":  {"blood_sorcery", "celerity", "obfuscate"},
+	"Giovanni":  {"dominate", "fortitude", "oblivion"},
+	"Ravnos":    {"animalism", "obfuscate", "presence"},
+	"Setite":    {"obfuscate", "presence", "protean"},
 }
 
 // XPCostFor returns the XP cost for advancing field to newVal for the given system.
@@ -65,15 +65,20 @@ func XPCostFor(system, field string, newVal int, statsJSON string) int {
 		if field == "blood_potency" {
 			return newVal * 10
 		}
-		if strings.HasPrefix(field, "discipline:") {
-			discName := strings.TrimPrefix(field, "discipline:")
+		// Disciplines: check in-clan for character's clan (field = raw key e.g. "animalism")
+		vtmDisciplines := map[string]bool{
+			"animalism": true, "auspex": true, "blood_sorcery": true, "celerity": true,
+			"dominate": true, "fortitude": true, "obfuscate": true, "oblivion": true,
+			"potence": true, "presence": true, "protean": true,
+		}
+		if vtmDisciplines[field] {
 			multiplier := 7 // default out-of-clan
 			if statsJSON != "" {
 				var stats map[string]any
 				if err := json.Unmarshal([]byte(statsJSON), &stats); err == nil {
 					if clan, ok := stats["clan"].(string); ok {
 						for _, d := range vtmInClanDisciplines[clan] {
-							if d == discName {
+							if d == field {
 								multiplier = 5
 								break
 							}
@@ -83,11 +88,11 @@ func XPCostFor(system, field string, newVal int, statsJSON string) int {
 			}
 			return newVal * multiplier
 		}
-		// Attributes (str, dex, sta, cha, man, com, int, wits, res)
+		// Attributes (full names matching character sheet)
 		vtmAttribs := map[string]bool{
-			"str": true, "dex": true, "sta": true,
-			"cha": true, "man": true, "com": true,
-			"int": true, "wits": true, "res": true,
+			"strength": true, "dexterity": true, "stamina": true,
+			"charisma": true, "manipulation": true, "composure": true,
+			"intelligence": true, "wits": true, "resolve": true,
 		}
 		if vtmAttribs[field] {
 			return newVal * 4
@@ -185,12 +190,20 @@ func ValidFields(system string) []string {
 
 	case "vtm":
 		return []string{
-			"str", "dex", "sta", "cha", "man", "com", "int", "wits", "res",
+			// Attributes (full names matching character sheet)
+			"strength", "dexterity", "stamina",
+			"charisma", "manipulation", "composure",
+			"intelligence", "wits", "resolve",
+			// Skills
 			"athletics", "brawl", "craft", "drive", "firearms", "larceny", "melee",
 			"stealth", "survival", "animal_ken", "etiquette", "insight", "intimidation",
 			"leadership", "performance", "persuasion", "streetwise", "subterfuge",
 			"academics", "awareness", "finance", "investigation", "medicine",
-			"occult", "politics", "science", "technology",
+			"occult", "politics", "technology",
+			// Disciplines
+			"animalism", "auspex", "blood_sorcery", "celerity", "dominate",
+			"fortitude", "obfuscate", "oblivion", "potence", "presence", "protean",
+			// Other
 			"blood_potency",
 		}
 
@@ -338,6 +351,13 @@ func CanAffordAny(system string, currentXP int, statsJSON string) bool {
 	return false
 }
 
+// VtMInClanDisciplinesFor returns the in-clan discipline field keys for a VtM clan.
+// The second return value is false if the clan is not recognized.
+func VtMInClanDisciplinesFor(clan string) ([]string, bool) {
+	discs, ok := vtmInClanDisciplines[clan]
+	return discs, ok
+}
+
 // CostRulesDescription returns a brief human-readable summary of XP costs for a system.
 func CostRulesDescription(system string) string {
 	switch system {
@@ -393,6 +413,17 @@ Skills: athletics, bribery, charm, cool, consume_alcohol, dodge, endurance, eval
 Attributes: body, agility, reaction, strength, willpower, logic, intuition, charisma, edge, magic, resonance
 Active skills: firearms, close_combat, piloting, electronics, cracking, engineering, biotech, stealth, athletics, perception
 Other: specialization`
+
+	case "vtm":
+		return `Valid field keys (use EXACTLY as shown):
+Attributes: strength, dexterity, stamina, charisma, manipulation, composure, intelligence, wits, resolve
+Skills: athletics, brawl, craft, drive, firearms, larceny, melee, stealth, survival,
+  animal_ken, etiquette, insight, intimidation, leadership, performance, persuasion,
+  streetwise, subterfuge, academics, awareness, finance, investigation, medicine,
+  occult, politics, technology
+Disciplines: animalism, auspex, blood_sorcery, celerity, dominate, fortitude,
+  obfuscate, oblivion, potence, presence, protean
+Other: blood_potency`
 
 	case "blades":
 		return `Valid field keys (use EXACTLY as shown):

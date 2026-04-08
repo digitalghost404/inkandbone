@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useWebSocket } from './useWebSocket'
-import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin, patchSession, fetchRuleset } from './api'
+import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin, patchSession, fetchRuleset, patchCampaign, suggestAdvances } from './api'
 import type { GameContext, Message, Session } from './types'
 import { CombatPanel } from './CombatPanel'
 import { WorldNotesPanel } from './WorldNotesPanel'
@@ -279,6 +279,38 @@ function SceneTagPicker({ session, onUpdate }: SceneTagPickerProps) {
   )
 }
 
+interface ChronicleNightTrackerProps {
+  campaign: import('./types').Campaign
+  onUpdate: (night: number) => void
+}
+
+function ChronicleNightTracker({ campaign, onUpdate }: ChronicleNightTrackerProps) {
+  const night = campaign.chronicle_night ?? 1
+
+  async function adjust(delta: number) {
+    const next = Math.max(1, night + delta)
+    try {
+      await patchCampaign(campaign.id, { chronicle_night: next })
+      onUpdate(next)
+    } catch (err) {
+      console.error('Failed to update chronicle night:', err)
+    }
+  }
+
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const dayLabel = days[(night - 1) % 7]
+
+  return (
+    <div className="chronicle-night-tracker">
+      <button className="chronicle-btn" onClick={() => adjust(-1)} disabled={night <= 1}>−</button>
+      <span className="chronicle-label" title={`Chronicle night ${night}`}>
+        Night {night} <span className="chronicle-day">— {dayLabel}</span>
+      </span>
+      <button className="chronicle-btn" onClick={() => adjust(1)}>+</button>
+    </div>
+  )
+}
+
 // ── App ────────────────────────────────────────────────────
 
 export default function App() {
@@ -303,6 +335,7 @@ export default function App() {
   const [manageTab, setManageTab] = useState<'campaigns' | 'characters' | 'sessions' | 'rulebooks'>('campaigns')
   const [xpSuggestionsEvent, setXPSuggestionsEvent] = useState<XPSpendSuggestionsEvent | null>(null)
   const [xpPanelDismissed, setXpPanelDismissed] = useState(false)
+  const [suggestingXP, setSuggestingXP] = useState(false)
   const [showTalentsPanel, setShowTalentsPanel] = useState(false)
   const [aiTalentDescs, setAiTalentDescs] = useState<Record<string, string>>({})
   const [rulesetName, setRulesetName] = useState<string | null>(null)
@@ -532,13 +565,30 @@ export default function App() {
         >
           ⚙ Manage
         </button>
-        {xpSuggestionsEvent && xpPanelDismissed && (
+        {ctx?.character && aiEnabled && (
           <button
-            className="xp-available-badge"
-            onClick={() => setXpPanelDismissed(false)}
-            title={`Advancement available — ${xpSuggestionsEvent.current_xp} ${xpSuggestionsEvent.xp_label}`}
+            className={`xp-available-badge${suggestingXP ? ' xp-loading' : ''}`}
+            disabled={suggestingXP}
+            onClick={async () => {
+              if (xpSuggestionsEvent && xpPanelDismissed) {
+                setXpPanelDismissed(false)
+                return
+              }
+              setSuggestingXP(true)
+              try {
+                await suggestAdvances(ctx.character!.id)
+                setXpPanelDismissed(false)
+              } catch {
+                // silently ignore — panel will appear when WS event arrives
+              } finally {
+                setSuggestingXP(false)
+              }
+            }}
+            title={xpSuggestionsEvent && xpPanelDismissed
+              ? `Advancement available — ${xpSuggestionsEvent.current_xp} ${xpSuggestionsEvent.xp_label}`
+              : 'Request advancement suggestions'}
           >
-            ⬆ Advance
+            {suggestingXP ? '...' : '⬆ Advance'}
           </button>
         )}
         <AudioControls />
@@ -682,12 +732,23 @@ export default function App() {
               <>
                 <div className="session-title">✦ {sessionTitle} ✦</div>
                 {sessionDate && <div className="session-date">{sessionDate}</div>}
-                {ctx.session && (
+                {ctx.session && rulesetName !== 'vtm' && (
                   <SceneTagPicker
                     session={ctx.session}
                     onUpdate={(tags) => {
                       setCtx(prev => prev && prev.session
                         ? { ...prev, session: { ...prev.session, scene_tags: tags } }
+                        : prev
+                      )
+                    }}
+                  />
+                )}
+                {ctx.campaign && rulesetName === 'vtm' && (
+                  <ChronicleNightTracker
+                    campaign={ctx.campaign}
+                    onUpdate={(night) => {
+                      setCtx(prev => prev && prev.campaign
+                        ? { ...prev, campaign: { ...prev.campaign, chronicle_night: night } }
                         : prev
                       )
                     }}
