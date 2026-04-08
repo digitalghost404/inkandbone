@@ -57,3 +57,36 @@ func TestWGArchetypeAbilities_knownArchetypes(t *testing.T) {
 		}
 	}
 }
+
+func TestRollVtMStats_V5Fields(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		stats := RollStats("vtm", "")
+		for _, key := range []string{
+			"hunger", "blood_potency", "bane_severity", "humanity", "stains",
+			"strength", "dexterity", "stamina",
+			"charisma", "manipulation", "composure",
+			"intelligence", "wits", "resolve",
+		} {
+			if _, ok := stats[key]; !ok {
+				t.Errorf("missing field %q", key)
+			}
+		}
+		if stats["hunger"] != 1 {
+			t.Errorf("hunger should be 1, got %v", stats["hunger"])
+		}
+		if stats["humanity"] != 7 {
+			t.Errorf("humanity should be 7, got %v", stats["humanity"])
+		}
+		stamina, _ := stats["stamina"].(int)
+		healthMax, _ := stats["health_max"].(int)
+		if healthMax != stamina+3 {
+			t.Errorf("health_max should be stamina+3=%d, got %d", stamina+3, healthMax)
+		}
+		composure, _ := stats["composure"].(int)
+		resolve, _ := stats["resolve"].(int)
+		willpowerMax, _ := stats["willpower_max"].(int)
+		if willpowerMax != composure+resolve {
+			t.Errorf("willpower_max should be composure+resolve=%d, got %d", composure+resolve, willpowerMax)
+		}
+	}
+}
