@@ -146,6 +146,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/oracle/roll", s.handleOracleRoll)
 	s.mux.HandleFunc("GET /api/sessions/{id}/tension", s.handleGetTension)
 	s.mux.HandleFunc("PATCH /api/sessions/{id}/tension", s.handlePatchTension)
+	s.mux.HandleFunc("GET /api/sessions/{id}/masquerade", s.handleGetMasqueradeIntegrity)
+	s.mux.HandleFunc("PATCH /api/sessions/{id}/masquerade", s.handlePatchMasqueradeIntegrity)
 	// Phase D: Relationships
 	s.mux.HandleFunc("POST /api/campaigns/{id}/relationships", s.handleCreateRelationship)
 	s.mux.HandleFunc("GET /api/campaigns/{id}/relationships", s.handleListRelationships)

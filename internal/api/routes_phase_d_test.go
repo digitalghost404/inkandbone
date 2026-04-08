@@ -1,10 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -100,4 +102,40 @@ func TestRelationshipCRUD_API(t *testing.T) {
 
 	rels, _ := s.db.ListRelationships(campaignID)
 	assert.Len(t, rels, 0)
+}
+
+func TestGetMasqueradeIntegrity_default(t *testing.T) {
+	s := newTestServer(t)
+	campID, sessID := seedCampaign(t, s.db)
+	_ = campID
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/"+strconv.FormatInt(sessID, 10)+"/masquerade", nil)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, float64(10), resp["masquerade_integrity"])
+}
+
+func TestPatchMasqueradeIntegrity(t *testing.T) {
+	s := newTestServer(t)
+	campID, sessID := seedCampaign(t, s.db)
+	_ = campID
+
+	body, _ := json.Marshal(map[string]any{"masquerade_integrity": 7})
+	req := httptest.NewRequest(http.MethodPatch, "/api/sessions/"+strconv.FormatInt(sessID, 10)+"/masquerade", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Verify via GET
+	req2 := httptest.NewRequest(http.MethodGet, "/api/sessions/"+strconv.FormatInt(sessID, 10)+"/masquerade", nil)
+	w2 := httptest.NewRecorder()
+	s.ServeHTTP(w2, req2)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w2.Body.Bytes(), &resp))
+	assert.Equal(t, float64(7), resp["masquerade_integrity"])
 }

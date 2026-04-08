@@ -149,6 +149,47 @@ func (s *Server) handleDeleteRelationship(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handleGetMasqueradeIntegrity(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	sessionID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+	level, err := s.db.GetMasqueradeIntegrity(sessionID)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"masquerade_integrity": level}) //nolint:errcheck
+}
+
+func (s *Server) handlePatchMasqueradeIntegrity(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	sessionID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		MasqueradeIntegrity *int `json:"masquerade_integrity"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.MasqueradeIntegrity == nil {
+		http.Error(w, "masquerade_integrity required", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.UpdateMasqueradeIntegrity(sessionID, *body.MasqueradeIntegrity); err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
+		"session_id":           sessionID,
+		"masquerade_integrity": *body.MasqueradeIntegrity,
+	}})
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) handlePatchTension(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
