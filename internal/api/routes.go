@@ -1837,11 +1837,10 @@ HEALTH (track superficial and aggravated separately):
 - "health_superficial": increase by 1-3 when the vampire takes blunt, bullet, or non-lethal damage. Decrease by 1-2 when healing or resting. Never exceed health_max.
 - "health_aggravated": increase by 1 when the vampire takes fire, sunlight, or other aggravated damage. Never exceed health_max.
 
-HUNGER (0-5, never below 0 or above 5):
-- Increase hunger by 1 each time a Discipline power is activated (any use of Auspex, Dominate, Presence, Celerity, Fortitude, etc.).
-- Increase hunger by 1-2 if the character exerts themselves supernaturally (Blush of Life, healing aggravated damage, using Resonance).
-- Decrease hunger by 1-3 if the character successfully feeds on blood. The amount reduced depends on how much blood was consumed (sip=1, proper feed=2, deep feed=3).
-- Do NOT change hunger if no Disciplines were used and no feeding occurred.
+HUNGER (0-5):
+- DO NOT increase hunger here. Hunger increases ONLY via explicit /rouse and /surge commands which are handled by the game engine separately.
+- ONLY decrease hunger if the GM text explicitly describes the character successfully drinking blood from a living vessel (sip=reduce by 1, proper feed=reduce by 2, deep feed=reduce by 3). Never go below 0.
+- If the scene does not contain explicit blood-drinking narration, do NOT touch hunger at all. Return the hunger field unchanged.
 
 WILLPOWER (track "willpower_superficial"):
 - Decrease willpower_superficial by 1 when: the character resists a Compulsion, makes a Willpower roll to resist mental powers, pushes past their limits, or the GM explicitly says willpower is spent.
@@ -1913,12 +1912,25 @@ Return ONLY a JSON object with the fields that must change and their new values.
 		}
 	}
 
+	currentHunger := 0
+	if v, ok := current["hunger"].(float64); ok {
+		currentHunger = int(v)
+	}
+
 	for k, v := range patch {
 		if _, exists := current[k]; exists {
 			// Never let the AI goroutine lower XP — it can only award, not spend.
 			if k == xpFieldKey {
 				newXP, _ := v.(float64)
 				if int(newXP) <= beforeXP {
+					continue
+				}
+			}
+			// VtM: never let the AI goroutine increase hunger.
+			// Hunger rises only via explicit /rouse and /surge commands.
+			if k == "hunger" && ruleset.Name == "vtm" {
+				newHunger, _ := v.(float64)
+				if int(newHunger) > currentHunger {
 					continue
 				}
 			}
