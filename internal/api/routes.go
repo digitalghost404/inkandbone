@@ -1069,6 +1069,7 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 	if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
 		if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
 			sb.WriteString("[VtM MECHANICS]\n")
+			fmt.Fprintf(&sb, "CHRONICLE NIGHT: %d — This is the current in-game night number. When you narrate that the character sleeps through the day and wakes to the next night, or that time has advanced to a new night, you MUST include one of these exact phrases (case-insensitive) in your response so the night counter auto-advances: \"dusk falls\", \"nightfall\", \"as night falls\", \"darkness falls\", \"darkness descends\", \"the following night\", \"a new night\", \"night has fallen\", \"fall of night\", \"night has reclaimed\", or \"night descends\". Without one of these phrases, the tracker will not advance.\n", camp.ChronicleNight)
 			if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
 				if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
 					if char, err := s.db.GetCharacter(charID); err == nil && char != nil && char.DataJSON != "" {
@@ -2122,11 +2123,32 @@ If there are no good suggestions, return an empty JSON array: []
 		return
 	}
 
-	// Extract JSON array from response (Claude may wrap in markdown).
+	// Extract JSON array from response using balanced bracket matching.
+	// Claude sometimes wraps output in markdown fences or adds trailing commentary
+	// with backticks; LastIndex would pull in that extra content.
 	start := strings.Index(raw, "[")
-	end := strings.LastIndex(raw, "]")
-	if start < 0 || end <= start {
+	if start < 0 {
 		log.Printf("autoSuggestXPSpend: no JSON array in response: %q", raw)
+		return
+	}
+	depth := 0
+	end := -1
+	for i := start; i < len(raw); i++ {
+		switch raw[i] {
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				end = i
+			}
+		}
+		if end >= 0 {
+			break
+		}
+	}
+	if end < 0 {
+		log.Printf("autoSuggestXPSpend: unbalanced JSON array in response: %q", raw)
 		return
 	}
 	raw = raw[start : end+1]
@@ -2145,10 +2167,14 @@ If there are no good suggestions, return an empty JSON array: []
 	filtered := suggestions[:0]
 	for _, sg := range suggestions {
 		field, _ := sg["field"].(string)
-		// Enforce new_value = current + 1 regardless of what the AI suggested.
-		curValF, _ := sg["current_value"].(float64)
-		curVal := int(curValF)
-		newVal := curVal + 1
+		// Always use the ACTUAL current value from stats — the AI may hallucinate current_value.
+		// This ensures new_value agrees with what the advance handler will validate.
+		actualCurVal := 0
+		if v, ok := stats[field].(float64); ok {
+			actualCurVal = int(v)
+		}
+		newVal := actualCurVal + 1
+		sg["current_value"] = float64(actualCurVal)
 		sg["new_value"] = float64(newVal)
 		cost := advancement.XPCostFor(system, field, newVal, char.DataJSON)
 		if cost == 0 {
@@ -3541,7 +3567,7 @@ var stainTriggerRE = regexp.MustCompile(
 
 // vtmNewNightRE matches phrases that signal a new night beginning in VtM.
 var vtmNewNightRE = regexp.MustCompile(
-	`\b(as dusk|at dusk|dusk falls|dusk arrives|dusk settles|dusk approaches|nightfall|as night falls|as the sun sets|the sun sets|sunset arrives|the evening begins|another night|the following night|next night|the next night|a new night|night has fallen|darkness falls|the city awakens at night|as the darkness|as the night begins|that evening you|the next evening)\b`,
+	`\b(as dusk|at dusk|dusk falls|dusk arrives|dusk settles|dusk approaches|nightfall|as night falls|when night falls|the night falls|as the sun sets|the sun sets|sunset arrives|the evening begins|another night|the following night|next night|the next night|a new night|night has fallen|night has come|night has reclaimed|night reclaims|darkness falls|darkness descends|as darkness descends|fall of night|with the fall of night|the city awakens at night|as the darkness|as the night begins|that evening you|the next evening|night descends|night comes|the night arrives|night has settled|as night descends|night (begins|settles|covers|envelops|awakens))\b`,
 )
 
 // rouseCheckRE matches the player's /rouse or "rouse check" command.

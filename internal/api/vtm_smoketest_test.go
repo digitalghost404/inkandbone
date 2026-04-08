@@ -818,11 +818,19 @@ func TestVtM_NewNightRE_MatchesKeywords(t *testing.T) {
 		"As dusk falls over the city.",
 		"Dusk settles on the horizon.",
 		"As night falls, the streets empty.",
+		"When night falls, the Kindred emerge.",
 		"The sun sets behind the skyline.",
 		"Nightfall brings the Kindred out.",
 		"Another night begins in the city.",
 		"The following night, you awaken.",
 		"That evening you find yourself...",
+		"When consciousness returns with the fall of night.",
+		"When your eyes open again, night has reclaimed the world.",
+		"Darkness descends over the city.",
+		"As darkness descends, the streets empty.",
+		"Night has come to Chicago.",
+		"Night descends over the skyline.",
+		"Night reclaims the city once more.",
 	}
 	for _, text := range matches {
 		lower := strings.ToLower(text)

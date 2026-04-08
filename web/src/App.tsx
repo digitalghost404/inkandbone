@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useWebSocket } from './useWebSocket'
-import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin, patchSession, fetchRuleset, patchCampaign, suggestAdvances } from './api'
+import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin, patchSession, fetchRuleset, suggestAdvances } from './api'
 import type { GameContext, Message, Session } from './types'
 import { CombatPanel } from './CombatPanel'
 import { WorldNotesPanel } from './WorldNotesPanel'
@@ -297,32 +297,18 @@ function SceneTagPicker({ session, onUpdate }: SceneTagPickerProps) {
 
 interface ChronicleNightTrackerProps {
   campaign: import('./types').Campaign
-  onUpdate: (night: number) => void
 }
 
-function ChronicleNightTracker({ campaign, onUpdate }: ChronicleNightTrackerProps) {
+function ChronicleNightTracker({ campaign }: ChronicleNightTrackerProps) {
   const night = campaign.chronicle_night ?? 1
-
-  async function adjust(delta: number) {
-    const next = Math.max(1, night + delta)
-    try {
-      await patchCampaign(campaign.id, { chronicle_night: next })
-      onUpdate(next)
-    } catch (err) {
-      console.error('Failed to update chronicle night:', err)
-    }
-  }
-
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
   const dayLabel = days[(night - 1) % 7]
 
   return (
     <div className="chronicle-night-tracker">
-      <button className="chronicle-btn" onClick={() => adjust(-1)} disabled={night <= 1}>−</button>
       <span className="chronicle-label" title={`Chronicle night ${night}`}>
         Night {night} <span className="chronicle-day">— {dayLabel}</span>
       </span>
-      <button className="chronicle-btn" onClick={() => adjust(1)}>+</button>
     </div>
   )
 }
@@ -626,15 +612,7 @@ export default function App() {
           </button>
         )}
         {ctx?.campaign && rulesetName === 'vtm' && (
-          <ChronicleNightTracker
-            campaign={ctx.campaign}
-            onUpdate={(night) => {
-              setCtx(prev => prev && prev.campaign
-                ? { ...prev, campaign: { ...prev.campaign, chronicle_night: night } }
-                : prev
-              )
-            }}
-          />
+          <ChronicleNightTracker campaign={ctx.campaign} />
         )}
         <AudioControls />
       </header>
