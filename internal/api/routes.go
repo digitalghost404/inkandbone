@@ -651,8 +651,34 @@ func extractSVG(s string) string {
 	}
 	// Escape bare & that AI embeds in text content (e.g. "Black & White") — unescaped
 	// ampersands make the SVG invalid XML, causing browsers to reject it as a broken image.
-	svg = reUnescapedAmpersand.ReplaceAllString(svg, "&amp;")
+	svg = escapeSVGAmpersands(svg)
 	return svg
+}
+
+// escapeSVGAmpersands replaces bare & characters in SVG text with &amp;, skipping
+// & that are already part of a valid XML entity reference (&amp; &lt; &gt; &apos; &quot; &#…).
+// Go's regexp does not support lookaheads, so we scan manually.
+func escapeSVGAmpersands(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] != '&' {
+			b.WriteByte(s[i])
+			continue
+		}
+		rest := s[i+1:]
+		if strings.HasPrefix(rest, "amp;") ||
+			strings.HasPrefix(rest, "lt;") ||
+			strings.HasPrefix(rest, "gt;") ||
+			strings.HasPrefix(rest, "apos;") ||
+			strings.HasPrefix(rest, "quot;") ||
+			strings.HasPrefix(rest, "#") {
+			b.WriteByte('&')
+		} else {
+			b.WriteString("&amp;")
+		}
+	}
+	return b.String()
 }
 
 // parseGeneratedNote extracts title and content from a "Title: ...\nContent: ..." response.
@@ -3351,8 +3377,6 @@ func (s *Server) autoUpdateSceneTags(_ context.Context, sessionID int64, gmText 
 	}})
 }
 
-// reUnescapedAmpersand matches a bare & not already part of an XML entity reference.
-var reUnescapedAmpersand = regexp.MustCompile(`&(?!amp;|lt;|gt;|apos;|quot;|#)`)
 
 // crisisRE matches crisis keywords at word boundaries to avoid false positives
 // (e.g. "trapped" should not match "trap", "critical" should not match alone).
