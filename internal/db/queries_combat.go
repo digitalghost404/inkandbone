@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -175,6 +176,9 @@ func (d *DB) UpdateCombatantVtMDamage(id int64, superficialIn, aggravatedIn int,
 		&cur.WillpowerSuperficial, &cur.WillpowerAggravated, &cur.Hunger,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("combatant %d not found", id)
+		}
 		return err
 	}
 	cur.IsPlayer = isPlayer == 1
