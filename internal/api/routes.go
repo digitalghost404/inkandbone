@@ -649,6 +649,9 @@ func extractSVG(s string) string {
 	if openClose != -1 && !strings.Contains(svg[:openClose+1], "xmlns=") {
 		svg = strings.Replace(svg, "<svg ", `<svg xmlns="http://www.w3.org/2000/svg" `, 1)
 	}
+	// Escape bare & that AI embeds in text content (e.g. "Black & White") — unescaped
+	// ampersands make the SVG invalid XML, causing browsers to reject it as a broken image.
+	svg = reUnescapedAmpersand.ReplaceAllString(svg, "&amp;")
 	return svg
 }
 
@@ -3347,6 +3350,9 @@ func (s *Server) autoUpdateSceneTags(_ context.Context, sessionID int64, gmText 
 		"scene_tags": bestTag,
 	}})
 }
+
+// reUnescapedAmpersand matches a bare & not already part of an XML entity reference.
+var reUnescapedAmpersand = regexp.MustCompile(`&(?!amp;|lt;|gt;|apos;|quot;|#)`)
 
 // crisisRE matches crisis keywords at word boundaries to avoid false positives
 // (e.g. "trapped" should not match "trap", "critical" should not match alone).
