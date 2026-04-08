@@ -107,3 +107,73 @@ func TestApplyVtMPredatorType_Extortionist(t *testing.T) {
 		t.Errorf("Extortionist: expected Intimidation:Coercion specialty, got %v", stats["skill_specialties"])
 	}
 }
+
+func TestApplyVtMPredatorType_Alleycat(t *testing.T) {
+	stats := map[string]any{}
+	ApplyVtMPredatorType("Alleycat", stats)
+	if stats["celerity"] != 1 {
+		t.Errorf("Alleycat: expected celerity=1, got %v", stats["celerity"])
+	}
+	if stats["potence"] != 1 {
+		t.Errorf("Alleycat: expected potence=1, got %v", stats["potence"])
+	}
+	if !strings.Contains(stats["skill_specialties"].(string), "Athletics:Brawling") {
+		t.Errorf("Alleycat: expected Athletics:Brawling specialty, got %v", stats["skill_specialties"])
+	}
+}
+
+func TestApplyVtMPredatorType_Consensualist(t *testing.T) {
+	stats := map[string]any{}
+	ApplyVtMPredatorType("Consensualist", stats)
+	if stats["auspex"] != 1 {
+		t.Errorf("Consensualist: expected auspex=1, got %v", stats["auspex"])
+	}
+	if stats["presence"] != 1 {
+		t.Errorf("Consensualist: expected presence=1, got %v", stats["presence"])
+	}
+	if !strings.Contains(stats["skill_specialties"].(string), "Medicine:Kindred Physiology") {
+		t.Errorf("Consensualist: expected Medicine:Kindred Physiology specialty, got %v", stats["skill_specialties"])
+	}
+}
+
+func TestApplyVtMPredatorType_Graverobber(t *testing.T) {
+	stats := map[string]any{}
+	ApplyVtMPredatorType("Graverobber", stats)
+	if stats["fortitude"] != 1 {
+		t.Errorf("Graverobber: expected fortitude=1, got %v", stats["fortitude"])
+	}
+	if stats["oblivion"] != 1 {
+		t.Errorf("Graverobber: expected oblivion=1, got %v", stats["oblivion"])
+	}
+	if !strings.Contains(stats["skill_specialties"].(string), "Occult:Grave Rituals") {
+		t.Errorf("Graverobber: expected Occult:Grave Rituals specialty, got %v", stats["skill_specialties"])
+	}
+}
+
+func TestApplyVtMPredatorType_Osiris(t *testing.T) {
+	stats := map[string]any{}
+	ApplyVtMPredatorType("Osiris", stats)
+	if stats["blood_sorcery"] != 1 {
+		t.Errorf("Osiris: expected blood_sorcery=1, got %v", stats["blood_sorcery"])
+	}
+	if stats["presence"] != 1 {
+		t.Errorf("Osiris: expected presence=1, got %v", stats["presence"])
+	}
+	if !strings.Contains(stats["skill_specialties"].(string), "Academics:Occult Lore") {
+		t.Errorf("Osiris: expected Academics:Occult Lore specialty, got %v", stats["skill_specialties"])
+	}
+}
+
+func TestApplyVtMPredatorType_Sandman(t *testing.T) {
+	stats := map[string]any{}
+	ApplyVtMPredatorType("Sandman", stats)
+	if stats["auspex"] != 1 {
+		t.Errorf("Sandman: expected auspex=1, got %v", stats["auspex"])
+	}
+	if stats["obfuscate"] != 1 {
+		t.Errorf("Sandman: expected obfuscate=1, got %v", stats["obfuscate"])
+	}
+	if !strings.Contains(stats["skill_specialties"].(string), "Stealth:Sneaking") {
+		t.Errorf("Sandman: expected Stealth:Sneaking specialty, got %v", stats["skill_specialties"])
+	}
+}
