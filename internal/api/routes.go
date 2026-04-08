@@ -3112,6 +3112,9 @@ func (s *Server) autoUpdateMasquerade(ctx context.Context, sessionID int64, gmTe
 		return
 	}
 	newLevel := current + delta
+	if newLevel < 0 {
+		newLevel = 0
+	}
 	_ = s.db.UpdateMasqueradeIntegrity(sessionID, newLevel)
 	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
 		"session_id":           sessionID,
