@@ -2187,6 +2187,7 @@ func (s *Server) handleRollDice(w http.ResponseWriter, r *http.Request) {
 	expr := strings.ToLower(strings.TrimSpace(body.Expression))
 	count := 1
 	sides := 0
+	modifier := 0
 	if idx := strings.Index(expr, "d"); idx >= 0 {
 		if idx > 0 {
 			n, err := strconv.Atoi(expr[:idx])
@@ -2196,7 +2197,19 @@ func (s *Server) handleRollDice(w http.ResponseWriter, r *http.Request) {
 			}
 			count = n
 		}
-		s2, err := strconv.Atoi(expr[idx+1:])
+		rest := expr[idx+1:]
+		// Parse optional +M or -M modifier after the die sides.
+		sideStr := rest
+		if plus := strings.IndexAny(rest, "+-"); plus >= 0 {
+			m, err := strconv.Atoi(rest[plus:])
+			if err != nil {
+				http.Error(w, "invalid modifier", http.StatusBadRequest)
+				return
+			}
+			modifier = m
+			sideStr = rest[:plus]
+		}
+		s2, err := strconv.Atoi(sideStr)
 		if err != nil || s2 < 1 {
 			http.Error(w, "invalid die sides", http.StatusBadRequest)
 			return
@@ -2208,7 +2221,7 @@ func (s *Server) handleRollDice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rolls := make([]int, count)
-	total := 0
+	total := modifier
 	for i := range rolls {
 		roll := mathrand.Intn(sides) + 1
 		rolls[i] = roll
