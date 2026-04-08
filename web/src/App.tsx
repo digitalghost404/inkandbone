@@ -28,6 +28,22 @@ import './App.css'
 
 const WS_URL = `ws://${window.location.host}/ws`
 
+// Minimum XP required to afford any advancement per ruleset.
+// Derived from XPCostFor minimums in internal/ruleset/advancement.go.
+const MIN_XP_TO_ADVANCE: Record<string, number> = {
+  vtm: 3,           // skill dot 1 costs 3
+  wrath_glory: 8,   // skill/attr to rating 2 costs 8
+  shadowrun: 5,     // specialization costs 5
+  wfrp: 10,         // flat 10 per advance
+  cyberpunk_red: 10, // skill to rating 1 costs 10
+  starwars: 5,      // skill to rating 1 costs 5
+  l5r: 2,           // skill rank 1 costs 2
+  theonering: 1,    // skill rank 1 costs 1
+  blades: 8,        // action advance threshold is 8
+  ironsworn: 1,     // asset upgrade costs 1
+  dnd5e: 300,       // level 2 threshold
+}
+
 // ── Turn Order Strip ────────────────────────────────────────
 
 interface TurnOrderStripProps {
@@ -583,7 +599,7 @@ export default function App() {
         >
           ⚙ Manage
         </button>
-        {ctx?.character && aiEnabled && charXPBalance > 0 && (
+        {ctx?.character && aiEnabled && charXPBalance >= (MIN_XP_TO_ADVANCE[rulesetName ?? ''] ?? 1) && (
           <button
             className={`xp-available-badge${suggestingXP ? ' xp-loading' : ''}`}
             disabled={suggestingXP}
