@@ -8,7 +8,7 @@ import (
 func TestRollWrathGloryStats_abilitiesPrePopulated(t *testing.T) {
 	// Roll many times to ensure various archetypes get tested
 	for i := 0; i < 200; i++ {
-		stats := rollWrathGloryStats()
+		stats := rollWrathGloryStats("")
 		archetype, _ := stats["archetype"].(string)
 		if archetype == "" {
 			t.Fatal("archetype field is empty")
