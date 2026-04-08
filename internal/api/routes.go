@@ -1427,6 +1427,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 		tensionText = "critical failure " + fullText
 	}
 	go s.autoUpdateTension(id, tensionText)
+	go s.autoUpdateMasquerade(context.Background(), id, fullText)
 	go s.autoUpdateSceneTags(context.Background(), id, fullText)
 }
 
@@ -1603,6 +1604,12 @@ func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, 
 	}
 	ruleset, err := s.db.GetRuleset(camp.RulesetID)
 	if err != nil || ruleset == nil {
+		return
+	}
+
+	// VtM: detect Humanity-violating acts and increment stains.
+	if ruleset.Name == "vtm" {
+		s.detectAndApplyVtMStains(ctx, playerAction+" "+gmText)
 		return
 	}
 
@@ -3015,6 +3022,26 @@ var vtmCrisisRE = regexp.MustCompile(
 	`\b(frenzy|the beast|torpor|blood hunt|diablerie|masquerade breach|daybreak|sunrise)\b`,
 )
 
+// vtmMajorBreachRE matches major Masquerade breach keywords.
+var vtmMajorBreachRE = regexp.MustCompile(
+	`\b(caught on camera|viral|police|recorded|photographed|livestream|news crew)\b`,
+)
+
+// vtmModerateBreachRE matches moderate breach keywords.
+var vtmModerateBreachRE = regexp.MustCompile(
+	`\b(witnessed feeding|seen feeding|watched you feed|fangs exposed|transformation witnessed|seen your true form)\b`,
+)
+
+// vtmMinorBreachRE matches minor breach keywords.
+var vtmMinorBreachRE = regexp.MustCompile(
+	`\b(overheard|suspicious|noticed something|acting strange|too fast|too strong|inhuman)\b`,
+)
+
+// stainTriggerRE matches acts that cost Stains in VtM V5.
+var stainTriggerRE = regexp.MustCompile(
+	`\b(feeding|fed from|forced feeding|killing|killed|diablerie|diablerized|compulsion|breaking.*conviction|violated.*conviction)\b`,
+)
+
 // autoUpdateTension adjusts session tension after each GM response.
 // Failed dice rolls increase tension +1 (caller prepends "critical failure" to text).
 // Crisis keywords in the GM text also increase tension +1.
@@ -3048,6 +3075,93 @@ func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
 	s.bus.Publish(Event{Type: EventTensionUpdated, Payload: map[string]any{
 		"session_id":    sessionID,
 		"tension_level": newLevel,
+	}})
+}
+
+// autoUpdateMasquerade checks GM text for Masquerade breach keywords and decrements
+// masquerade_integrity for VtM sessions. No-op for non-VtM sessions.
+func (s *Server) autoUpdateMasquerade(ctx context.Context, sessionID int64, gmText string) {
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+	camp, err := s.db.GetCampaign(sess.CampaignID)
+	if err != nil || camp == nil {
+		return
+	}
+	rs, err := s.db.GetRuleset(camp.RulesetID)
+	if err != nil || rs == nil || rs.Name != "vtm" {
+		return
+	}
+
+	lower := strings.ToLower(gmText)
+	delta := 0
+	if vtmMajorBreachRE.MatchString(lower) {
+		delta = -3
+	} else if vtmModerateBreachRE.MatchString(lower) {
+		delta = -2
+	} else if vtmMinorBreachRE.MatchString(lower) {
+		delta = -1
+	}
+	if delta == 0 {
+		return
+	}
+
+	current, err := s.db.GetMasqueradeIntegrity(sessionID)
+	if err != nil {
+		return
+	}
+	newLevel := current + delta
+	_ = s.db.UpdateMasqueradeIntegrity(sessionID, newLevel)
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
+		"session_id":           sessionID,
+		"masquerade_integrity": newLevel,
+	}})
+}
+
+// detectAndApplyVtMStains scans text for Humanity-violating acts and adds Stains.
+func (s *Server) detectAndApplyVtMStains(ctx context.Context, text string) {
+	if !stainTriggerRE.MatchString(strings.ToLower(text)) {
+		return
+	}
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return
+	}
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil || char.DataJSON == "" {
+		return
+	}
+	var stats map[string]any
+	if err := json.Unmarshal([]byte(char.DataJSON), &stats); err != nil {
+		return
+	}
+	current := 0
+	if v, ok := stats["stains"]; ok {
+		switch n := v.(type) {
+		case int:
+			current = n
+		case float64:
+			current = int(n)
+		}
+	}
+	if current >= 10 {
+		return
+	}
+	stats["stains"] = current + 1
+	updated, err := json.Marshal(stats)
+	if err != nil {
+		return
+	}
+	if err := s.db.UpdateCharacterData(charID, string(updated)); err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{
+		"id": charID,
 	}})
 }
 
