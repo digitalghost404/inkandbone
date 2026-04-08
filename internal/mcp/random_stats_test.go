@@ -18,7 +18,7 @@ func TestRollStats_knownSystems(t *testing.T) {
 	}{
 		{"dnd5e", []string{"str", "dex", "con", "int", "wis", "cha", "level"}},
 		{"ironsworn", []string{"edge", "heart", "iron", "shadow", "wits", "health", "spirit"}},
-		{"vtm", []string{"generation", "humanity", "blood_pool"}},
+		{"vtm", []string{"generation", "humanity", "hunger", "blood_potency", "stains"}},
 		{"coc", []string{"str", "con", "pow", "sanity", "luck"}},
 		{"cyberpunk_red", []string{"int", "ref", "body", "emp", "humanity"}},
 		{"shadowrun", []string{"body", "agility", "essence"}},
@@ -33,7 +33,7 @@ func TestRollStats_knownSystems(t *testing.T) {
 
 	for _, tc := range systems {
 		t.Run(tc.name, func(t *testing.T) {
-			stats := rollStats(tc.name)
+			stats := rollStats(tc.name, "")
 			assert.NotEmpty(t, stats, "rollStats(%q) returned empty map", tc.name)
 			for _, key := range tc.checkKeys {
 				assert.Contains(t, stats, key, "missing field %q for system %q", key, tc.name)
@@ -43,12 +43,12 @@ func TestRollStats_knownSystems(t *testing.T) {
 }
 
 func TestRollStats_unknownSystem(t *testing.T) {
-	assert.Empty(t, rollStats("pathfinder"))
+	assert.Empty(t, rollStats("pathfinder", ""))
 }
 
 func TestRollStats_dnd5eRanges(t *testing.T) {
 	for i := 0; i < 20; i++ {
-		stats := rollStats("dnd5e")
+		stats := rollStats("dnd5e", "")
 		for _, attr := range []string{"str", "dex", "con", "int", "wis", "cha"} {
 			v, ok := stats[attr].(int)
 			require.True(t, ok, "stat %q should be int", attr)
@@ -60,7 +60,7 @@ func TestRollStats_dnd5eRanges(t *testing.T) {
 
 func TestRollStats_ironswornPointTotal(t *testing.T) {
 	for i := 0; i < 20; i++ {
-		stats := rollStats("ironsworn")
+		stats := rollStats("ironsworn", "")
 		total := 0
 		for _, attr := range []string{"edge", "heart", "iron", "shadow", "wits"} {
 			v, ok := stats[attr].(int)
@@ -80,7 +80,7 @@ func TestRollStats_bladesPointTotal(t *testing.T) {
 		"attune", "command", "consort", "sway",
 	}
 	for i := 0; i < 20; i++ {
-		stats := rollStats("blades")
+		stats := rollStats("blades", "")
 		total := 0
 		for _, a := range actions {
 			v, ok := stats[a].(int)
