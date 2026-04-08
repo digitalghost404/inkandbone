@@ -3154,11 +3154,14 @@ func (s *Server) handleVtMRouseCheck(ctx context.Context, sessionID int64) strin
 
 	newHunger := currentHunger + 1
 	stats["hunger"] = newHunger
-	if dataJSON, err := json.Marshal(stats); err == nil {
-		if err := s.db.UpdateCharacterData(charID, string(dataJSON)); err == nil {
-			s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": charID}})
-		}
+	dataJSON, err := json.Marshal(stats)
+	if err != nil {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger should increase to %d but stat update failed.", roll, newHunger)
 	}
+	if err := s.db.UpdateCharacterData(charID, string(dataJSON)); err != nil {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger should increase to %d but stat update failed.", roll, newHunger)
+	}
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": charID}})
 
 	msg := fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger increases to %d.", roll, newHunger)
 	if newHunger >= 4 {
