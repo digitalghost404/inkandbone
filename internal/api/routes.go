@@ -2964,19 +2964,23 @@ Story passage:
 // sceneTagKeywords maps each scene tag to keywords that strongly indicate it.
 // Keyword matching replaces an AI call — same accuracy, zero token cost.
 var sceneTagKeywords = map[string][]string{
-	"battle":  {"battle", "fight", "combat", "attack", "enemy", "clash", "sword", "skirmish", "weapon", "strike", "wound", "blood", "war"},
-	"dungeon": {"dungeon", "corridor", "cell", "prison", "iron door", "torch"},
-	"cave":    {"cave", "cavern", "stalactite", "stalagmite", "underground", "tunnel", "grotto"},
-	"forest":  {"forest", "tree", "woods", "grove", "undergrowth", "canopy", "thicket", "bark"},
-	"castle":  {"castle", "throne", "tower", "battlement", "great hall", "rampart", "fortress", "keep", "parapet"},
-	"tavern":  {"tavern", "inn", "alehouse", "taproom", "barmaid", "bartender", "tankard", "common room"},
-	"market":  {"market", "stall", "merchant", "vendor", "bazaar", "goods", "wares"},
-	"temple":  {"temple", "shrine", "altar", "priest", "prayer", "ritual", "holy", "sacred", "chapel"},
-	"ruins":   {"ruins", "ruin", "crumble", "ancient", "collapse", "decay", "abandoned", "overgrown", "rubble"},
-	"city":    {"city", "street", "alley", "crowd", "cobblestone", "district", "urban", "plaza"},
-	"ocean":   {"ocean", "sea", "ship", "wave", "sail", "harbor", "dock", "tide", "shore"},
-	"rain":    {"rain", "storm", "thunder", "lightning", "drizzle", "downpour", "soaked", "puddle"},
-	"night":   {"night", "midnight", "moonlight", "dusk", "twilight"},
+	"battle":      {"battle", "fight", "combat", "attack", "enemy", "clash", "sword", "skirmish", "weapon", "strike", "wound", "blood", "war"},
+	"dungeon":     {"dungeon", "corridor", "cell", "prison", "iron door", "torch"},
+	"cave":        {"cave", "cavern", "stalactite", "stalagmite", "underground", "tunnel", "grotto"},
+	"forest":      {"forest", "tree", "woods", "grove", "undergrowth", "canopy", "thicket", "bark"},
+	"castle":      {"castle", "throne", "tower", "battlement", "great hall", "rampart", "fortress", "keep", "parapet"},
+	"tavern":      {"tavern", "inn", "alehouse", "taproom", "barmaid", "bartender", "tankard", "common room"},
+	"market":      {"market", "stall", "merchant", "vendor", "bazaar", "goods", "wares"},
+	"temple":      {"temple", "shrine", "altar", "priest", "prayer", "ritual", "holy", "sacred", "chapel"},
+	"ruins":       {"ruins", "ruin", "crumble", "ancient", "collapse", "decay", "abandoned", "overgrown", "rubble"},
+	"city":        {"city", "street", "alley", "crowd", "cobblestone", "district", "urban", "plaza"},
+	"ocean":       {"ocean", "sea", "ship", "wave", "sail", "harbor", "dock", "tide", "shore"},
+	"rain":        {"rain", "storm", "thunder", "lightning", "drizzle", "downpour", "soaked", "puddle"},
+	"night":       {"night", "midnight", "moonlight", "dusk", "twilight"},
+	"elysium":     {"elysium", "court of elysium", "neutral ground", "the salon", "gathering of kindred"},
+	"haven":       {"haven", "lair", "sanctuary", "your haven", "safe house", "feeding ground"},
+	"hunt":        {"hunting", "stalking", "feeding ground", "prey", "the hunt", "the rack"},
+	"masquerade":  {"masquerade breach", "mortal witnesses", "humans watching", "public eye", "crowd of mortals"},
 }
 
 // autoUpdateSceneTags classifies the scene via keyword matching and updates the
