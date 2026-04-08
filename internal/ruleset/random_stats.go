@@ -764,11 +764,11 @@ func rollVtMV5Stats() map[string]any {
 
 	clans := []string{"Brujah", "Gangrel", "Malkavian", "Nosferatu", "Toreador", "Tremere", "Ventrue", "Caitiff", "Thin-Blooded"}
 	predTypes := []string{"Alleycat", "Bagger", "Blood Leech", "Cleaner", "Consensualist", "Extortionist", "Graverobber", "Osiris", "Sandman", "Siren"}
-	sects := []string{"Camarilla", "Anarch", "Unaligned"}
+	sects := []string{"Camarilla", "Anarch", "Unaligned", "Sabbat (lapsed)"}
 
 	stats := map[string]any{
 		"clan": randPick(clans), "predator_type": randPick(predTypes), "sect": randPick(sects),
-		"generation": randPick([]string{"10th", "11th", "12th", "13th"}),
+		"generation": randPick([]string{"10th", "11th", "12th", "13th", "14th", "15th (Thin-Blooded)"}),
 		"hunger": 1, "blood_potency": 1, "bane_severity": 1,
 		"humanity": 7, "stains": 0,
 		"strength": str, "dexterity": dex, "stamina": sta,

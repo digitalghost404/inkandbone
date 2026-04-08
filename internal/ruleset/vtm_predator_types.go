@@ -16,52 +16,52 @@ type disciplineGrant struct {
 var vtmPredatorTypes = map[string]vtmPredatorTypeDef{
 	"Alleycat": {
 		disciplines: []disciplineGrant{{"celerity", 1}, {"potence", 1}},
-		specialty:   "Brawl (Grappling)",
+		specialty:   "Athletics:Brawling",
 		meritsFlaws: "Merit: Prowler's Instinct / Flaw: Prey Exclusion (Homeless)",
 	},
 	"Bagger": {
-		disciplines: []disciplineGrant{{"obfuscate", 1}, {"auspex", 1}},
-		specialty:   "Streetwise (Black Market)",
+		disciplines: []disciplineGrant{{"blood_sorcery", 1}, {"obfuscate", 1}},
+		specialty:   "Streetwise:Black Market",
 		meritsFlaws: "Merit: Iron Gullet / Flaw: Prey Exclusion (Bagged Blood)",
 	},
 	"Blood Leech": {
-		disciplines: []disciplineGrant{{"obfuscate", 1}, {"potence", 1}},
-		specialty:   "Stealth (Shadowing)",
+		disciplines: []disciplineGrant{{"animalism", 1}, {"obfuscate", 1}},
+		specialty:   "Stealth:Stalking",
 		meritsFlaws: "Flaw: Shunned, Prey Exclusion (Mortals)",
 	},
 	"Cleaner": {
-		disciplines: []disciplineGrant{{"obfuscate", 1}, {"dominate", 1}},
-		specialty:   "Subterfuge (Impersonation)",
+		disciplines: []disciplineGrant{{"auspex", 1}, {"dominate", 1}},
+		specialty:   "Investigation:Crime Scenes",
 		meritsFlaws: "Merit: Retainer / Flaw: Obvious Predator",
 	},
 	"Consensualist": {
-		disciplines: []disciplineGrant{{"presence", 1}, {"auspex", 1}},
-		specialty:   "Persuasion (Victim Calming)",
+		disciplines: []disciplineGrant{{"auspex", 1}, {"presence", 1}},
+		specialty:   "Medicine:Kindred Physiology",
 		meritsFlaws: "Merit: Herd / Flaw: Prey Exclusion (Non-consenting)",
 	},
 	"Extortionist": {
-		disciplines: []disciplineGrant{{"dominate", 1}, {"presence", 1}},
-		specialty:   "Intimidation (Blackmail)",
+		disciplines: []disciplineGrant{{"dominate", 1}, {"potence", 1}},
+		specialty:   "Intimidation:Coercion",
 		meritsFlaws: "Merit: Contacts / Flaw: Prey Exclusion (Vulnerable)",
 	},
 	"Graverobber": {
 		disciplines: []disciplineGrant{{"fortitude", 1}, {"oblivion", 1}},
-		specialty:   "Medicine (Cadavers)",
+		specialty:   "Occult:Grave Rituals",
 		meritsFlaws: "Flaw: Obvious Predator",
 	},
 	"Osiris": {
 		disciplines: []disciplineGrant{{"blood_sorcery", 1}, {"presence", 1}},
-		specialty:   "Occult (Specific Tradition)",
+		specialty:   "Academics:Occult Lore",
 		meritsFlaws: "Merit: Fame / Flaw: Prey Exclusion (Faithful)",
 	},
 	"Sandman": {
 		disciplines: []disciplineGrant{{"auspex", 1}, {"obfuscate", 1}},
-		specialty:   "Stealth (Breaking and Entering)",
+		specialty:   "Stealth:Sneaking",
 		meritsFlaws: "Flaw: Prey Exclusion (Sleeping)",
 	},
 	"Siren": {
 		disciplines: []disciplineGrant{{"presence", 1}, {"potence", 1}},
-		specialty:   "Persuasion (Seduction)",
+		specialty:   "Persuasion:Seduction",
 		meritsFlaws: "Merit: Looks (Beautiful) / Flaw: Prey Exclusion (Mortals in relationships)",
 	},
 }

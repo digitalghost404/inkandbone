@@ -40,3 +40,24 @@ func TestVtMOptions_Sect(t *testing.T) {
 		t.Fatal("vtm options missing sect key")
 	}
 }
+
+func TestVtMOptions_Generation(t *testing.T) {
+	opts := CharacterOptions("vtm")
+	gens, ok := opts["generation"]
+	if !ok {
+		t.Fatal("vtm options missing generation key")
+	}
+	if len(gens) != 6 {
+		t.Fatalf("expected 6 generation values, got %d: %v", len(gens), gens)
+	}
+	found := false
+	for _, g := range gens {
+		if g == "15th (Thin-Blooded)" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected generation values to include %q, got %v", "15th (Thin-Blooded)", gens)
+	}
+}
