@@ -38,8 +38,17 @@ func CharacterOptions(system string) map[string][]string {
 		return map[string][]string{
 			"clan": {
 				"Brujah", "Gangrel", "Malkavian", "Nosferatu", "Toreador",
-				"Tremere", "Ventrue", "Lasombra", "Tzimisce", "Assamite",
-				"Giovanni", "Ravnos", "Setite",
+				"Tremere", "Ventrue", "Caitiff", "Thin-Blooded",
+			},
+			"predator_type": {
+				"Alleycat", "Bagger", "Blood Leech", "Cleaner", "Consensualist",
+				"Extortionist", "Graverobber", "Osiris", "Sandman", "Siren",
+			},
+			"sect": {
+				"Camarilla", "Anarch", "Unaligned", "Sabbat (lapsed)",
+			},
+			"generation": {
+				"10th", "11th", "12th", "13th", "14th", "15th (Thin-Blooded)",
 			},
 		}
 

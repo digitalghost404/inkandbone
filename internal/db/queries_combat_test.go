@@ -97,3 +97,45 @@ func TestAdvanceTurnNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
+
+func TestUpdateCombatantVtMDamage_SuperficialHalving(t *testing.T) {
+	d := newTestDB(t)
+	sessID := setupSession(t, d)
+	encID, err := d.CreateEncounter(sessID, "Test Fight")
+	require.NoError(t, err)
+	combID, err := d.AddCombatant(encID, "Vampire", 10, 6, true, nil)
+	require.NoError(t, err)
+
+	// Apply 4 superficial damage (vampires halve: 4→2 applied)
+	err = d.UpdateCombatantVtMDamage(combID, 4, 0, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	combatants, _ := d.ListCombatants(encID)
+	if len(combatants) == 0 {
+		t.Fatal("no combatants returned")
+	}
+	c := combatants[0]
+	if c.DamageSuperficial != 2 {
+		t.Errorf("expected 2 superficial after halving, got %d", c.DamageSuperficial)
+	}
+}
+
+func TestUpdateCombatantVtMDamage_AggravatedDirect(t *testing.T) {
+	d := newTestDB(t)
+	sessID := setupSession(t, d)
+	encID, err := d.CreateEncounter(sessID, "Test Fight")
+	require.NoError(t, err)
+	combID, err := d.AddCombatant(encID, "Vampire", 10, 6, true, nil)
+	require.NoError(t, err)
+
+	err = d.UpdateCombatantVtMDamage(combID, 0, 2, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	combatants, _ := d.ListCombatants(encID)
+	c := combatants[0]
+	if c.DamageAggravated != 2 {
+		t.Errorf("expected 2 aggravated, got %d", c.DamageAggravated)
+	}
+}

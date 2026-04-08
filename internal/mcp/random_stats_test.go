@@ -18,7 +18,7 @@ func TestRollStats_knownSystems(t *testing.T) {
 	}{
 		{"dnd5e", []string{"str", "dex", "con", "int", "wis", "cha", "level"}},
 		{"ironsworn", []string{"edge", "heart", "iron", "shadow", "wits", "health", "spirit"}},
-		{"vtm", []string{"generation", "humanity", "blood_pool"}},
+		{"vtm", []string{"generation", "humanity", "hunger", "blood_potency", "stains"}},
 		{"coc", []string{"str", "con", "pow", "sanity", "luck"}},
 		{"cyberpunk_red", []string{"int", "ref", "body", "emp", "humanity"}},
 		{"shadowrun", []string{"body", "agility", "essence"}},

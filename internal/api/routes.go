@@ -824,7 +824,7 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 				if char.DataJSON != "" {
 					var stats map[string]any
 					if err := json.Unmarshal([]byte(char.DataJSON), &stats); err == nil {
-						for _, field := range []string{"archetype", "class", "race", "faction", "keywords", "species", "metatype", "playbook", "culture"} {
+						for _, field := range []string{"archetype", "class", "race", "faction", "keywords", "species", "metatype", "playbook", "culture", "clan", "predator_type", "sect"} {
 							if v, ok := stats[field].(string); ok && v != "" {
 								fmt.Fprintf(&sb, "Character %s: %s\n", field, v)
 							}
@@ -1001,6 +1001,60 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 				}
 			}
 			sb.WriteString("[/W&G MECHANICS]\n")
+		}
+	}
+
+	// VtM V5: inject live Hunger/Humanity/Blood Potency and identity fields.
+	if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+		if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
+			sb.WriteString("[VtM MECHANICS]\n")
+			if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
+				if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
+					if char, err := s.db.GetCharacter(charID); err == nil && char != nil && char.DataJSON != "" {
+						var stats map[string]any
+						if err := json.Unmarshal([]byte(char.DataJSON), &stats); err == nil {
+							getInt := func(key string) int {
+								if v, ok := stats[key]; ok {
+									switch n := v.(type) {
+									case int:
+										return n
+									case float64:
+										return int(n)
+									}
+								}
+								return 0
+							}
+							getString := func(key string) string {
+								if v, ok := stats[key].(string); ok {
+									return v
+								}
+								return ""
+							}
+							hunger := getInt("hunger")
+							humanity := getInt("humanity")
+							bp := getInt("blood_potency")
+							stains := getInt("stains")
+							hMax := getInt("health_max")
+							hSup := getInt("health_superficial")
+							hAgg := getInt("health_aggravated")
+							wMax := getInt("willpower_max")
+							wSup := getInt("willpower_superficial")
+							wAgg := getInt("willpower_aggravated")
+							predType := getString("predator_type")
+							clan := getString("clan")
+							fmt.Fprintf(&sb, "Hunger: %d/5 | Humanity: %d | Blood Potency: %d\n", hunger, humanity, bp)
+							fmt.Fprintf(&sb, "Predator Type: %s | Clan: %s\n", predType, clan)
+							fmt.Fprintf(&sb, "Health: %d/%d (%d Superficial, %d Aggravated)\n", hMax-hSup-hAgg, hMax, hSup, hAgg)
+							fmt.Fprintf(&sb, "Willpower: %d/%d (%d Superficial, %d Aggravated)\n", wMax-wSup-wAgg, wMax, wSup, wAgg)
+							fmt.Fprintf(&sb, "Stains: %d\n", stains)
+							if hunger >= 4 {
+								sb.WriteString("WARNING: Hunger is critical. Frenzy risk is high.\n")
+							}
+						}
+					}
+				}
+			}
+			sb.WriteString("[/VtM MECHANICS]\n")
 		}
 	}
 
@@ -1324,6 +1378,25 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 			worldCtx += "\n[GM DIRECTION]\nThe player's action FAILED. Narrate a setback, complication, or consequence. Do not give them what they wanted. Make failure interesting.\n[/GM DIRECTION]"
 		}
 	}
+
+	// VtM: intercept /rouse and /surge commands before the normal roll check.
+	var vtmCommandResult string
+	if sess, err := s.db.GetSession(id); err == nil && sess != nil {
+		if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+			if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
+				lower := strings.ToLower(lastPlayerMsg)
+				if bloodSurgeRE.MatchString(lower) {
+					vtmCommandResult = s.handleVtMBloodSurge(r.Context(), id)
+				} else if rouseCheckRE.MatchString(lower) {
+					vtmCommandResult = s.handleVtMRouseCheck(r.Context(), id)
+				}
+			}
+		}
+	}
+	if vtmCommandResult != "" {
+		worldCtx += "\n" + vtmCommandResult
+	}
+
 	systemPrompt := gmSystemPrompt + "\n\n" + worldCtx + "\n\n[REMINDER] Your response must be exactly 4-5 paragraphs. Count them. Do not write a sixth paragraph. End with **What do you do?** on its own line."
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -1373,6 +1446,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 		tensionText = "critical failure " + fullText
 	}
 	go s.autoUpdateTension(id, tensionText)
+	go s.autoUpdateMasquerade(context.Background(), id, fullText)
 	go s.autoUpdateSceneTags(context.Background(), id, fullText)
 }
 
@@ -1549,6 +1623,12 @@ func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, 
 	}
 	ruleset, err := s.db.GetRuleset(camp.RulesetID)
 	if err != nil || ruleset == nil {
+		return
+	}
+
+	// VtM: detect Humanity-violating acts and increment stains.
+	if ruleset.Name == "vtm" {
+		s.detectAndApplyVtMStains(ctx, playerAction+" "+gmText)
 		return
 	}
 
@@ -2894,19 +2974,23 @@ Story passage:
 // sceneTagKeywords maps each scene tag to keywords that strongly indicate it.
 // Keyword matching replaces an AI call — same accuracy, zero token cost.
 var sceneTagKeywords = map[string][]string{
-	"battle":  {"battle", "fight", "combat", "attack", "enemy", "clash", "sword", "skirmish", "weapon", "strike", "wound", "blood", "war"},
-	"dungeon": {"dungeon", "corridor", "cell", "prison", "iron door", "torch"},
-	"cave":    {"cave", "cavern", "stalactite", "stalagmite", "underground", "tunnel", "grotto"},
-	"forest":  {"forest", "tree", "woods", "grove", "undergrowth", "canopy", "thicket", "bark"},
-	"castle":  {"castle", "throne", "tower", "battlement", "great hall", "rampart", "fortress", "keep", "parapet"},
-	"tavern":  {"tavern", "inn", "alehouse", "taproom", "barmaid", "bartender", "tankard", "common room"},
-	"market":  {"market", "stall", "merchant", "vendor", "bazaar", "goods", "wares"},
-	"temple":  {"temple", "shrine", "altar", "priest", "prayer", "ritual", "holy", "sacred", "chapel"},
-	"ruins":   {"ruins", "ruin", "crumble", "ancient", "collapse", "decay", "abandoned", "overgrown", "rubble"},
-	"city":    {"city", "street", "alley", "crowd", "cobblestone", "district", "urban", "plaza"},
-	"ocean":   {"ocean", "sea", "ship", "wave", "sail", "harbor", "dock", "tide", "shore"},
-	"rain":    {"rain", "storm", "thunder", "lightning", "drizzle", "downpour", "soaked", "puddle"},
-	"night":   {"night", "midnight", "moonlight", "dusk", "twilight"},
+	"battle":      {"battle", "fight", "combat", "attack", "enemy", "clash", "sword", "skirmish", "weapon", "strike", "wound", "blood", "war"},
+	"dungeon":     {"dungeon", "corridor", "cell", "prison", "iron door", "torch"},
+	"cave":        {"cave", "cavern", "stalactite", "stalagmite", "underground", "tunnel", "grotto"},
+	"forest":      {"forest", "tree", "woods", "grove", "undergrowth", "canopy", "thicket", "bark"},
+	"castle":      {"castle", "throne", "tower", "battlement", "great hall", "rampart", "fortress", "keep", "parapet"},
+	"tavern":      {"tavern", "inn", "alehouse", "taproom", "barmaid", "bartender", "tankard", "common room"},
+	"market":      {"market", "stall", "merchant", "vendor", "bazaar", "goods", "wares"},
+	"temple":      {"temple", "shrine", "altar", "priest", "prayer", "ritual", "holy", "sacred", "chapel"},
+	"ruins":       {"ruins", "ruin", "crumble", "ancient", "collapse", "decay", "abandoned", "overgrown", "rubble"},
+	"city":        {"city", "street", "alley", "crowd", "cobblestone", "district", "urban", "plaza"},
+	"ocean":       {"ocean", "sea", "ship", "wave", "sail", "harbor", "dock", "tide", "shore"},
+	"rain":        {"rain", "storm", "thunder", "lightning", "drizzle", "downpour", "soaked", "puddle"},
+	"night":       {"night", "midnight", "moonlight", "dusk", "twilight"},
+	"elysium":     {"elysium", "court of elysium", "neutral ground", "the salon", "gathering of kindred"},
+	"haven":       {"haven", "lair", "sanctuary", "your haven", "safe house", "feeding ground"},
+	"hunt":        {"hunting", "stalking", "feeding ground", "prey", "the hunt", "the rack"},
+	"masquerade":  {"masquerade breach", "mortal witnesses", "humans watching", "public eye", "crowd of mortals"},
 }
 
 // autoUpdateSceneTags classifies the scene via keyword matching and updates the
@@ -2966,11 +3050,57 @@ var crisisRE = regexp.MustCompile(
 	`\b(critical\s+failure|disaster|catastrophe|ambush|betrayal|dying|wounded|doomed|cornered|overwhelmed)\b`,
 )
 
+// vtmCrisisRE matches VtM-specific crisis keywords at word boundaries.
+var vtmCrisisRE = regexp.MustCompile(
+	`\b(frenzy|the beast|torpor|blood hunt|diablerie|masquerade breach|daybreak|sunrise)\b`,
+)
+
+// vtmMajorBreachRE matches major Masquerade breach keywords.
+var vtmMajorBreachRE = regexp.MustCompile(
+	`\b(caught on camera|viral|police|recorded|photographed|livestream|news crew)\b`,
+)
+
+// vtmModerateBreachRE matches moderate breach keywords.
+var vtmModerateBreachRE = regexp.MustCompile(
+	`\b(witnessed feeding|seen feeding|watched you feed|fangs exposed|transformation witnessed|seen your true form)\b`,
+)
+
+// vtmMinorBreachRE matches minor breach keywords.
+var vtmMinorBreachRE = regexp.MustCompile(
+	`\b(overheard|suspicious|noticed something|acting strange|too fast|too strong|inhuman)\b`,
+)
+
+// stainTriggerRE matches acts that cost Stains in VtM V5.
+var stainTriggerRE = regexp.MustCompile(
+	`\b(feeding|fed from|forced feeding|killing|killed|diablerie|diablerized|compulsion|breaking.*conviction|violated.*conviction)\b`,
+)
+
+// rouseCheckRE matches the player's /rouse or "rouse check" command.
+var rouseCheckRE = regexp.MustCompile(`(?i)(?:\b(rouse\s+check)\b|(?:^|\s)(/rouse)\b)`)
+
+// bloodSurgeRE matches the /surge command.
+var bloodSurgeRE = regexp.MustCompile(`(?i)(?:(?:^|\s)(/surge)\b|\b(blood\s+surge)\b)`)
+
 // autoUpdateTension adjusts session tension after each GM response.
 // Failed dice rolls increase tension +1 (caller prepends "critical failure" to text).
 // Crisis keywords in the GM text also increase tension +1.
 func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
-	if !crisisRE.MatchString(strings.ToLower(gmText)) {
+	lower := strings.ToLower(gmText)
+
+	matched := crisisRE.MatchString(lower)
+
+	// For VtM sessions, also check VtM-specific crisis keywords.
+	if !matched {
+		if sess, err := s.db.GetSession(sessionID); err == nil && sess != nil {
+			if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+				if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
+					matched = matched || vtmCrisisRE.MatchString(lower)
+				}
+			}
+		}
+	}
+
+	if !matched {
 		return
 	}
 
@@ -2984,6 +3114,203 @@ func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
 	s.bus.Publish(Event{Type: EventTensionUpdated, Payload: map[string]any{
 		"session_id":    sessionID,
 		"tension_level": newLevel,
+	}})
+}
+
+// handleVtMRouseCheck performs a Rouse Check for a VtM character.
+// Rolls 1d10; 6+ = no Hunger change; 1-5 = Hunger +1.
+// At Hunger 5, does not increase further but flags a Frenzy risk.
+// Returns a string describing the result for injection into GM context.
+func (s *Server) handleVtMRouseCheck(ctx context.Context, sessionID int64) string {
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return ""
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return ""
+	}
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil || char.DataJSON == "" {
+		return ""
+	}
+	var stats map[string]any
+	if err := json.Unmarshal([]byte(char.DataJSON), &stats); err != nil {
+		return ""
+	}
+
+	currentHunger := 0
+	if v, ok := stats["hunger"]; ok {
+		switch n := v.(type) {
+		case int:
+			currentHunger = n
+		case float64:
+			currentHunger = int(n)
+		}
+	}
+
+	roll := mathrand.Intn(10) + 1
+	_, _ = s.db.LogDiceRoll(sessionID, "1d10 (Rouse Check)", roll, "[]")
+	s.bus.Publish(Event{Type: EventDiceRolled, Payload: map[string]any{
+		"session_id": sessionID,
+		"expression": "1d10 (Rouse Check)",
+		"result":     roll,
+	}})
+
+	if roll >= 6 {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Success. Hunger unchanged at %d.", roll, currentHunger)
+	}
+
+	// Hunger increases
+	if currentHunger >= 5 {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger already at 5. FRENZY RISK: The character must resist a Hunger Frenzy (Composure + Resolve, difficulty 3).", roll)
+	}
+
+	newHunger := currentHunger + 1
+	stats["hunger"] = newHunger
+	dataJSON, err := json.Marshal(stats)
+	if err != nil {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger should increase to %d but stat update failed.", roll, newHunger)
+	}
+	if err := s.db.UpdateCharacterData(charID, string(dataJSON)); err != nil {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger should increase to %d but stat update failed.", roll, newHunger)
+	}
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": charID}})
+
+	msg := fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger increases to %d.", roll, newHunger)
+	if newHunger >= 4 {
+		msg += " The Beast strains against the cage. Frenzy risk is elevated."
+	}
+	return msg
+}
+
+// bloodPotencyBonusDice returns the bonus dice granted by Blood Surge for a given Blood Potency.
+func bloodPotencyBonusDice(bp int) int {
+	switch {
+	case bp >= 10:
+		return 4
+	case bp >= 7:
+		return 3
+	case bp >= 4:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// handleVtMBloodSurge performs a Rouse Check and returns bonus dice count.
+// Returns a string for injection into GM context.
+func (s *Server) handleVtMBloodSurge(ctx context.Context, sessionID int64) string {
+	rouseResult := s.handleVtMRouseCheck(ctx, sessionID)
+
+	charIDStr, _ := s.db.GetSetting("active_character_id")
+	charID, _ := strconv.ParseInt(charIDStr, 10, 64)
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil {
+		return rouseResult
+	}
+	var stats map[string]any
+	_ = json.Unmarshal([]byte(char.DataJSON), &stats)
+	bp := 1
+	if v, ok := stats["blood_potency"]; ok {
+		switch n := v.(type) {
+		case int:
+			bp = n
+		case float64:
+			bp = int(n)
+		}
+	}
+	bonus := bloodPotencyBonusDice(bp)
+	return rouseResult + fmt.Sprintf(" [BLOOD SURGE] Add %d bonus dice to the next roll this turn (Blood Potency %d).", bonus, bp)
+}
+
+// autoUpdateMasquerade checks GM text for Masquerade breach keywords and decrements
+// masquerade_integrity for VtM sessions. No-op for non-VtM sessions.
+func (s *Server) autoUpdateMasquerade(ctx context.Context, sessionID int64, gmText string) {
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+	camp, err := s.db.GetCampaign(sess.CampaignID)
+	if err != nil || camp == nil {
+		return
+	}
+	rs, err := s.db.GetRuleset(camp.RulesetID)
+	if err != nil || rs == nil || rs.Name != "vtm" {
+		return
+	}
+
+	lower := strings.ToLower(gmText)
+	delta := 0
+	if vtmMajorBreachRE.MatchString(lower) {
+		delta = -3
+	} else if vtmModerateBreachRE.MatchString(lower) {
+		delta = -2
+	} else if vtmMinorBreachRE.MatchString(lower) {
+		delta = -1
+	}
+	if delta == 0 {
+		return
+	}
+
+	current, err := s.db.GetMasqueradeIntegrity(sessionID)
+	if err != nil {
+		return
+	}
+	newLevel := current + delta
+	if newLevel < 0 {
+		newLevel = 0
+	}
+	_ = s.db.UpdateMasqueradeIntegrity(sessionID, newLevel)
+	s.bus.Publish(Event{Type: EventSessionUpdated, Payload: map[string]any{
+		"session_id":           sessionID,
+		"masquerade_integrity": newLevel,
+	}})
+}
+
+// detectAndApplyVtMStains scans text for Humanity-violating acts and adds Stains.
+func (s *Server) detectAndApplyVtMStains(ctx context.Context, text string) {
+	if !stainTriggerRE.MatchString(strings.ToLower(text)) {
+		return
+	}
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return
+	}
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil || char.DataJSON == "" {
+		return
+	}
+	var stats map[string]any
+	if err := json.Unmarshal([]byte(char.DataJSON), &stats); err != nil {
+		return
+	}
+	current := 0
+	if v, ok := stats["stains"]; ok {
+		switch n := v.(type) {
+		case int:
+			current = n
+		case float64:
+			current = int(n)
+		}
+	}
+	if current >= 10 {
+		return
+	}
+	stats["stains"] = current + 1
+	updated, err := json.Marshal(stats)
+	if err != nil {
+		return
+	}
+	if err := s.db.UpdateCharacterData(charID, string(updated)); err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{
+		"id": charID,
 	}})
 }
 
@@ -3002,7 +3329,7 @@ func (s *Server) autoUpdateCurrency(ctx context.Context, sessionID int64, gmText
 	if sess, err := s.db.GetSession(sessionID); err == nil && sess != nil {
 		if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
 			if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil {
-				if rs.Name == "wrath_glory" {
+				if rs.Name == "wrath_glory" || rs.Name == "vtm" {
 					return
 				}
 			}

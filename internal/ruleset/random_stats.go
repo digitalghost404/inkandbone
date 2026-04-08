@@ -267,19 +267,7 @@ func RollStats(system, archetype string) map[string]any {
 	case "ironsworn":
 		return ironswornStats()
 	case "vtm":
-		return map[string]any{
-			"clan":        randPick([]string{"Brujah", "Gangrel", "Malkavian", "Nosferatu", "Toreador", "Tremere", "Ventrue", "Lasombra", "Tzimisce", "Assamite", "Giovanni", "Ravnos", "Setite"}),
-			"generation":  13,
-			"humanity":    7,
-			"blood_pool":  10,
-			"willpower":   3,
-			"attributes":  "",
-			"abilities":   "",
-			"disciplines": "",
-			"virtues":     "",
-			"backgrounds": "",
-			"notes":       "",
-		}
+		return rollVtMV5Stats()
 	case "coc":
 		pow := rollNd(3, 6) * 5
 		siz := (rollNd(2, 6) + 6) * 5
@@ -468,7 +456,11 @@ func RollStats(system, archetype string) map[string]any {
 // rollWrathGloryStats generates a W&G character using the wgArchetypes table.
 // Archetype starting abilities are pre-populated into the talents field.
 // If archetypeName is empty or not found, a random archetype is chosen.
-func rollWrathGloryStats(archetypeName string) map[string]any {
+func rollWrathGloryStats(archetypeArgs ...string) map[string]any {
+	archetypeName := ""
+	if len(archetypeArgs) > 0 {
+		archetypeName = archetypeArgs[0]
+	}
 	def, ok := wgArchetypes[archetypeName]
 	if !ok {
 		names := make([]string, 0, len(wgArchetypes))
@@ -732,4 +724,70 @@ func bladesStats() map[string]any {
 		result[k] = v
 	}
 	return result
+}
+
+// rollVtMV5Stats generates a V5 starting vampire character.
+// Attribute pools: primary (4,3,2), secondary (3,3,2), tertiary (2,2,2).
+// One attribute dot is distributed to each pool's extra slot during play.
+func rollVtMV5Stats() map[string]any {
+	// Three attribute groups, each gets a shuffled pool of values
+	primaries := [3][3]int{
+		{4, 3, 2},
+		{3, 3, 2},
+		{2, 2, 2},
+	}
+	// Randomly assign which priority goes to which group
+	order := []int{0, 1, 2}
+	for i := range order {
+		j := i + rand.Intn(len(order)-i)
+		order[i], order[j] = order[j], order[i]
+	}
+	groups := [3][3]int{}
+	for g := 0; g < 3; g++ {
+		vals := primaries[order[g]]
+		for i := range vals {
+			j := i + rand.Intn(len(vals)-i)
+			vals[i], vals[j] = vals[j], vals[i]
+		}
+		groups[g] = vals
+	}
+
+	str := groups[0][0]
+	dex := groups[0][1]
+	sta := groups[0][2]
+	cha := groups[1][0]
+	man := groups[1][1]
+	com := groups[1][2]
+	intel := groups[2][0]
+	wit := groups[2][1]
+	res := groups[2][2]
+
+	clans := []string{"Brujah", "Gangrel", "Malkavian", "Nosferatu", "Toreador", "Tremere", "Ventrue", "Caitiff", "Thin-Blooded"}
+	predTypes := []string{"Alleycat", "Bagger", "Blood Leech", "Cleaner", "Consensualist", "Extortionist", "Graverobber", "Osiris", "Sandman", "Siren"}
+	sects := []string{"Camarilla", "Anarch", "Unaligned", "Sabbat (lapsed)"}
+
+	stats := map[string]any{
+		"clan": randPick(clans), "predator_type": randPick(predTypes), "sect": randPick(sects),
+		"generation": randPick([]string{"10th", "11th", "12th", "13th", "14th", "15th (Thin-Blooded)"}),
+		"hunger": 1, "blood_potency": 1, "bane_severity": 1,
+		"humanity": 7, "stains": 0,
+		"strength": str, "dexterity": dex, "stamina": sta,
+		"charisma": cha, "manipulation": man, "composure": com,
+		"intelligence": intel, "wits": wit, "resolve": res,
+		"health_max": sta + 3, "health_superficial": 0, "health_aggravated": 0,
+		"willpower_max": com + res, "willpower_superficial": 0, "willpower_aggravated": 0,
+		"athletics": 0, "brawl": 0, "craft": 0, "drive": 0, "firearms": 0,
+		"larceny": 0, "melee": 0, "stealth": 0, "survival": 0,
+		"animal_ken": 0, "etiquette": 0, "insight": 0, "intimidation": 0,
+		"leadership": 0, "performance": 0, "persuasion": 0, "streetwise": 0, "subterfuge": 0,
+		"academics": 0, "awareness": 0, "finance": 0, "investigation": 0,
+		"medicine": 0, "occult": 0, "politics": 0, "technology": 0,
+		"animalism": 0, "auspex": 0, "blood_sorcery": 0, "celerity": 0,
+		"dominate": 0, "fortitude": 0, "obfuscate": 0, "oblivion": 0,
+		"potence": 0, "presence": 0, "protean": 0,
+		"skill_specialties": "", "merits_flaws": "", "ambition": "", "desire": "",
+		"convictions": "", "touchstones": "", "notes": "",
+	}
+	ApplyVtMPredatorType(stats["predator_type"].(string), stats)
+	return stats
 }

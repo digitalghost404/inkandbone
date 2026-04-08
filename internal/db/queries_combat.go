@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -87,15 +88,20 @@ func (d *DB) AdvanceTurn(encounterID int64) (int, error) {
 // --- Combatants ---
 
 type Combatant struct {
-	ID             int64  `json:"id"`
-	EncounterID    int64  `json:"encounter_id"`
-	CharacterID    *int64 `json:"character_id"`
-	Name           string `json:"name"`
-	Initiative     int    `json:"initiative"`
-	HPCurrent      int    `json:"hp_current"`
-	HPMax          int    `json:"hp_max"`
-	ConditionsJSON string `json:"conditions_json"`
-	IsPlayer       bool   `json:"is_player"`
+	ID                  int64  `json:"id"`
+	EncounterID         int64  `json:"encounter_id"`
+	CharacterID         *int64 `json:"character_id"`
+	Name                string `json:"name"`
+	Initiative          int    `json:"initiative"`
+	HPCurrent           int    `json:"hp_current"`
+	HPMax               int    `json:"hp_max"`
+	ConditionsJSON      string `json:"conditions_json"`
+	IsPlayer            bool   `json:"is_player"`
+	DamageSuperficial   int    `json:"damage_superficial"`
+	DamageAggravated    int    `json:"damage_aggravated"`
+	WillpowerSuperficial int   `json:"willpower_superficial"`
+	WillpowerAggravated int    `json:"willpower_aggravated"`
+	Hunger              int    `json:"hunger"`
 }
 
 func (d *DB) AddCombatant(encounterID int64, name string, initiative, hpMax int, isPlayer bool, characterID *int64) (int64, error) {
@@ -120,7 +126,9 @@ func (d *DB) UpdateCombatant(id int64, hpCurrent int, conditionsJSON string) err
 
 func (d *DB) ListCombatants(encounterID int64) ([]Combatant, error) {
 	rows, err := d.db.Query(
-		`SELECT id, encounter_id, character_id, name, initiative, hp_current, hp_max, conditions_json, is_player
+		`SELECT id, encounter_id, character_id, name, initiative, hp_current, hp_max,
+		        conditions_json, is_player,
+		        damage_superficial, damage_aggravated, willpower_superficial, willpower_aggravated, hunger
 		 FROM combatants WHERE encounter_id = ? ORDER BY initiative DESC`,
 		encounterID,
 	)
@@ -133,7 +141,8 @@ func (d *DB) ListCombatants(encounterID int64) ([]Combatant, error) {
 		var c Combatant
 		var isPlayer int
 		if err := rows.Scan(&c.ID, &c.EncounterID, &c.CharacterID, &c.Name,
-			&c.Initiative, &c.HPCurrent, &c.HPMax, &c.ConditionsJSON, &isPlayer); err != nil {
+			&c.Initiative, &c.HPCurrent, &c.HPMax, &c.ConditionsJSON, &isPlayer,
+			&c.DamageSuperficial, &c.DamageAggravated, &c.WillpowerSuperficial, &c.WillpowerAggravated, &c.Hunger); err != nil {
 			return nil, err
 		}
 		c.IsPlayer = isPlayer == 1
@@ -147,4 +156,52 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// UpdateCombatantVtMDamage applies VtM V5 damage to a combatant.
+// isVampire=true halves superficial damage (round up).
+// Superficial overflow beyond HPMax converts to aggravated.
+func (d *DB) UpdateCombatantVtMDamage(id int64, superficialIn, aggravatedIn int, isVampire bool) error {
+	var cur Combatant
+	var isPlayer int
+	err := d.db.QueryRow(
+		`SELECT id, encounter_id, character_id, name, initiative, hp_current, hp_max,
+		        conditions_json, is_player,
+		        damage_superficial, damage_aggravated, willpower_superficial, willpower_aggravated, hunger
+		 FROM combatants WHERE id = ?`, id,
+	).Scan(
+		&cur.ID, &cur.EncounterID, &cur.CharacterID, &cur.Name,
+		&cur.Initiative, &cur.HPCurrent, &cur.HPMax, &cur.ConditionsJSON, &isPlayer,
+		&cur.DamageSuperficial, &cur.DamageAggravated,
+		&cur.WillpowerSuperficial, &cur.WillpowerAggravated, &cur.Hunger,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("combatant %d not found", id)
+		}
+		return err
+	}
+	cur.IsPlayer = isPlayer == 1
+
+	applied := superficialIn
+	if isVampire && applied > 0 {
+		applied = (applied + 1) / 2
+	}
+	newSuperficial := cur.DamageSuperficial + applied
+
+	newAggravated := cur.DamageAggravated + aggravatedIn
+	if newSuperficial > cur.HPMax {
+		overflow := newSuperficial - cur.HPMax
+		newSuperficial = cur.HPMax
+		newAggravated += overflow
+	}
+	if newAggravated > cur.HPMax {
+		newAggravated = cur.HPMax
+	}
+
+	_, err = d.db.Exec(
+		`UPDATE combatants SET damage_superficial = ?, damage_aggravated = ? WHERE id = ?`,
+		newSuperficial, newAggravated, id,
+	)
+	return err
 }
