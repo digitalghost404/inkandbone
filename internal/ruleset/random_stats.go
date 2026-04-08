@@ -468,7 +468,11 @@ func RollStats(system, archetype string) map[string]any {
 // rollWrathGloryStats generates a W&G character using the wgArchetypes table.
 // Archetype starting abilities are pre-populated into the talents field.
 // If archetypeName is empty or not found, a random archetype is chosen.
-func rollWrathGloryStats(archetypeName string) map[string]any {
+func rollWrathGloryStats(archetypeArgs ...string) map[string]any {
+	archetypeName := ""
+	if len(archetypeArgs) > 0 {
+		archetypeName = archetypeArgs[0]
+	}
 	def, ok := wgArchetypes[archetypeName]
 	if !ok {
 		names := make([]string, 0, len(wgArchetypes))
