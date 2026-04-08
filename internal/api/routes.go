@@ -1764,19 +1764,6 @@ func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, 
 	if !ok {
 		return
 	}
-	// Skip the AI call when the narrative contains no stat-change signals.
-	combined := strings.ToLower(playerAction + " " + gmText)
-	hasSignal := false
-	for _, kw := range statChangeKeywords {
-		if strings.Contains(combined, kw) {
-			hasSignal = true
-			break
-		}
-	}
-	if !hasSignal {
-		return
-	}
-
 	// Resolve active character.
 	charIDStr, err := s.db.GetSetting("active_character_id")
 	if err != nil || charIDStr == "" {
@@ -1803,6 +1790,23 @@ func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, 
 	ruleset, err := s.db.GetRuleset(camp.RulesetID)
 	if err != nil || ruleset == nil {
 		return
+	}
+
+	// Skip the AI call when the narrative contains no stat-change signals.
+	// Exception: VtM awards XP for every meaningful scene (including pure social/roleplay),
+	// so always run the stat check for VtM regardless of keywords.
+	if ruleset.Name != "vtm" && ruleset.Name != "wrath_glory" {
+		combined := strings.ToLower(playerAction + " " + gmText)
+		hasSignal := false
+		for _, kw := range statChangeKeywords {
+			if strings.Contains(combined, kw) {
+				hasSignal = true
+				break
+			}
+		}
+		if !hasSignal {
+			return
+		}
 	}
 
 	// VtM: detect Humanity-violating acts and increment stains (async, non-blocking).
