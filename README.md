@@ -317,8 +317,7 @@ Four tabs showing different campaign data:
 - A roster of named NPCs for the current session.
 - Each NPC shows a name label, editable note field (auto-saves on blur), and a delete button.
 - "+ Add NPC" button at the bottom to create new entries.
-- NPCs auto-add when Claude mentions a character's name during play.
-- Live WebSocket updates when NPCs are added or modified.
+- NPCs are AI-managed: auto-added when Claude introduces a new named character, auto-removed when a character is confirmed dead, captured, or gone. Live WebSocket updates when the roster changes.
 
 **Objectives tab (Quest Tracker):**
 - List of active, completed, and failed objectives for the campaign.
@@ -347,7 +346,7 @@ A "ruleset" is the game system you're playing. Each has different character shee
 
 **Blades in the Dark** (`bitd`) — Victorian ghosts, heists, and crew mechanics. Position and effect system.
 
-**Vampire: The Masquerade** (`vtm`) — Gothic horror, vampire politics, and the struggle for humanity.
+**Vampire: The Masquerade V5** (`vtm`) — Gothic horror, vampire politics, and the struggle for humanity. Full V5 rules support — see **VtM V5 Features** section below.
 
 **Call of Cthulhu** (`cthulhu`) — 1920s cosmic horror. Sanity and investigators.
 
@@ -540,13 +539,13 @@ Claude then narrates what happens, applying rules as needed, and responds via Se
 
 ### Automation Goroutines
 
-After every GM response, ten background tasks fire automatically (no player action required):
+After every GM response, background tasks fire automatically (no player action required):
 
-**autoExtractNPCs** — Claude's text is analyzed for proper names. New named characters are automatically added to the session NPC roster. Names appear in the NPCs tab on the right sidebar.
+**extractNPCs** — Claude's text is analyzed for named characters. New NPCs are added to the session roster. NPCs confirmed dead, captured, or permanently gone are automatically removed. Names appear in the NPCs tab on the right sidebar.
 
 **autoGenerateMap** — When Claude describes a new location with a proper name, an SVG map is generated and added to the campaign map gallery. You can view it and place pins on locations mentioned in the story.
 
-**autoUpdateCharacterStats** — Detects story events that affect your character (taking damage, gaining XP, level-up, acquiring abilities, etc.). Applies rule-based stat updates automatically per ruleset. Changes appear instantly in the character sheet.
+**autoUpdateCharacterStats** — Detects story events that affect your character (taking damage, gaining XP, level-up, acquiring abilities, etc.). Applies rule-based stat updates automatically per ruleset. Changes appear instantly in the character sheet. When XP increases, triggers XP advancement suggestions (see below).
 
 **autoUpdateRecap** — Every 4 GM responses, the session journal entry is regenerated with a fresh summary capturing narrative arc, key decisions, and character growth.
 
@@ -561,6 +560,12 @@ After every GM response, ten background tasks fire automatically (no player acti
 **autoUpdateCurrency** — After every GM response, Claude analyzes the text for explicit currency transactions (e.g., "you receive 30 gold", "costs 15 coin"). If a specific number and a currency word appear together, the character's balance is updated automatically. A 5-second undo toast appears in the inventory panel so you can reverse unintended changes. No update fires if no transaction is found.
 
 **autoUpdateSceneTags** — After every GM response, the scene text is scanned for environment keywords (dungeon, tavern, forest, battle, etc.) and the session's active scene tags are updated. Scene tags drive ambient audio track selection without requiring any manual input.
+
+**autoUpdateMasquerade** *(VtM only)* — Scans GM text for Masquerade breach keywords (witnessed feeding, caught on camera, police involvement, etc.). Decrements the session's Masquerade integrity automatically based on breach severity. Displayed in the session header.
+
+**autoUpdateChronicleNight** *(VtM only)* — Scans GM text for night-transition phrases (dusk falls, nightfall, fall of night, night has reclaimed, darkness descends, and ~35 other variants). Increments the Chronicle Night counter on the campaign when a new night begins. The Chronicle Night tracker in the UI is display-only — the AI GM is the sole source of truth, driven by what it narrates.
+
+**autoSuggestXPSpend** — Fires when your XP increases. Uses AI to generate 2-3 ranked advancement suggestions (skill to advance, cost, reason). Suggestions appear in a panel in the character sheet. Click a suggestion to apply the advancement in one step.
 
 All automation runs in the background without interrupting your gameplay. Updates appear in real time via WebSocket.
 
@@ -644,6 +649,24 @@ DELETE /api/relationships/{id}
 
 Relationships are campaign-wide and persist. Use them to track feuds, alliances, mentorships, and rivalries that shape your story.
 
+### VtM V5 Features
+
+ink & bone has deep Vampire: The Masquerade 5th Edition support beyond the standard ruleset schema. These features activate automatically when you play a VtM campaign.
+
+**Chronicle Night Tracker** — The in-game night number is tracked as your chronicle progresses. The tracker displays in the session header showing "Night N — [Day]". It advances automatically whenever the GM narrates a night transition — the AI GM is the sole source of truth. No manual +/− controls.
+
+**Masquerade Integrity** — Each session tracks the Masquerade's integrity (0-10, starting at 10). The tracker displays in the session header. When the GM's narration contains Masquerade breach keywords (witnessed feeding, caught on camera, police involvement, supernatural display going viral, etc.), the integrity decrements automatically based on breach severity. Watch this number — a low Masquerade triggers political consequences in-story.
+
+**Hunger Die Narration** — The GM is trained on V5 vocabulary: "Hunger" (never blood pool), Rouse Checks, Superficial and Aggravated damage, Bestial Failures (Hunger die shows 1 on a failed roll), and Messy Criticals (Hunger die shows 10 on a success). Clan Compulsions trigger on Messy Critical results per V5 rules.
+
+**Dice: Success Count Display** — VtM dice pool rolls show "N successes" rather than a raw number, matching how V5 works. The system tracks Normal die successes and Hunger die successes separately.
+
+**XP Advancement Suggestions** — When you earn XP (Beats), an AI-powered suggestions panel appears in your character sheet. It shows 2-3 ranked advancement options: skill improvements, discipline upgrades, or other stat increases — each with cost and reasoning. Click one to apply it immediately.
+
+**Clan Compulsion Oracle Tables** — In addition to Action and Theme oracle tables, VtM has Compulsion tables for all 7 supported clans: Brujah (Rebellion), Gangrel (Feral Impulse), Malkavian (Delusion), Nosferatu (Cryptophilia), Toreador (Obsession), Tremere (Perfectionism), and Ventrue (Arrogance). Roll 1-10 on a clan table when a Messy Critical triggers a Compulsion.
+
+**Full V5 Character Schema** — The VtM character sheet covers all V5 fields: Hunger, Blood Potency, Bane Severity, Humanity, Stains, all 7 attribute pools, 40 skills, 11 Discipline columns, Health and Willpower tracks (max/superficial/aggravated), Convictions, Touchstones, Ambition, Desire, Skill Specialties, Merits & Flaws, and a free-text Notes area.
+
 ### Audio & Ambience
 
 **Procedural Sound Effects** — Web Audio API synthesis provides automatic sound effects during play:
@@ -692,7 +715,7 @@ Supported scene tags (13 total): `tavern`, `dungeon`, `forest`, `city`, `ocean`,
 ### Tech Stack
 
 - **Go 1.22+:** HTTP server, SQLite database layer, MCP integration.
-- **SQLite:** Persistent session, character, and campaign data in a single local file (`~/.ttrpg`). 20 migrations, including per-ruleset GM context and Wrath & Glory prose directives.
+- **SQLite:** Persistent session, character, and campaign data in a single local file (`~/.ttrpg`). 30 migrations, including per-ruleset GM context, Wrath & Glory prose directives, and full VtM V5 schema.
 - **React 18 + TypeScript:** Vite-bundled frontend, embedded in the binary.
 - **WebSocket:** Live dashboard updates from server to browser.
 - **SSE (Server-Sent Events):** Streaming GM responses for character-by-character prose display.
@@ -725,9 +748,9 @@ SQLite stores campaigns, characters, sessions, messages, NPCs, world notes, maps
 
 Key tables:
 
-- `campaigns` — Campaign metadata and ruleset reference.
+- `campaigns` — Campaign metadata and ruleset reference. `chronicle_night` (integer, default 1) tracks the in-game night number for VtM chronicles.
 - `characters` — Player characters with stats (JSON), portrait path, `currency_balance` (integer, default 0), and `currency_label` (text, default "Gold").
-- `sessions` — Play sessions with title, date, summary, and `tension_level` (1-10).
+- `sessions` — Play sessions with title, date, summary, `tension_level` (1-10), and `masquerade_integrity` (integer, default 10, VtM only).
 - `messages` — Full conversation history (role: 'user' or 'assistant').
 - `session_npcs` — Named characters for each session.
 - `world_notes` — Lore entries (locations, NPCs, factions, items) with optional `personality_json` for NPC profiles.
@@ -736,9 +759,9 @@ Key tables:
 - `objectives` — Story goals (active, completed, failed).
 - `items` — Character inventory (name, description, quantity, equipped status).
 - `combat_encounters` — Combat tracks (one per encounter).
-- `combatants` — Combatants in an encounter (initiative, HP, conditions).
+- `combatants` — Combatants in an encounter (initiative, HP, conditions). VtM V5 combatants also track `damage_superficial`, `damage_aggravated`, `willpower_superficial`, `willpower_aggravated`, and `hunger`.
 - `dice_rolls` — Roll history with expression and result breakdown.
-- `oracle_tables` — Seeded oracle tables (action and theme) with 50 rows each. Custom rulesets can provide their own.
+- `oracle_tables` — Seeded oracle tables (action and theme) with 50 rows each. VtM also has 7 clan Compulsion tables (10 rows each). Custom rulesets can provide their own.
 - `relationships` — Named relationships between characters/factions (from_name, to_name, relationship_type, description, campaign_id).
 - `scene_tags` — Session scene tags (tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins) linked to sessions for ambient audio selection.
 

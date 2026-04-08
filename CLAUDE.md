@@ -37,10 +37,10 @@ Makefile              - build, install, dev, test, clean
 
 ## Key Database Tables
 
-- `campaigns` (ruleset reference)
+- `campaigns` (ruleset reference, `chronicle_night` INTEGER DEFAULT 1 for VtM in-game night tracking)
 - `rulesets` (name, schema as JSON, `gm_context` TEXT for per-system narrative guidance — 13 rulesets seeded with tone, vocabulary, honorifics, and mechanical language)
 - `characters` (stats as JSON, portrait path, `currency_balance` INTEGER DEFAULT 0, `currency_label` TEXT DEFAULT 'Gold')
-- `sessions` (title, date, summary, `tension_level` 1-10)
+- `sessions` (title, date, summary, `tension_level` 1-10, `masquerade_integrity` INTEGER DEFAULT 10 for VtM Masquerade tracking)
 - `messages` (full conversation history)
 - `session_npcs` (named NPCs per session)
 - `world_notes` (tagged lore: NPC, location, faction, item, other; `personality_json` for NPC traits)
@@ -48,9 +48,9 @@ Makefile              - build, install, dev, test, clean
 - `map_pins` (coordinate + label + notes)
 - `objectives` (active/completed/failed)
 - `items` (character inventory)
-- `combat_encounters` + `combatants` (turn tracking)
+- `combat_encounters` + `combatants` (turn tracking; VtM V5 combatants also have `damage_superficial`, `damage_aggravated`, `willpower_superficial`, `willpower_aggravated`, `hunger`)
 - `dice_rolls` (expression + result breakdown)
-- `oracle_tables` (action/theme table entries, 50 rows each, seeded by ruleset)
+- `oracle_tables` (action/theme table entries, 50 rows each, seeded by ruleset; VtM also has compulsion tables per clan: compulsion_brujah, compulsion_gangrel, compulsion_malkavian, compulsion_nosferatu, compulsion_toreador, compulsion_tremere, compulsion_ventrue)
 - `relationships` (from_name, to_name, relationship_type, description, campaign_id)
 - `scene_tags` (session scene tags: tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins)
 
@@ -109,9 +109,9 @@ Makefile              - build, install, dev, test, clean
 
 All fire after every GM response via `handleGMRespondStream`. Goroutines organized in separate files:
 
-1. **autoExtractNPCs** — Parse proper names from GM text, add to session NPC roster.
+1. **extractNPCs** — AI-powered NPC roster management: adds new named NPCs and removes NPCs confirmed dead/gone. Sends `{"add":[{name,note}],"remove":[ids]}` to AI; validates returned IDs against known roster before deleting.
 2. **autoGenerateMap** — Detect new location names, generate SVG via Claude. Post-processes output via `extractSVG()` to ensure `xmlns="http://www.w3.org/2000/svg"` is present (required for browser rendering via `<img>`).
-3. **autoUpdateCharacterStats** — Analyze story events, apply ruleset-based stat changes.
+3. **autoUpdateCharacterStats** — Analyze story events, apply ruleset-based stat changes. When XP increases, fires `autoSuggestXPSpend` to generate advancement recommendations.
 4. **autoUpdateRecap** — Every 4 GM messages, regenerate session journal.
 5. **autoDetectObjectives** — Detect story goals, add to Objectives tab.
 6. **autoExtractItems** — Parse items gained/lost, update inventory.
@@ -119,6 +119,9 @@ All fire after every GM response via `handleGMRespondStream`. Goroutines organiz
 8. **autoUpdateTension** — After GM response, check for crisis keywords (ambush, betrayal, catastrophe, danger, doom, enemy, escape, failure, fear, fight, flee, loss, peril, threat, trapped, wounded, etc.) or critical dice failures; auto-increment tension_level if found. Capped at 10.
 9. **autoUpdateCurrency** — Analyze GM text for explicit currency transactions (number + currency word). Apply `MAX(0, balance + delta)` and persist. Broadcast `character_updated` with `currency_delta` for frontend undo toast. No-op when delta is 0 or parse fails.
 10. **autoUpdateSceneTags** — Keyword-match GM text for environment terms; update `scene_tags` on the session to drive ambient audio. Zero AI cost (no Claude call).
+11. **autoUpdateMasquerade** — VtM-only: Scan GM text for Masquerade breach keywords (camera, caught on film, mortal witnesses, police, etc.). Decrement `masquerade_integrity` by breach severity (1-3 points). No-op for non-VtM campaigns.
+12. **autoUpdateChronicleNight** — VtM-only: Scan GM text for night-transition phrases (dusk falls, nightfall, darkness descends, fall of night, night has reclaimed, etc.). Increment `chronicle_night` on campaign when matched. The `[VtM MECHANICS]` world context block injects the current night number and explicit trigger phrases to ensure GM narration uses detectable language. No-op for non-VtM.
+13. **autoSuggestXPSpend** — Fires when `xp` field increases within `autoUpdateCharacterStats`. Uses AI to generate 2-3 ranked advancement suggestions with `field`, `current_value`, `new_value`, `cost`, `reason`. Always reads `current_value` from actual `stats[field]` (never trusts AI-reported value) to prevent "new_value must be current value + 1" errors. Balanced bracket extraction prevents markdown fence contamination. Sends `xp_spend_suggestions` WebSocket event to frontend.
 
 ## Supported Rulesets
 
@@ -132,7 +135,7 @@ wrath_glory character schema includes all 19 skills (ws, bs, athletics, awarenes
 
 ### Database Migrations
 
-23 total migrations in `internal/db/migrations/`:
+30 total migrations in `internal/db/migrations/`:
 - **001–017:** Core schema, features (rulesets, rulebooks, NPCs, objectives, items, combat, phases A–E, currency, W&G skills)
 - **018:** `018_ruleset_gm_context.sql` — Adds `gm_context` TEXT column to rulesets table. Seeded with narrative guidance (tone, vocabulary, NPC conventions, mechanical language) for all 13 built-in rulesets. GM context is injected into the system prompt to ensure consistent ruleset flavor.
 - **019:** `019_wrath_glory_honorifics.sql` — Appends honorific rules to W&G gm_context (Space Marines = "Brother", Sisters of Battle = "Sister"). Prevents misgendering and breaks immersion.
@@ -140,6 +143,13 @@ wrath_glory character schema includes all 19 skills (ws, bs, athletics, awarenes
 - **021:** `021_wrath_glory_response_length.sql` — Fixes conflicting LENGTH directive; changes "at least 3 substantial paragraphs" to "exactly 4-5 paragraphs" to align with base system prompt.
 - **022:** `022_wrath_glory_response_length_v2.sql` — Intermediate length adjustment (3-4 paragraphs); superseded by 023.
 - **023:** `023_wrath_glory_response_length_v3.sql` — Final response length: 4-5 paragraphs. Matches base gmSystemPrompt FORMAT rule.
+- **024:** `024_vtm_v5_schema.sql` — Rewrites VtM character schema to V5: hunger, blood_potency, bane_severity, humanity, stains, all 7 attribute pools, 40 skills, 11 Discipline fields, health/willpower tracks (max/superficial/aggravated), and free-text fields.
+- **025:** `025_vtm_gm_context_v5.sql` — Rewrites VtM `gm_context` to V5 accuracy: correct V5 vocabulary (Hunger not blood pool), Hunger Die/Bestial Failure/Messy Critical narration, Rouse Check phrasing, Frenzy types, Masquerade breach severity table, all 7 clan Compulsion descriptions.
+- **026:** `026_vtm_combat_damage.sql` — Adds V5 damage columns to `combatants`: `damage_superficial`, `damage_aggravated`, `willpower_superficial`, `willpower_aggravated`, `hunger`.
+- **027:** `027_vtm_scene_tags.sql` — Adds `masquerade_integrity` INTEGER DEFAULT 10 to `sessions` for Masquerade breach tracking.
+- **028:** `028_vtm_oracle_compulsion.sql` — Seeds VtM-specific Action and Theme oracle tables (50 rows each) and all 7 clan Compulsion tables (10 rows each: compulsion_brujah, compulsion_gangrel, compulsion_malkavian, compulsion_nosferatu, compulsion_toreador, compulsion_tremere, compulsion_ventrue).
+- **029:** `029_vtm_xp.sql` — Adds `xp` field to VtM character schema for Beat/XP advancement tracking.
+- **030:** `030_campaign_chronicle_night.sql` — Adds `chronicle_night` INTEGER DEFAULT 1 to `campaigns` for VtM in-game night tracking.
 
 ## AI Client Configuration
 
@@ -188,7 +198,9 @@ The binary in `cmd/ttrpg/main.go` detects and configures the AI client based on 
 
 **NPC Personality JSON (Phase B):** World notes tagged as `npc` can store a `personality_json` field with any valid JSON object defining NPC traits. This is injected into Claude's context on every turn via the world context block.
 
-**Oracle System (Phase D):** 50-row Action and Theme tables seeded per ruleset. Roll endpoint accepts 1-50 roll value and returns matching oracle result. Custom rulesets can provide their own oracle tables.
+**NPC Disambiguation:** `appendNPCDisambiguation` runs before every GM turn. Scans player message words against the session NPC roster using Levenshtein distance (threshold: 1 for short words, 2 for words 6+ chars). Injects `[NPC DISAMBIGUATION]` hint block into world context when a likely typo/misspelling is detected. Exact matches and substring matches skip disambiguation.
+
+**Oracle System (Phase D):** 50-row Action and Theme tables seeded per ruleset. Roll endpoint accepts 1-50 roll value and returns matching oracle result. VtM also has 7 clan Compulsion tables (10 rows each). Custom rulesets can provide their own oracle tables.
 
 **Tension Auto-Update (Phase D):** `autoUpdateTension` goroutine scans GM response text for crisis keywords; increments `tension_level` (max 10) on match. Also increments on critical dice failures. Manual override via PATCH endpoint.
 
@@ -199,6 +211,14 @@ The binary in `cmd/ttrpg/main.go` detects and configures the AI client based on 
 **Ambient Audio (Phase E):** Local MP3 loop manager with fade in/out. Loads from `/api/files/audio/{tag}.mp3`. Scene tags toggle ambient audio track selection. Supports 13 scene tags: tavern, dungeon, forest, city, ocean, cave, castle, rain, night, battle, market, temple, ruins. User can place custom MP3 files in `~/.ttrpg/audio/` directory.
 
 **Audio Controls (Phase E):** AudioControls component in grimoire header with mute toggle (🔔/🔕) and volume slider (0-100). Settings persisted to localStorage.
+
+**VtM V5 Chronicle Night:** `autoUpdateChronicleNight` goroutine matches a broad regex (`vtmNewNightRE`) of ~40 night-transition phrases against GM text (dusk falls, nightfall, fall of night, night has reclaimed, darkness descends, etc.). On match, increments `chronicle_night` on the campaign. The `[VtM MECHANICS]` world context block injects the current night number and a list of exact trigger phrases the GM must use when narrating a new night — two-layer reliability. Chronicle Night tracker in the UI is **display-only** (no +/− buttons); the AI GM is the sole source of truth. No-op for non-VtM campaigns.
+
+**VtM V5 Masquerade Integrity:** `autoUpdateMasquerade` goroutine scans GM text for Masquerade breach keywords (camera, caught on film, mortal witness, police, goes viral, etc.). Decrements `masquerade_integrity` on the session based on breach severity. Displayed in the session header. No-op for non-VtM campaigns.
+
+**VtM V5 Dice Display:** VtM pool rolls store success counts (not pip sums) in `dice_rolls.result`. `DiceHistoryPanel` detects VtM pool rolls by checking for the `(xN+yH)` suffix in the expression and displays "N successes" instead of a raw number.
+
+**VtM V5 XP Suggestions:** `autoSuggestXPSpend` fires when `xp` increases within `autoUpdateCharacterStats`. Uses balanced bracket extraction (depth-counting, not `strings.LastIndex`) to find the JSON array in AI output — prevents markdown fence contamination. Always reads `current_value` from actual `stats[field]` (never trusts AI-reported value) to prevent off-by-one errors in the ADVANCE handler's `new_value == current + 1` check. Sends `xp_spend_suggestions` WebSocket event.
 
 ## Build & Deploy
 
