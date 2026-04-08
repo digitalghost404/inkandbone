@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useWebSocket } from './useWebSocket'
-import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin, patchSession } from './api'
+import { fetchContext, sendMessage, gmRespondStream, generateMap, createMapPin, patchSession, fetchRuleset } from './api'
 import type { GameContext, Message, Session } from './types'
 import { CombatPanel } from './CombatPanel'
 import { WorldNotesPanel } from './WorldNotesPanel'
@@ -305,6 +305,7 @@ export default function App() {
   const [xpPanelDismissed, setXpPanelDismissed] = useState(false)
   const [showTalentsPanel, setShowTalentsPanel] = useState(false)
   const [aiTalentDescs, setAiTalentDescs] = useState<Record<string, string>>({})
+  const [rulesetName, setRulesetName] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -313,10 +314,26 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
+    const rulesetId = ctx?.campaign?.ruleset_id
+    if (rulesetId == null) {
+      setRulesetName(null)
+      return
+    }
+    fetchRuleset(rulesetId)
+      .then((rs) => setRulesetName(rs.name.toLowerCase()))
+      .catch(() => setRulesetName(null))
+  }, [ctx?.campaign?.ruleset_id])
+
+  useEffect(() => {
+    if (rulesetName === 'vtm') {
+      // VtM uses a single fixed ambient track regardless of scene tags.
+      setAmbientTrack('vtm/ambient')
+      return
+    }
     const tags = ctx?.session?.scene_tags ?? ''
     const firstTag = tags.split(',').filter(Boolean)[0] ?? null
     setAmbientTrack(firstTag)
-  }, [ctx?.session?.scene_tags])
+  }, [ctx?.session?.scene_tags, rulesetName])
 
   useEffect(() => {
     fetch('/api/health')
