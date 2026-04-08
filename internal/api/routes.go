@@ -3062,10 +3062,10 @@ var stainTriggerRE = regexp.MustCompile(
 )
 
 // rouseCheckRE matches the player's /rouse or "rouse check" command.
-var rouseCheckRE = regexp.MustCompile(`(?i)\b(rouse\s+check|/rouse)\b`)
+var rouseCheckRE = regexp.MustCompile(`(?i)(?:\b(rouse\s+check)\b|(?:^|\s)(/rouse)\b)`)
 
 // bloodSurgeRE matches the /surge command.
-var bloodSurgeRE = regexp.MustCompile(`(?i)\b(/surge|blood\s+surge)\b`)
+var bloodSurgeRE = regexp.MustCompile(`(?i)(?:(?:^|\s)(/surge)\b|\b(blood\s+surge)\b)`)
 
 // autoUpdateTension adjusts session tension after each GM response.
 // Failed dice rolls increase tension +1 (caller prepends "critical failure" to text).
