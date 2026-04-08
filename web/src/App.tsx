@@ -341,6 +341,15 @@ export default function App() {
   const [rulesetName, setRulesetName] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Derived: character's current XP (or Karma) balance, parsed from data_json.
+  const charXPBalance = (() => {
+    if (!ctx?.character) return 0
+    try {
+      const cd = JSON.parse(ctx.character.data_json || '{}')
+      return Number(cd.xp ?? cd.karma ?? 0) || 0
+    } catch { return 0 }
+  })()
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
@@ -399,6 +408,15 @@ export default function App() {
     if (event?.type === 'xp_spend_suggestions') {
       setXPSuggestionsEvent((data as { payload: XPSpendSuggestionsEvent }).payload)
       setXpPanelDismissed(false)
+    }
+    if (event?.type === 'campaign_updated') {
+      const p = (data as { payload?: { chronicle_night?: number } }).payload
+      if (p?.chronicle_night !== undefined) {
+        setCtx(prev => prev && prev.campaign
+          ? { ...prev, campaign: { ...prev.campaign, chronicle_night: p.chronicle_night! } }
+          : prev
+        )
+      }
     }
   }, [loadContext])
   const { lastEvent } = useWebSocket(WS_URL, handleEvent)
@@ -550,9 +568,9 @@ export default function App() {
           <button
             className={`h-actions-btn${showTalentsPanel ? ' active' : ''}`}
             onClick={() => setShowTalentsPanel((v) => !v)}
-            title="Character talents & psychic powers"
+            title={rulesetName === 'vtm' ? 'Disciplines, Merits & Flaws' : 'Character talents & psychic powers'}
           >
-            ✦ Talents
+            {rulesetName === 'vtm' ? '✦ Disciplines' : '✦ Talents'}
           </button>
         )}
         <button className="h-export" onClick={handleExport} title="Export session">
@@ -565,7 +583,7 @@ export default function App() {
         >
           ⚙ Manage
         </button>
-        {ctx?.character && aiEnabled && (
+        {ctx?.character && aiEnabled && charXPBalance > 0 && (
           <button
             className={`xp-available-badge${suggestingXP ? ' xp-loading' : ''}`}
             disabled={suggestingXP}
@@ -576,7 +594,7 @@ export default function App() {
               }
               setSuggestingXP(true)
               try {
-                await suggestAdvances(ctx.character!.id)
+                await suggestAdvances(ctx.character!.id, charXPBalance)
                 setXpPanelDismissed(false)
               } catch {
                 // silently ignore — panel will appear when WS event arrives
@@ -590,6 +608,17 @@ export default function App() {
           >
             {suggestingXP ? '...' : '⬆ Advance'}
           </button>
+        )}
+        {ctx?.campaign && rulesetName === 'vtm' && (
+          <ChronicleNightTracker
+            campaign={ctx.campaign}
+            onUpdate={(night) => {
+              setCtx(prev => prev && prev.campaign
+                ? { ...prev, campaign: { ...prev.campaign, chronicle_night: night } }
+                : prev
+              )
+            }}
+          />
         )}
         <AudioControls />
       </header>
@@ -630,6 +659,99 @@ export default function App() {
         {showTalentsPanel && ctx.character && (() => {
           let charData: Record<string, unknown> = {}
           try { charData = JSON.parse(ctx.character.data_json || '{}') } catch { /* ignore */ }
+
+          if (rulesetName === 'vtm') {
+            // VtM: show disciplines with descriptions, merits/flaws, convictions, touchstones
+            const vtmDisciplineKeys = [
+              'animalism', 'auspex', 'blood_sorcery', 'celerity', 'dominate',
+              'fortitude', 'obfuscate', 'oblivion', 'potence', 'presence', 'protean',
+            ]
+            const vtmDisciplineDesc: Record<string, string> = {
+              animalism: 'Command and communicate with beasts. Soothe or inflame animal rage. At higher levels, tap the Beast within other Kindred.',
+              auspex: 'Heightened senses, aura perception, and telepathy. Pierce illusions and sense the supernatural beyond mortal limits.',
+              blood_sorcery: 'Ritae and blood magic drawn from stolen Tremere sorcery. Curse, ward, and reshape vitae with ritualistic precision.',
+              celerity: 'Supernatural speed and reflexes. Move faster than the eye can follow, act multiple times in a single moment.',
+              dominate: 'Compel mortals and Kindred with a word or gaze. Issue commands, rewrite memories, and shatter the will of the weak.',
+              fortitude: 'Superhuman resilience. Shrug off blows, endure fire and sunlight longer, and ignore pain that would break lesser beings.',
+              obfuscate: 'Cloak your presence, alter your appearance, or vanish entirely from mortal senses. The perfect predator is never seen.',
+              oblivion: 'Wield shadows and death itself. Communicate with the dead, conjure darkness, and rend souls from their moorings.',
+              potence: 'Superhuman strength. Crush, lift, and destroy with a touch. Your blows land with the force of catastrophe.',
+              presence: 'Supernatural charisma and emotional control. Inspire awe, fear, or adoration in mortals and Kindred alike.',
+              protean: 'Reshape your body at will. Grow claws, meld into earth, turn to mist, or take the form of a beast of the night.',
+            }
+            const activeDisciplines = vtmDisciplineKeys
+              .map(k => ({ key: k, rating: Number(charData[k] ?? 0) }))
+              .filter(d => d.rating > 0)
+            const meritsFlaws = String(charData.merits_flaws ?? '').trim()
+            const convictions = String(charData.convictions ?? '').trim()
+            const touchstones = String(charData.touchstones ?? '').trim()
+            const bloodPotency = Number(charData.blood_potency ?? 1)
+
+            return (
+              <div className="talents-overlay">
+                <div className="talents-overlay-header">
+                  <span>Disciplines &amp; Powers — {ctx.character.name}</span>
+                  <button onClick={() => setShowTalentsPanel(false)}>×</button>
+                </div>
+                <div className="talents-overlay-body">
+                  <div className="talents-section">
+                    <div className="talents-section-title">Disciplines</div>
+                    <div className="talents-entry" style={{ marginBottom: '0.5rem', opacity: 0.7, fontSize: '0.8rem' }}>
+                      Blood Potency {bloodPotency} — in-clan disciplines cost {bloodPotency > 0 ? 'new dots × 5' : '5'} XP; out-of-clan cost new dots × 7 XP
+                    </div>
+                    {activeDisciplines.length > 0
+                      ? activeDisciplines.map(({ key, rating }) => (
+                          <div key={key} className="talents-entry">
+                            <div className="talents-entry-name">
+                              {key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              <span className="talents-rank-badge">{'●'.repeat(rating)}{'○'.repeat(Math.max(0, 5 - rating))}</span>
+                            </div>
+                            <div className="talents-entry-desc">{vtmDisciplineDesc[key]}</div>
+                          </div>
+                        ))
+                      : <div className="talents-empty">No disciplines learned yet.</div>
+                    }
+                  </div>
+                  {meritsFlaws && (
+                    <div className="talents-section">
+                      <div className="talents-section-title">Merits &amp; Flaws</div>
+                      {meritsFlaws.split(/[,\n|]/).map(s => s.trim()).filter(Boolean).map((entry, i) => {
+                        const isFlaw = /flaw/i.test(entry)
+                        const isMerit = /merit/i.test(entry)
+                        const label = entry.replace(/^(merit|flaw)\s*[:—-]\s*/i, '')
+                        return (
+                          <div key={i} className="talents-entry">
+                            <div className="talents-entry-name" style={{ color: isFlaw ? 'var(--crimson)' : isMerit ? 'var(--gold)' : undefined }}>
+                              {isFlaw ? '⚠ ' : isMerit ? '★ ' : ''}{label}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {(convictions || touchstones) && (
+                    <div className="talents-section">
+                      <div className="talents-section-title">Humanity Anchors</div>
+                      {convictions && (
+                        <div className="talents-entry">
+                          <div className="talents-entry-name">Convictions</div>
+                          <div className="talents-entry-desc">{convictions}</div>
+                        </div>
+                      )}
+                      {touchstones && (
+                        <div className="talents-entry">
+                          <div className="talents-entry-name">Touchstones</div>
+                          <div className="talents-entry-desc">{touchstones}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          }
+
+          // W&G (and other systems): original talents & powers panel
           const talents = String(charData.talents ?? '').trim()
           const powers = String(charData.powers ?? '').trim()
           const talentRanks = (charData.talent_ranks ?? {}) as Record<string, number>
@@ -738,17 +860,6 @@ export default function App() {
                     onUpdate={(tags) => {
                       setCtx(prev => prev && prev.session
                         ? { ...prev, session: { ...prev.session, scene_tags: tags } }
-                        : prev
-                      )
-                    }}
-                  />
-                )}
-                {ctx.campaign && rulesetName === 'vtm' && (
-                  <ChronicleNightTracker
-                    campaign={ctx.campaign}
-                    onUpdate={(night) => {
-                      setCtx(prev => prev && prev.campaign
-                        ? { ...prev, campaign: { ...prev.campaign, chronicle_night: night } }
                         : prev
                       )
                     }}

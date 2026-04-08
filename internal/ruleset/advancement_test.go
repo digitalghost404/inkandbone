@@ -74,8 +74,8 @@ func TestXPCostFor_dnd5e(t *testing.T) {
 
 func TestXPCostFor_vtm(t *testing.T) {
 	// Attribute: new_dots * 4
-	if got := XPCostFor("vtm", "str", 3, ""); got != 12 {
-		t.Errorf("vtm str to 3: got %d, want 12", got)
+	if got := XPCostFor("vtm", "strength", 3, ""); got != 12 {
+		t.Errorf("vtm strength to 3: got %d, want 12", got)
 	}
 	// Skill: new_dots * 3
 	if got := XPCostFor("vtm", "athletics", 2, ""); got != 6 {
@@ -85,15 +85,25 @@ func TestXPCostFor_vtm(t *testing.T) {
 	if got := XPCostFor("vtm", "blood_potency", 2, ""); got != 20 {
 		t.Errorf("vtm blood_potency to 2: got %d, want 20", got)
 	}
-	// In-clan discipline: new_dots * 5 (clan in statsJSON)
-	statsJSON := `{"clan":"Brujah","discipline:Potence":1}`
-	if got := XPCostFor("vtm", "discipline:Potence", 2, statsJSON); got != 10 {
-		t.Errorf("vtm in-clan discipline to 2: got %d, want 10", got)
+	// In-clan discipline: new_dots * 5 (clan in statsJSON, capitalized)
+	statsJSON := `{"clan":"Brujah","potence":1}`
+	if got := XPCostFor("vtm", "potence", 2, statsJSON); got != 10 {
+		t.Errorf("vtm in-clan discipline (potence) to 2: got %d, want 10", got)
+	}
+	// In-clan discipline: case-insensitive clan lookup
+	statsJSONLower := `{"clan":"brujah","potence":1}`
+	if got := XPCostFor("vtm", "potence", 2, statsJSONLower); got != 10 {
+		t.Errorf("vtm in-clan discipline lowercase clan: got %d, want 10", got)
 	}
 	// Out-of-clan discipline: new_dots * 7
-	statsJSON2 := `{"clan":"Brujah","discipline:Oblivion":1}`
-	if got := XPCostFor("vtm", "discipline:Oblivion", 2, statsJSON2); got != 14 {
-		t.Errorf("vtm out-of-clan discipline to 2: got %d, want 14", got)
+	statsJSON2 := `{"clan":"Brujah","oblivion":1}`
+	if got := XPCostFor("vtm", "oblivion", 2, statsJSON2); got != 14 {
+		t.Errorf("vtm out-of-clan discipline (oblivion) to 2: got %d, want 14", got)
+	}
+	// Caitiff: all disciplines out-of-clan (new_dots * 7)
+	statsJSONCaitiff := `{"clan":"Caitiff","potence":1}`
+	if got := XPCostFor("vtm", "potence", 2, statsJSONCaitiff); got != 14 {
+		t.Errorf("vtm Caitiff discipline (potence) to 2: got %d, want 14", got)
 	}
 }
 

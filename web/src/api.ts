@@ -489,8 +489,12 @@ export async function patchCampaign(id: number, updates: { chronicle_night?: num
   if (!res.ok) throw new Error(`patchCampaign failed: ${res.status}`)
 }
 
-export async function suggestAdvances(characterId: number): Promise<void> {
-  const res = await fetch(`/api/characters/${characterId}/suggest-advances`, { method: 'POST' })
+export async function suggestAdvances(characterId: number, hintXP?: number): Promise<void> {
+  const res = await fetch(`/api/characters/${characterId}/suggest-advances`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hint_xp: hintXP ?? 0 }),
+  })
   if (!res.ok) throw new Error(`suggestAdvances failed: ${res.status}`)
 }
 

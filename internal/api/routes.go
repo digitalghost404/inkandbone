@@ -1393,7 +1393,17 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 			"\n[DICE ROLL]\nAction required a %s check%s.\nReason: %s\nRoll: %s = %d — %s\n[/DICE ROLL]",
 			roll.Attribute, dcNote, roll.Reason, roll.Expression, roll.Total, outcome,
 		)
-		if !roll.Success {
+		if roll.MessyCritical && roll.Compulsion != "" {
+			worldCtx += fmt.Sprintf(
+				"\n[MESSY CRITICAL]\nThe character succeeded — but the Beast stirred. This is a Messy Critical. Their Clan Compulsion activates:\n%s\nNarrate the success with a dark, beast-driven complication woven in.\n[/MESSY CRITICAL]",
+				roll.Compulsion,
+			)
+		} else if roll.MessyCritical {
+			worldCtx += "\n[MESSY CRITICAL]\nThe character succeeded but the Beast stirred. Narrate success with a dark, uncontrolled complication.\n[/MESSY CRITICAL]"
+		}
+		if roll.BestialFail {
+			worldCtx += "\n[BESTIAL FAILURE]\nThe character failed AND a Hunger die showed a 1. The Beast acted. Narrate the failure as an instinctive, animalistic reaction — the character does something they immediately regret.\n[/BESTIAL FAILURE]"
+		} else if !roll.Success {
 			worldCtx += "\n[GM DIRECTION]\nThe player's action FAILED. Narrate a setback, complication, or consequence. Do not give them what they wanted. Make failure interesting.\n[/GM DIRECTION]"
 		}
 	}
@@ -1467,6 +1477,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	go s.autoUpdateTension(id, tensionText)
 	go s.autoUpdateMasquerade(context.Background(), id, fullText)
 	go s.autoUpdateSceneTags(context.Background(), id, fullText)
+	go s.autoUpdateChronicleNight(context.Background(), id, fullText)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
@@ -1600,6 +1611,9 @@ var statChangeKeywords = []string{
 	// Vampire: The Masquerade specific
 	"feed", "fed", "hunt", "hunted", "blood", "bite", "embrace", "frenzy", "masquerade",
 	"torpor", "diablerie", "discipline", "vitae", "hunger", "humanity", "kindred",
+	"sunlight", "fire", "staked", "bane", "compulsion", "resonance", "blush",
+	"auspex", "dominate", "presence", "celerity", "fortitude", "obfuscate",
+	"potence", "protean", "animalism", "blood sorcery", "oblivion",
 }
 
 func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, playerAction, gmText string) {
@@ -1650,7 +1664,7 @@ func (s *Server) autoUpdateCharacterStats(ctx context.Context, sessionID int64, 
 
 	// VtM: detect Humanity-violating acts and increment stains (async, non-blocking).
 	if ruleset.Name == "vtm" {
-		go s.detectAndApplyVtMStains(context.Background(), playerAction+" "+gmText)
+		go s.detectAndApplyVtMStains(context.Background(), sessionID, playerAction+" "+gmText)
 	}
 
 	schema := ruleset.SchemaJSON
@@ -1670,12 +1684,31 @@ Wrath & Glory rules:
 `
 	case "vtm":
 		systemNote = `
-Vampire: The Masquerade rules:
-- XP: Award 1 XP after any meaningful scene (a tense social encounter, avoiding Final Death, a significant feeding). Award 2 XP for a major story milestone (completing a story arc, surviving a powerful enemy, a pivotal Masquerade breach). Update the "xp" field by ADDING the award to the current value.
-- Hunger: If the character fed successfully, reduce hunger by 1-2 (minimum 0). If the character used Disciplines without feeding, increase hunger by 1 (maximum 5). Do NOT change hunger unless the scene explicitly involved feeding or heavy Discipline use.
-- Willpower: If the character spent willpower (Compulsion resisted, Desperation roll), decrement "willpower_superficial" by 1. If they rested fully, restore willpower_superficial to max.
-- Stains: DO NOT update stains here — handled separately.
-- Only update fields that exist in the current stats JSON. If nothing changed, return {}.
+Vampire: The Masquerade V5 rules — update ONLY what the scene clearly caused:
+
+HEALTH (track superficial and aggravated separately):
+- "health_superficial": increase by 1-3 when the vampire takes blunt, bullet, or non-lethal damage. Decrease by 1-2 when healing or resting. Never exceed health_max.
+- "health_aggravated": increase by 1 when the vampire takes fire, sunlight, or other aggravated damage. Never exceed health_max.
+
+HUNGER (0-5, never below 0 or above 5):
+- Increase hunger by 1 each time a Discipline power is activated (any use of Auspex, Dominate, Presence, Celerity, Fortitude, etc.).
+- Increase hunger by 1-2 if the character exerts themselves supernaturally (Blush of Life, healing aggravated damage, using Resonance).
+- Decrease hunger by 1-3 if the character successfully feeds on blood. The amount reduced depends on how much blood was consumed (sip=1, proper feed=2, deep feed=3).
+- Do NOT change hunger if no Disciplines were used and no feeding occurred.
+
+WILLPOWER (track "willpower_superficial"):
+- Decrease willpower_superficial by 1 when: the character resists a Compulsion, makes a Willpower roll to resist mental powers, pushes past their limits, or the GM explicitly says willpower is spent.
+- Restore willpower_superficial toward willpower_max when: the character sleeps for the day, achieves a Conviction, or has a meaningful moment with a Touchstone.
+- Never go below 0 or above willpower_max.
+
+HUMANITY:
+- Decrease "humanity" by 1 AND set "stains" to 0 if the text describes the character's stains equaling or exceeding (11 minus current humanity). This represents a failed Remorse check.
+
+XP:
+- Add 1 XP for any meaningful scene (tense social encounter, surviving danger, significant feeding). Add 2 XP for a major milestone (story arc completed, powerful enemy survived, pivotal breach). Update "xp" by adding to its current value.
+
+STAINS: DO NOT update stains here — handled separately.
+Return {} if nothing clearly changed. Only update fields that exist in the current stats JSON.
 `
 	}
 
@@ -1698,7 +1731,7 @@ Return ONLY a JSON object with the fields that must change and their new values.
 - If nothing needs to change, return {}.
 - No explanation, no markdown — just the JSON object.`, ruleset.Name, schema, systemNote, char.DataJSON, playerAction, gmText)
 
-	raw, err := completer.Generate(ctx, prompt, 256)
+	raw, err := completer.Generate(ctx, prompt, 400)
 	if err != nil {
 		return
 	}
@@ -1721,15 +1754,27 @@ Return ONLY a JSON object with the fields that must change and their new values.
 		return
 	}
 
-	// Capture XP before applying patch.
+	// Capture XP before applying patch. Normalize string-stored XP to float64.
 	xpFieldKey := advancement.XPKey(ruleset.Name)
 	beforeXP := 0
 	if v, ok := current[xpFieldKey].(float64); ok {
 		beforeXP = int(v)
+	} else if s, ok := current[xpFieldKey].(string); ok {
+		if n, err := strconv.Atoi(s); err == nil {
+			beforeXP = n
+			current[xpFieldKey] = float64(n)
+		}
 	}
 
 	for k, v := range patch {
 		if _, exists := current[k]; exists {
+			// Never let the AI goroutine lower XP — it can only award, not spend.
+			if k == xpFieldKey {
+				newXP, _ := v.(float64)
+				if int(newXP) <= beforeXP {
+					continue
+				}
+			}
 			current[k] = v
 		}
 	}
@@ -1738,6 +1783,12 @@ Return ONLY a JSON object with the fields that must change and their new values.
 	afterXP := 0
 	if v, ok := current[xpFieldKey].(float64); ok {
 		afterXP = int(v)
+	} else if s, ok := current[xpFieldKey].(string); ok {
+		// Handle legacy string-stored XP
+		if n, err := strconv.Atoi(s); err == nil {
+			afterXP = n
+			current[xpFieldKey] = float64(n) // normalize to number
+		}
 	}
 
 	updated, err := json.Marshal(current)
@@ -1805,6 +1856,7 @@ func (s *Server) autoSuggestXPSpend(
 
 	completer, ok := s.aiClient.(ai.Completer)
 	if !ok {
+		log.Printf("autoSuggestXPSpend: AI client not available (no Completer interface)")
 		return
 	}
 
@@ -1930,14 +1982,21 @@ If there are no good suggestions, return an empty JSON array: []
 	}
 
 	// Recalculate XP costs server-side and filter out invalid/unaffordable suggestions.
+	// Manual triggers (sessionID==0) skip the affordability check so the panel always shows.
 	filtered := suggestions[:0]
 	for _, sg := range suggestions {
 		field, _ := sg["field"].(string)
-		newValF, _ := sg["new_value"].(float64)
-		newVal := int(newValF)
+		// Enforce new_value = current + 1 regardless of what the AI suggested.
+		curValF, _ := sg["current_value"].(float64)
+		curVal := int(curValF)
+		newVal := curVal + 1
+		sg["new_value"] = float64(newVal)
 		cost := advancement.XPCostFor(system, field, newVal, char.DataJSON)
-		if cost == 0 || cost > currentXP {
-			continue
+		if cost == 0 {
+			continue // unknown field — always skip
+		}
+		if sessionID != 0 && cost > currentXP {
+			continue // auto-trigger: only affordable options
 		}
 		sg["xp_cost"] = cost
 		filtered = append(filtered, sg)
@@ -1958,12 +2017,15 @@ If there are no good suggestions, return an empty JSON array: []
 }
 
 type rollCheckResult struct {
-	Expression string
-	Total      int
-	Attribute  string
-	DC         int
-	Success    bool
-	Reason     string
+	Expression    string
+	Total         int
+	Attribute     string
+	DC            int
+	Success       bool
+	Reason        string
+	MessyCritical bool   // VtM: critical success on a Hunger die
+	BestialFail   bool   // VtM: failure with a 1 on a Hunger die
+	Compulsion    string // VtM: compulsion text triggered by Messy Critical (empty if none)
 }
 
 // checkAndExecuteRoll asks haiku whether the player's action requires a dice
@@ -2055,6 +2117,11 @@ If NO dice roll is required, respond with ONLY:
 		return nil
 	}
 
+	// VtM: use Hunger dice mechanic (pool of d10s, Hunger dice replace some).
+	if ruleset.Name == "vtm" && sides == 10 {
+		return s.vtmHungerDiceRoll(ctx, sessionID, count, check.Attribute, check.DC, check.Reason, check.Expression, charStats)
+	}
+
 	rolls := make([]int, count)
 	total := 0
 	for i := range rolls {
@@ -2079,6 +2146,171 @@ If NO dice roll is required, respond with ONLY:
 		Success:    check.DC == 0 || total >= check.DC,
 		Reason:     check.Reason,
 	}
+}
+
+// vtmHungerDiceRoll executes a VtM V5 dice pool roll using the Hunger dice mechanic.
+//
+// In VtM V5 all dice are d10s. The pool is split: Hunger dice (red) replace normal dice
+// up to the character's current Hunger level. Both types count 6+ as a success.
+//   - Critical success = two or more 10s in the combined pool.
+//   - Messy Critical  = critical success where at least one 10 is a Hunger die.
+//   - Bestial Failure = 0 successes AND at least one Hunger die shows a 1.
+//
+// On a Messy Critical the clan Compulsion oracle is rolled and injected into the GM context.
+func (s *Server) vtmHungerDiceRoll(ctx context.Context, sessionID int64, pool int, attribute string, dc int, reason, origExpr, charStatsJSON string) *rollCheckResult {
+	// Parse current Hunger from character stats.
+	hunger := 0
+	if charStatsJSON != "" && charStatsJSON != "none" {
+		var cs map[string]any
+		if err := json.Unmarshal([]byte(charStatsJSON), &cs); err == nil {
+			switch v := cs["hunger"].(type) {
+			case float64:
+				hunger = int(v)
+			case int:
+				hunger = v
+			}
+		}
+	}
+	if hunger < 0 {
+		hunger = 0
+	}
+	if hunger > 5 {
+		hunger = 5
+	}
+
+	hungerCount := hunger
+	if hungerCount > pool {
+		hungerCount = pool
+	}
+	normalCount := pool - hungerCount
+
+	// Roll all dice.
+	normal := make([]int, normalCount)
+	hungerDice := make([]int, hungerCount)
+	for i := range normal {
+		normal[i] = mathrand.Intn(10) + 1
+	}
+	for i := range hungerDice {
+		hungerDice[i] = mathrand.Intn(10) + 1
+	}
+
+	// Count successes (6+) and tens.
+	successes := 0
+	totalTens := 0
+	hungerTens := 0
+	hasHungerOne := false
+	for _, r := range normal {
+		if r >= 6 {
+			successes++
+		}
+		if r == 10 {
+			totalTens++
+		}
+	}
+	for _, r := range hungerDice {
+		if r >= 6 {
+			successes++
+		}
+		if r == 10 {
+			totalTens++
+			hungerTens++
+		}
+		if r == 1 {
+			hasHungerOne = true
+		}
+	}
+
+	// Critical = 2+ tens; each pair of tens adds 1 extra success.
+	critPairs := totalTens / 2
+	successes += critPairs
+
+	threshold := dc
+	if threshold <= 0 {
+		threshold = 1 // any success counts
+	}
+	success := successes >= threshold
+	messyCritical := success && totalTens >= 2 && hungerTens >= 1
+	bestialFail := !success && hasHungerOne
+
+	// Build expression string for logging.
+	expr := fmt.Sprintf("%dd10 (%dN+%dH)", pool, normalCount, hungerCount)
+
+	// Log and broadcast.
+	allRolls := append(normal, hungerDice...)
+	breakdownBytes, _ := json.Marshal(allRolls)
+	_, _ = s.db.LogDiceRoll(sessionID, expr, successes, string(breakdownBytes))
+	s.bus.Publish(Event{Type: EventDiceRolled, Payload: map[string]any{
+		"session_id":     sessionID,
+		"expression":     expr,
+		"result":         successes,
+		"normal_dice":    normal,
+		"hunger_dice":    hungerDice,
+		"successes":      successes,
+		"messy_critical": messyCritical,
+		"bestial_fail":   bestialFail,
+	}})
+
+	// Messy Critical → roll clan Compulsion.
+	var compulsion string
+	if messyCritical {
+		compulsion = s.vtmRollClanCompulsion(ctx, sessionID, charStatsJSON)
+	}
+
+	return &rollCheckResult{
+		Expression:    expr,
+		Total:         successes,
+		Attribute:     attribute,
+		DC:            threshold,
+		Success:       success,
+		Reason:        reason,
+		MessyCritical: messyCritical,
+		BestialFail:   bestialFail,
+		Compulsion:    compulsion,
+	}
+}
+
+// vtmRollClanCompulsion rolls on the clan-specific Compulsion oracle table for the
+// active character's clan. Returns the compulsion description, or a generic Hunger
+// Compulsion fallback if the clan table is not found.
+func (s *Server) vtmRollClanCompulsion(ctx context.Context, sessionID int64, charStatsJSON string) string {
+	clan := ""
+	if charStatsJSON != "" && charStatsJSON != "none" {
+		var cs map[string]any
+		if json.Unmarshal([]byte(charStatsJSON), &cs) == nil {
+			if c, ok := cs["clan"].(string); ok {
+				clan = strings.ToLower(strings.TrimSpace(c))
+			}
+		}
+	}
+
+	roll := mathrand.Intn(10) + 1
+
+	// Look up ruleset ID for the session.
+	var rulesetID *int64
+	if sess, err := s.db.GetSession(sessionID); err == nil && sess != nil {
+		if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+			if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil {
+				rulesetID = &rs.ID
+			}
+		}
+	}
+
+	tableName := "compulsion_" + clan
+	result, err := s.db.RollOracle(rulesetID, tableName, roll)
+	if err != nil || result == "" {
+		// Generic Hunger Compulsion fallback.
+		result = "The Beast surges. The character must immediately seek to slake their Hunger through feeding — all other actions feel meaningless until Hunger drops below 3."
+	}
+
+	s.bus.Publish(Event{Type: "oracle_result", Payload: map[string]any{
+		"session_id":  sessionID,
+		"table":       tableName,
+		"roll":        roll,
+		"result":      result,
+		"is_compulsion": true,
+	}})
+
+	return result
 }
 
 // extractNPCs uses the AI to extract newly introduced named NPCs from a GM
@@ -3147,6 +3379,11 @@ var stainTriggerRE = regexp.MustCompile(
 	`\b(feeding|fed from|forced feeding|killing|killed|diablerie|diablerized|compulsion|breaking.*conviction|violated.*conviction)\b`,
 )
 
+// vtmNewNightRE matches phrases that signal a new night beginning in VtM.
+var vtmNewNightRE = regexp.MustCompile(
+	`\b(as dusk|at dusk|dusk falls|dusk arrives|dusk settles|dusk approaches|nightfall|as night falls|as the sun sets|the sun sets|sunset arrives|the evening begins|another night|the following night|next night|the next night|a new night|night has fallen|darkness falls|the city awakens at night|as the darkness|as the night begins|that evening you|the next evening)\b`,
+)
+
 // rouseCheckRE matches the player's /rouse or "rouse check" command.
 var rouseCheckRE = regexp.MustCompile(`(?i)(?:\b(rouse\s+check)\b|(?:^|\s)(/rouse)\b)`)
 
@@ -3341,7 +3578,10 @@ func (s *Server) autoUpdateMasquerade(ctx context.Context, sessionID int64, gmTe
 }
 
 // detectAndApplyVtMStains scans text for Humanity-violating acts and adds Stains.
-func (s *Server) detectAndApplyVtMStains(ctx context.Context, text string) {
+// After adding a Stain, checks whether a Remorse roll is required (stains >= 11 - humanity)
+// and auto-applies it: roll Humanity dice (d10s, 6+ = success), pass → stains reset,
+// fail → humanity -1 and stains reset.
+func (s *Server) detectAndApplyVtMStains(ctx context.Context, sessionID int64, text string) {
 	if !stainTriggerRE.MatchString(strings.ToLower(text)) {
 		return
 	}
@@ -3361,19 +3601,80 @@ func (s *Server) detectAndApplyVtMStains(ctx context.Context, text string) {
 	if err := json.Unmarshal([]byte(char.DataJSON), &stats); err != nil {
 		return
 	}
-	current := 0
-	if v, ok := stats["stains"]; ok {
-		switch n := v.(type) {
+
+	getIntStat := func(key string) int {
+		switch n := stats[key].(type) {
 		case int:
-			current = n
+			return n
 		case float64:
-			current = int(n)
+			return int(n)
 		}
+		return 0
 	}
-	if current >= 10 {
+
+	stains := getIntStat("stains")
+	if stains >= 10 {
 		return
 	}
-	stats["stains"] = current + 1
+	stains++
+	stats["stains"] = float64(stains)
+
+	humanity := getIntStat("humanity")
+	if humanity <= 0 {
+		humanity = 7 // sensible default if not set
+	}
+
+	// Remorse threshold: stains >= (11 - humanity)
+	remorseThreshold := 11 - humanity
+	if remorseThreshold < 1 {
+		remorseThreshold = 1
+	}
+
+	if stains >= remorseThreshold {
+		// Roll Remorse Check: dice pool = humanity (min 1), looking for 6+ on each d10
+		pool := humanity
+		if pool < 1 {
+			pool = 1
+		}
+		successes := 0
+		expr := fmt.Sprintf("%dd10 (Remorse Check)", pool)
+		rolls := make([]int, pool)
+		for i := range rolls {
+			r := mathrand.Intn(10) + 1
+			rolls[i] = r
+			if r >= 6 {
+				successes++
+			}
+		}
+		rollsJSON, _ := json.Marshal(rolls)
+		totalRoll := 0
+		for _, r := range rolls {
+			if r > totalRoll {
+				totalRoll = r // highest die for logging
+			}
+		}
+		_, _ = s.db.LogDiceRoll(sessionID, expr, totalRoll, string(rollsJSON))
+		s.bus.Publish(Event{Type: EventDiceRolled, Payload: map[string]any{
+			"session_id": sessionID,
+			"expression": expr,
+			"result":     totalRoll,
+			"rolls":      rolls,
+			"successes":  successes,
+		}})
+
+		// Apply result
+		stats["stains"] = float64(0)
+		if successes == 0 {
+			// Failed Remorse: lose 1 Humanity
+			newHumanity := humanity - 1
+			if newHumanity < 0 {
+				newHumanity = 0
+			}
+			stats["humanity"] = float64(newHumanity)
+		}
+		// On success stains just reset to 0 (already set above)
+	}
+
 	updated, err := json.Marshal(stats)
 	if err != nil {
 		return
@@ -3383,6 +3684,34 @@ func (s *Server) detectAndApplyVtMStains(ctx context.Context, text string) {
 	}
 	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{
 		"id": charID,
+	}})
+}
+
+// autoUpdateChronicleNight detects when a new night begins in a VtM session
+// and increments the campaign's chronicle_night counter. Zero AI cost — keyword only.
+func (s *Server) autoUpdateChronicleNight(_ context.Context, sessionID int64, gmText string) {
+	if !vtmNewNightRE.MatchString(strings.ToLower(gmText)) {
+		return
+	}
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+	camp, err := s.db.GetCampaign(sess.CampaignID)
+	if err != nil || camp == nil {
+		return
+	}
+	rs, err := s.db.GetRuleset(camp.RulesetID)
+	if err != nil || rs == nil || rs.Name != "vtm" {
+		return
+	}
+	newNight := camp.ChronicleNight + 1
+	if err := s.db.UpdateCampaignChronicleNight(camp.ID, newNight); err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: "campaign_updated", Payload: map[string]any{
+		"campaign_id":     camp.ID,
+		"chronicle_night": newNight,
 	}})
 }
 

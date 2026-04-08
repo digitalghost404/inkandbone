@@ -76,12 +76,13 @@ func (d *DB) ListRulesets() ([]Ruleset, error) {
 // --- Campaigns ---
 
 type Campaign struct {
-	ID          int64  `json:"id"`
-	RulesetID   int64  `json:"ruleset_id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Active      bool   `json:"active"`
-	CreatedAt   string `json:"created_at"`
+	ID             int64  `json:"id"`
+	RulesetID      int64  `json:"ruleset_id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Active         bool   `json:"active"`
+	ChronicleNight int    `json:"chronicle_night"`
+	CreatedAt      string `json:"created_at"`
 }
 
 func (d *DB) CreateCampaign(rulesetID int64, name, description string) (int64, error) {
@@ -99,8 +100,8 @@ func (d *DB) GetCampaign(id int64) (*Campaign, error) {
 	c := &Campaign{}
 	var active int
 	err := d.db.QueryRow(
-		"SELECT id, ruleset_id, name, description, active, created_at FROM campaigns WHERE id = ?", id,
-	).Scan(&c.ID, &c.RulesetID, &c.Name, &c.Description, &active, &c.CreatedAt)
+		"SELECT id, ruleset_id, name, description, active, chronicle_night, created_at FROM campaigns WHERE id = ?", id,
+	).Scan(&c.ID, &c.RulesetID, &c.Name, &c.Description, &active, &c.ChronicleNight, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -113,7 +114,7 @@ func (d *DB) GetCampaign(id int64) (*Campaign, error) {
 
 func (d *DB) ListCampaigns() ([]Campaign, error) {
 	rows, err := d.db.Query(
-		"SELECT id, ruleset_id, name, description, active, created_at FROM campaigns ORDER BY created_at DESC",
+		"SELECT id, ruleset_id, name, description, active, chronicle_night, created_at FROM campaigns ORDER BY created_at DESC",
 	)
 	if err != nil {
 		return nil, err
@@ -123,13 +124,31 @@ func (d *DB) ListCampaigns() ([]Campaign, error) {
 	for rows.Next() {
 		var c Campaign
 		var active int
-		if err := rows.Scan(&c.ID, &c.RulesetID, &c.Name, &c.Description, &active, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.RulesetID, &c.Name, &c.Description, &active, &c.ChronicleNight, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		c.Active = active == 1
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+func (d *DB) UpdateCampaignChronicleNight(id int64, night int) error {
+	if night < 1 {
+		night = 1
+	}
+	res, err := d.db.Exec("UPDATE campaigns SET chronicle_night = ? WHERE id = ?", night, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("campaign %d not found", id)
+	}
+	return nil
 }
 
 // --- Characters ---

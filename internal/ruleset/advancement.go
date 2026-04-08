@@ -30,20 +30,24 @@ func XPLabel(system string) string {
 }
 
 // vtmInClanDisciplines maps VtM clan → set of in-clan discipline field keys (lowercase, matching character sheet).
+// Keys are stored lowercase for case-insensitive lookup.
+// Caitiff have no in-clan disciplines — all cost out-of-clan rate (7× per dot).
 var vtmInClanDisciplines = map[string][]string{
-	"Brujah":    {"celerity", "potence", "presence"},
-	"Gangrel":   {"animalism", "fortitude", "protean"},
-	"Malkavian": {"auspex", "dominate", "obfuscate"},
-	"Nosferatu": {"animalism", "obfuscate", "potence"},
-	"Toreador":  {"auspex", "celerity", "presence"},
-	"Tremere":   {"auspex", "blood_sorcery", "dominate"},
-	"Ventrue":   {"dominate", "fortitude", "presence"},
-	"Lasombra":  {"dominate", "oblivion", "potence"},
-	"Tzimisce":  {"animalism", "dominate", "protean"},
-	"Assamite":  {"blood_sorcery", "celerity", "obfuscate"},
-	"Giovanni":  {"dominate", "fortitude", "oblivion"},
-	"Ravnos":    {"animalism", "obfuscate", "presence"},
-	"Setite":    {"obfuscate", "presence", "protean"},
+	"brujah":    {"celerity", "potence", "presence"},
+	"gangrel":   {"animalism", "fortitude", "protean"},
+	"malkavian": {"auspex", "dominate", "obfuscate"},
+	"nosferatu": {"animalism", "obfuscate", "potence"},
+	"toreador":  {"auspex", "celerity", "presence"},
+	"tremere":   {"auspex", "blood_sorcery", "dominate"},
+	"ventrue":   {"dominate", "fortitude", "presence"},
+	"lasombra":  {"dominate", "oblivion", "potence"},
+	"tzimisce":  {"animalism", "dominate", "protean"},
+	"assamite":  {"blood_sorcery", "celerity", "obfuscate"},
+	"giovanni":  {"dominate", "fortitude", "oblivion"},
+	"ravnos":    {"animalism", "obfuscate", "presence"},
+	"setite":    {"obfuscate", "presence", "protean"},
+	// Caitiff: no in-clan disciplines; explicit entry prevents nil lookup confusion.
+	"caitiff": {},
 }
 
 // XPCostFor returns the XP cost for advancing field to newVal for the given system.
@@ -77,7 +81,8 @@ func XPCostFor(system, field string, newVal int, statsJSON string) int {
 				var stats map[string]any
 				if err := json.Unmarshal([]byte(statsJSON), &stats); err == nil {
 					if clan, ok := stats["clan"].(string); ok {
-						for _, d := range vtmInClanDisciplines[clan] {
+						// Case-insensitive lookup: character sheet may store any capitalization.
+						for _, d := range vtmInClanDisciplines[strings.ToLower(clan)] {
 							if d == field {
 								multiplier = 5
 								break
@@ -352,9 +357,10 @@ func CanAffordAny(system string, currentXP int, statsJSON string) bool {
 }
 
 // VtMInClanDisciplinesFor returns the in-clan discipline field keys for a VtM clan.
-// The second return value is false if the clan is not recognized.
+// Lookup is case-insensitive. The second return value is false if the clan is not recognized.
+// Caitiff returns an empty slice (all disciplines are out-of-clan for them).
 func VtMInClanDisciplinesFor(clan string) ([]string, bool) {
-	discs, ok := vtmInClanDisciplines[clan]
+	discs, ok := vtmInClanDisciplines[strings.ToLower(clan)]
 	return discs, ok
 }
 

@@ -297,6 +297,11 @@ func (s *Server) handleSuggestAdvances(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var body struct {
+		HintXP int `json:"hint_xp"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body) // ignore decode errors — hint is optional
+
 	var stats map[string]any
 	if char.DataJSON != "" && char.DataJSON != "{}" {
 		if err := json.Unmarshal([]byte(char.DataJSON), &stats); err != nil {
@@ -312,6 +317,16 @@ func (s *Server) handleSuggestAdvances(w http.ResponseWriter, r *http.Request) {
 	currentXP := 0
 	if v, ok := stats[xpKey].(float64); ok {
 		currentXP = int(v)
+	}
+	// Use the frontend hint if it's larger (guards against DB corruption wiping XP).
+	if body.HintXP > currentXP {
+		currentXP = body.HintXP
+		stats[xpKey] = float64(currentXP)
+		// Persist the corrected XP so the advance endpoint reads the right value.
+		if fixed, err := json.Marshal(stats); err == nil {
+			_ = s.db.UpdateCharacterData(charID, string(fixed))
+			char.DataJSON = string(fixed)
+		}
 	}
 
 	// sessionID = 0 signals "manual trigger" — the goroutine skips the per-session cap.

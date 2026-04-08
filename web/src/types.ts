@@ -4,6 +4,7 @@ export interface Campaign {
   name: string
   description: string
   active: boolean
+  chronicle_night: number
   created_at: string
 }
 
