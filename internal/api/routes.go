@@ -1039,12 +1039,13 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 							hAgg := getInt("health_aggravated")
 							wMax := getInt("willpower_max")
 							wSup := getInt("willpower_superficial")
+							wAgg := getInt("willpower_aggravated")
 							predType := getString("predator_type")
 							clan := getString("clan")
 							fmt.Fprintf(&sb, "Hunger: %d/5 | Humanity: %d | Blood Potency: %d\n", hunger, humanity, bp)
 							fmt.Fprintf(&sb, "Predator Type: %s | Clan: %s\n", predType, clan)
 							fmt.Fprintf(&sb, "Health: %d/%d (%d Superficial, %d Aggravated)\n", hMax-hSup-hAgg, hMax, hSup, hAgg)
-							fmt.Fprintf(&sb, "Willpower: %d/%d (%d Superficial)\n", wMax-wSup, wMax, wSup)
+							fmt.Fprintf(&sb, "Willpower: %d/%d (%d Superficial, %d Aggravated)\n", wMax-wSup-wAgg, wMax, wSup, wAgg)
 							fmt.Fprintf(&sb, "Stains: %d\n", stains)
 							if hunger >= 4 {
 								sb.WriteString("WARNING: Hunger is critical. Frenzy risk is high.\n")
@@ -3027,7 +3028,7 @@ func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
 		if sess, err := s.db.GetSession(sessionID); err == nil && sess != nil {
 			if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
 				if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
-					matched = vtmCrisisRE.MatchString(lower)
+					matched = matched || vtmCrisisRE.MatchString(lower)
 				}
 			}
 		}
