@@ -1378,6 +1378,25 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 			worldCtx += "\n[GM DIRECTION]\nThe player's action FAILED. Narrate a setback, complication, or consequence. Do not give them what they wanted. Make failure interesting.\n[/GM DIRECTION]"
 		}
 	}
+
+	// VtM: intercept /rouse and /surge commands before the normal roll check.
+	var vtmCommandResult string
+	if sess, err := s.db.GetSession(id); err == nil && sess != nil {
+		if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+			if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
+				lower := strings.ToLower(lastPlayerMsg)
+				if bloodSurgeRE.MatchString(lower) {
+					vtmCommandResult = s.handleVtMBloodSurge(r.Context(), id)
+				} else if rouseCheckRE.MatchString(lower) {
+					vtmCommandResult = s.handleVtMRouseCheck(r.Context(), id)
+				}
+			}
+		}
+	}
+	if vtmCommandResult != "" {
+		worldCtx += "\n" + vtmCommandResult
+	}
+
 	systemPrompt := gmSystemPrompt + "\n\n" + worldCtx + "\n\n[REMINDER] Your response must be exactly 4-5 paragraphs. Count them. Do not write a sixth paragraph. End with **What do you do?** on its own line."
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -3042,6 +3061,12 @@ var stainTriggerRE = regexp.MustCompile(
 	`\b(feeding|fed from|forced feeding|killing|killed|diablerie|diablerized|compulsion|breaking.*conviction|violated.*conviction)\b`,
 )
 
+// rouseCheckRE matches the player's /rouse or "rouse check" command.
+var rouseCheckRE = regexp.MustCompile(`(?i)\b(rouse\s+check|/rouse)\b`)
+
+// bloodSurgeRE matches the /surge command.
+var bloodSurgeRE = regexp.MustCompile(`(?i)\b(/surge|blood\s+surge)\b`)
+
 // autoUpdateTension adjusts session tension after each GM response.
 // Failed dice rolls increase tension +1 (caller prepends "critical failure" to text).
 // Crisis keywords in the GM text also increase tension +1.
@@ -3076,6 +3101,110 @@ func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
 		"session_id":    sessionID,
 		"tension_level": newLevel,
 	}})
+}
+
+// handleVtMRouseCheck performs a Rouse Check for a VtM character.
+// Rolls 1d10; 6+ = no Hunger change; 1-5 = Hunger +1.
+// At Hunger 5, does not increase further but flags a Frenzy risk.
+// Returns a string describing the result for injection into GM context.
+func (s *Server) handleVtMRouseCheck(ctx context.Context, sessionID int64) string {
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return ""
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return ""
+	}
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil || char.DataJSON == "" {
+		return ""
+	}
+	var stats map[string]any
+	if err := json.Unmarshal([]byte(char.DataJSON), &stats); err != nil {
+		return ""
+	}
+
+	currentHunger := 0
+	if v, ok := stats["hunger"]; ok {
+		switch n := v.(type) {
+		case int:
+			currentHunger = n
+		case float64:
+			currentHunger = int(n)
+		}
+	}
+
+	roll := mathrand.Intn(10) + 1
+	_, _ = s.db.LogDiceRoll(sessionID, "1d10 (Rouse Check)", roll, "[]")
+	s.bus.Publish(Event{Type: EventDiceRolled, Payload: map[string]any{
+		"session_id": sessionID,
+		"expression": "1d10 (Rouse Check)",
+		"result":     roll,
+	}})
+
+	if roll >= 6 {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Success. Hunger unchanged at %d.", roll, currentHunger)
+	}
+
+	// Hunger increases
+	if currentHunger >= 5 {
+		return fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger already at 5. FRENZY RISK: The character must resist a Hunger Frenzy (Composure + Resolve, difficulty 3).", roll)
+	}
+
+	newHunger := currentHunger + 1
+	stats["hunger"] = newHunger
+	if dataJSON, err := json.Marshal(stats); err == nil {
+		if err := s.db.UpdateCharacterData(charID, string(dataJSON)); err == nil {
+			s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{"id": charID}})
+		}
+	}
+
+	msg := fmt.Sprintf("[ROUSE CHECK] Result: %d — Failed. Hunger increases to %d.", roll, newHunger)
+	if newHunger >= 4 {
+		msg += " The Beast strains against the cage. Frenzy risk is elevated."
+	}
+	return msg
+}
+
+// bloodPotencyBonusDice returns the bonus dice granted by Blood Surge for a given Blood Potency.
+func bloodPotencyBonusDice(bp int) int {
+	switch {
+	case bp >= 10:
+		return 4
+	case bp >= 7:
+		return 3
+	case bp >= 4:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// handleVtMBloodSurge performs a Rouse Check and returns bonus dice count.
+// Returns a string for injection into GM context.
+func (s *Server) handleVtMBloodSurge(ctx context.Context, sessionID int64) string {
+	rouseResult := s.handleVtMRouseCheck(ctx, sessionID)
+
+	charIDStr, _ := s.db.GetSetting("active_character_id")
+	charID, _ := strconv.ParseInt(charIDStr, 10, 64)
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil {
+		return rouseResult
+	}
+	var stats map[string]any
+	_ = json.Unmarshal([]byte(char.DataJSON), &stats)
+	bp := 1
+	if v, ok := stats["blood_potency"]; ok {
+		switch n := v.(type) {
+		case int:
+			bp = n
+		case float64:
+			bp = int(n)
+		}
+	}
+	bonus := bloodPotencyBonusDice(bp)
+	return rouseResult + fmt.Sprintf(" [BLOOD SURGE] Add %d bonus dice to the next roll this turn (Blood Potency %d).", bonus, bp)
 }
 
 // autoUpdateMasquerade checks GM text for Masquerade breach keywords and decrements
