@@ -932,6 +932,19 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 		}
 	}
 
+	// Session NPCs — characters the party has encountered this session (auto-extracted).
+	if npcs, err := s.db.ListSessionNPCs(sessionID); err == nil && len(npcs) > 0 {
+		sb.WriteString("[SESSION NPCS]\n")
+		for _, n := range npcs {
+			if n.Note != "" {
+				fmt.Fprintf(&sb, "- %s (%s)\n", n.Name, n.Note)
+			} else {
+				fmt.Fprintf(&sb, "- %s\n", n.Name)
+			}
+		}
+		sb.WriteString("[/SESSION NPCS]\n")
+	}
+
 	// NPC personality cards — only inject NPCs mentioned in session summary to bound token cost.
 	// If summary is empty, fall back to the 3 most recent NPC notes.
 	npcNotes, err := s.db.SearchWorldNotes(sess.CampaignID, "", "npc", "")
@@ -1108,6 +1121,106 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 
 	sb.WriteString("[/WORLD STATE]")
 	return sb.String()
+}
+
+// levenshtein returns the edit distance between two strings (case-insensitive).
+func levenshtein(a, b string) int {
+	a = strings.ToLower(a)
+	b = strings.ToLower(b)
+	if a == b {
+		return 0
+	}
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+	prev := make([]int, len(b)+1)
+	curr := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i, ca := range a {
+		curr[0] = i + 1
+		for j, cb := range b {
+			cost := 1
+			if ca == cb {
+				cost = 0
+			}
+			curr[j+1] = min3(curr[j]+1, prev[j+1]+1, prev[j]+cost)
+		}
+		prev, curr = curr, prev
+	}
+	return prev[len(b)]
+}
+
+func min3(a, b, c int) int {
+	if a < b {
+		if a < c {
+			return a
+		}
+		return c
+	}
+	if b < c {
+		return b
+	}
+	return c
+}
+
+// appendNPCDisambiguation checks whether any word in the player message closely matches
+// a known session NPC name. If so, it appends a [NPC DISAMBIGUATION] hint to worldCtx
+// so the GM model knows what the player intended.
+func (s *Server) appendNPCDisambiguation(ctx context.Context, sessionID int64, playerMsg string, worldCtx *string) {
+	npcs, err := s.db.ListSessionNPCs(sessionID)
+	if err != nil || len(npcs) == 0 {
+		return
+	}
+	words := strings.Fields(playerMsg)
+	type match struct {
+		word string
+		name string
+		dist int
+	}
+	var matches []match
+	for _, word := range words {
+		// Strip punctuation from word edges.
+		cleaned := strings.Trim(word, ".,!?;:'\"")
+		if len(cleaned) < 3 {
+			continue
+		}
+		for _, npc := range npcs {
+			// Exact match (case-insensitive) — no disambiguation needed.
+			if strings.EqualFold(cleaned, npc.Name) {
+				goto nextWord
+			}
+			// Also skip if cleaned is a substring of the NPC name or vice versa and long enough.
+			if len(cleaned) >= 4 && strings.Contains(strings.ToLower(npc.Name), strings.ToLower(cleaned)) {
+				goto nextWord
+			}
+		}
+		for _, npc := range npcs {
+			threshold := 1
+			if len(cleaned) >= 6 {
+				threshold = 2
+			}
+			d := levenshtein(cleaned, npc.Name)
+			if d <= threshold {
+				matches = append(matches, match{cleaned, npc.Name, d})
+			}
+		}
+	nextWord:
+	}
+	if len(matches) == 0 {
+		return
+	}
+	hint := "\n[NPC DISAMBIGUATION]\n"
+	hint += "The player's message may contain a typo or alternate spelling of an NPC name. Interpret charitably:\n"
+	for _, m := range matches {
+		hint += fmt.Sprintf("- \"%s\" likely refers to the NPC \"%s\" (edit distance %d)\n", m.word, m.name, m.dist)
+	}
+	hint += "Act on the player's likely intent, not the literal misspelling.\n[/NPC DISAMBIGUATION]"
+	*worldCtx += hint
 }
 
 // mechanicKeywords maps trigger words in a player message to implied rulebook search terms.
@@ -1409,6 +1522,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 
 	worldCtx := s.buildWorldContext(r.Context(), id)
 	s.appendRulebookContext(r.Context(), id, lastPlayerMsg, &worldCtx)
+	s.appendNPCDisambiguation(r.Context(), id, lastPlayerMsg, &worldCtx)
 	if roll != nil {
 		outcome := "FAILURE"
 		if roll.Success {
