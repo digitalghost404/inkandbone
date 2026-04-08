@@ -90,7 +90,17 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 		source = "Core Rulebook"
 	}
 
-	chunks := chunkByHeadingsWithSource(text, source)
+	ruleset, err := s.db.GetRuleset(rulesetID)
+	if err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var rulesetName string
+	if ruleset != nil {
+		rulesetName = ruleset.Name
+	}
+
+	chunks := chunkRulebook(rulesetName, text, source)
 	// Replace only chunks for this source — other books are untouched.
 	if err := s.db.DeleteRulebookChunksBySource(rulesetID, source); err != nil {
 		http.Error(w, "db: "+err.Error(), http.StatusInternalServerError)
@@ -102,6 +112,20 @@ func (s *Server) handleIngestRulebook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, map[string]interface{}{"chunks_created": len(chunks), "source": source})
+}
+
+// chunkRulebook dispatches to the appropriate chunking strategy for the given ruleset.
+// Each TTRPG system may have different source PDF structure, so chunking is per-ruleset.
+func chunkRulebook(rulesetName, text, source string) []db.RulebookChunk {
+	switch strings.ToLower(rulesetName) {
+	case "vtm":
+		// VtM PDFs (commercial print) extract as plain prose via pdftotext — no markdown headings.
+		// Split on paragraph boundaries up to a max chunk size.
+		return chunkByParagraphs(text, source)
+	default:
+		// All other rulesets: split on markdown "#" heading lines (user-supplied or structured text).
+		return chunkByHeadingsWithSource(text, source)
+	}
 }
 
 // chunkByHeadingsWithSource splits text into chunks delimited by lines starting with "#",
@@ -133,6 +157,44 @@ func chunkByHeadingsWithSource(text, source string) []db.RulebookChunk {
 		}
 	}
 	flush()
+	return chunks
+}
+
+// chunkByParagraphs splits plain text (no markdown headings) on blank lines,
+// grouping paragraphs into chunks up to maxChunkRunes characters.
+func chunkByParagraphs(text, source string) []db.RulebookChunk {
+	const maxChunkRunes = 2000
+
+	var chunks []db.RulebookChunk
+	var current strings.Builder
+
+	flushChunk := func() {
+		s := strings.TrimSpace(current.String())
+		if s != "" {
+			chunks = append(chunks, db.RulebookChunk{
+				Source:  source,
+				Heading: "",
+				Content: s,
+			})
+		}
+		current.Reset()
+	}
+
+	for _, para := range strings.Split(text, "\n\n") {
+		para = strings.TrimSpace(para)
+		if para == "" {
+			continue
+		}
+		if current.Len() > 0 && current.Len()+len(para) > maxChunkRunes {
+			flushChunk()
+		}
+		if current.Len() > 0 {
+			current.WriteString("\n\n")
+		}
+		current.WriteString(para)
+	}
+	flushChunk()
+
 	return chunks
 }
 

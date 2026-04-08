@@ -536,6 +536,7 @@ export default function App() {
           onTabChange={setManageTab}
           onClose={() => setManageOpen(false)}
           onContextChanged={() => { loadContext(); setManageOpen(false); setXPSuggestionsEvent(null) }}
+          onCampaignActivated={() => { setMessages([]); loadContext(); setManageOpen(false); setXPSuggestionsEvent(null) }}
         />
       )}
 

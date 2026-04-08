@@ -1748,6 +1748,7 @@ Output a JSON array only — no other text. Example:
 
 Do NOT suggest talents already owned or archetype starting abilities.
 Do NOT suggest advances the character cannot afford.
+If there are no good suggestions, return an empty JSON array: []
 `,
 		advancement.XPLabel(system), system,
 		char.Name, archetypeName,
@@ -1765,7 +1766,7 @@ Do NOT suggest advances the character cannot afford.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	raw, err := completer.Generate(ctx, prompt, 512)
+	raw, err := completer.Generate(ctx, prompt, 768)
 	if err != nil {
 		log.Printf("autoSuggestXPSpend: AI error: %v", err)
 		return
@@ -1775,7 +1776,7 @@ Do NOT suggest advances the character cannot afford.
 	start := strings.Index(raw, "[")
 	end := strings.LastIndex(raw, "]")
 	if start < 0 || end <= start {
-		log.Printf("autoSuggestXPSpend: no JSON array in response")
+		log.Printf("autoSuggestXPSpend: no JSON array in response: %q", raw)
 		return
 	}
 	raw = raw[start : end+1]
@@ -1789,14 +1790,23 @@ Do NOT suggest advances the character cannot afford.
 		return
 	}
 
-	// Recalculate XP costs server-side (never trust AI-supplied values).
+	// Recalculate XP costs server-side and filter out invalid/unaffordable suggestions.
+	filtered := suggestions[:0]
 	for _, sg := range suggestions {
 		field, _ := sg["field"].(string)
 		newValF, _ := sg["new_value"].(float64)
 		newVal := int(newValF)
 		cost := advancement.XPCostFor(system, field, newVal, char.DataJSON)
+		if cost == 0 || cost > currentXP {
+			continue
+		}
 		sg["xp_cost"] = cost
+		filtered = append(filtered, sg)
 	}
+	if len(filtered) == 0 {
+		return
+	}
+	suggestions = filtered
 
 	payload := map[string]any{
 		"character_id":   charID,

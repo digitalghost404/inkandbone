@@ -28,6 +28,7 @@ interface ManagePanelProps {
   onTabChange?: (tab: Tab) => void
   onClose: () => void
   onContextChanged: () => void
+  onCampaignActivated?: () => void
 }
 
 export function ManagePanel({
@@ -38,6 +39,7 @@ export function ManagePanel({
   onTabChange,
   onClose,
   onContextChanged,
+  onCampaignActivated,
 }: ManagePanelProps) {
   const [tab, setTab] = useState<Tab>(initialTab)
 
@@ -156,8 +158,9 @@ export function ManagePanel({
     setBusy(true)
     setError('')
     try {
-      await patchSettings({ campaign_id: id })
-      onContextChanged()
+      // Clear character and session so switching campaigns starts fresh.
+      await patchSettings({ campaign_id: id, character_id: 0, session_id: 0 })
+      ;(onCampaignActivated ?? onContextChanged)()
     } catch (e) {
       setError(String(e))
     } finally {
