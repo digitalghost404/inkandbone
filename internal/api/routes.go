@@ -824,7 +824,7 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 				if char.DataJSON != "" {
 					var stats map[string]any
 					if err := json.Unmarshal([]byte(char.DataJSON), &stats); err == nil {
-						for _, field := range []string{"archetype", "class", "race", "faction", "keywords", "species", "metatype", "playbook", "culture"} {
+						for _, field := range []string{"archetype", "class", "race", "faction", "keywords", "species", "metatype", "playbook", "culture", "clan", "predator_type", "sect"} {
 							if v, ok := stats[field].(string); ok && v != "" {
 								fmt.Fprintf(&sb, "Character %s: %s\n", field, v)
 							}
@@ -1001,6 +1001,59 @@ func (s *Server) buildWorldContext(ctx context.Context, sessionID int64) string 
 				}
 			}
 			sb.WriteString("[/W&G MECHANICS]\n")
+		}
+	}
+
+	// VtM V5: inject live Hunger/Humanity/Blood Potency and identity fields.
+	if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+		if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
+			sb.WriteString("[VtM MECHANICS]\n")
+			if charIDStr, err := s.db.GetSetting("active_character_id"); err == nil && charIDStr != "" {
+				if charID, err := strconv.ParseInt(charIDStr, 10, 64); err == nil {
+					if char, err := s.db.GetCharacter(charID); err == nil && char != nil && char.DataJSON != "" {
+						var stats map[string]any
+						if err := json.Unmarshal([]byte(char.DataJSON), &stats); err == nil {
+							getInt := func(key string) int {
+								if v, ok := stats[key]; ok {
+									switch n := v.(type) {
+									case int:
+										return n
+									case float64:
+										return int(n)
+									}
+								}
+								return 0
+							}
+							getString := func(key string) string {
+								if v, ok := stats[key].(string); ok {
+									return v
+								}
+								return ""
+							}
+							hunger := getInt("hunger")
+							humanity := getInt("humanity")
+							bp := getInt("blood_potency")
+							stains := getInt("stains")
+							hMax := getInt("health_max")
+							hSup := getInt("health_superficial")
+							hAgg := getInt("health_aggravated")
+							wMax := getInt("willpower_max")
+							wSup := getInt("willpower_superficial")
+							predType := getString("predator_type")
+							clan := getString("clan")
+							fmt.Fprintf(&sb, "Hunger: %d/5 | Humanity: %d | Blood Potency: %d\n", hunger, humanity, bp)
+							fmt.Fprintf(&sb, "Predator Type: %s | Clan: %s\n", predType, clan)
+							fmt.Fprintf(&sb, "Health: %d/%d (%d Superficial, %d Aggravated)\n", hMax-hSup-hAgg, hMax, hSup, hAgg)
+							fmt.Fprintf(&sb, "Willpower: %d/%d (%d Superficial)\n", wMax-wSup, wMax, wSup)
+							fmt.Fprintf(&sb, "Stains: %d\n", stains)
+							if hunger >= 4 {
+								sb.WriteString("WARNING: Hunger is critical. Frenzy risk is high.\n")
+							}
+						}
+					}
+				}
+			}
+			sb.WriteString("[/VtM MECHANICS]\n")
 		}
 	}
 
@@ -2956,11 +3009,31 @@ var crisisRE = regexp.MustCompile(
 	`\b(critical\s+failure|disaster|catastrophe|ambush|betrayal|dying|wounded|doomed|cornered|overwhelmed)\b`,
 )
 
+// vtmCrisisRE matches VtM-specific crisis keywords at word boundaries.
+var vtmCrisisRE = regexp.MustCompile(
+	`\b(frenzy|the beast|torpor|blood hunt|diablerie|masquerade breach|daybreak|sunrise)\b`,
+)
+
 // autoUpdateTension adjusts session tension after each GM response.
 // Failed dice rolls increase tension +1 (caller prepends "critical failure" to text).
 // Crisis keywords in the GM text also increase tension +1.
 func (s *Server) autoUpdateTension(sessionID int64, gmText string) {
-	if !crisisRE.MatchString(strings.ToLower(gmText)) {
+	lower := strings.ToLower(gmText)
+
+	matched := crisisRE.MatchString(lower)
+
+	// For VtM sessions, also check VtM-specific crisis keywords.
+	if !matched {
+		if sess, err := s.db.GetSession(sessionID); err == nil && sess != nil {
+			if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
+				if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil && rs.Name == "vtm" {
+					matched = vtmCrisisRE.MatchString(lower)
+				}
+			}
+		}
+	}
+
+	if !matched {
 		return
 	}
 
@@ -2992,7 +3065,7 @@ func (s *Server) autoUpdateCurrency(ctx context.Context, sessionID int64, gmText
 	if sess, err := s.db.GetSession(sessionID); err == nil && sess != nil {
 		if camp, err := s.db.GetCampaign(sess.CampaignID); err == nil && camp != nil {
 			if rs, err := s.db.GetRuleset(camp.RulesetID); err == nil && rs != nil {
-				if rs.Name == "wrath_glory" {
+				if rs.Name == "wrath_glory" || rs.Name == "vtm" {
 					return
 				}
 			}
