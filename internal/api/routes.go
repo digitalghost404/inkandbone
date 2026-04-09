@@ -1622,6 +1622,7 @@ func (s *Server) handleGMRespondStream(w http.ResponseWriter, r *http.Request) {
 	go s.autoUpdateMasquerade(context.Background(), id, fullText)
 	go s.autoUpdateSceneTags(context.Background(), id, fullText)
 	go s.autoUpdateChronicleNight(context.Background(), id, fullText)
+	go s.autoVtMDisciplineRouseChecks(context.Background(), id, lastPlayerMsg, fullText)
 }
 
 // autoGenerateMap detects if the GM response introduces a new location and, if
@@ -1919,7 +1920,13 @@ Return ONLY a JSON object with the fields that must change and their new values.
 	}
 
 	for k, v := range patch {
-		if _, exists := current[k]; exists {
+		_, exists := current[k]
+		// Allow xp to be created even if missing from character data (backfill guard).
+		if !exists && k == xpFieldKey {
+			exists = true
+			current[xpFieldKey] = float64(0)
+		}
+		if exists {
 			// Never let the AI goroutine lower XP — it can only award, not spend.
 			if k == xpFieldKey {
 				newXP, _ := v.(float64)
@@ -3679,6 +3686,72 @@ func (s *Server) handleVtMRouseCheck(ctx context.Context, sessionID int64) strin
 	return msg
 }
 
+// autoVtMDisciplineRouseChecks uses the AI to detect how many Rouse Checks the
+// character owes based on discipline use in the player action and GM narration,
+// then fires that many Rouse Checks automatically. Only runs for VtM campaigns.
+// Blood Surge (/surge) is excluded — it fires its own Rouse Check inline.
+func (s *Server) autoVtMDisciplineRouseChecks(ctx context.Context, sessionID int64, playerAction, gmText string) {
+	completer, ok := s.aiClient.(ai.Completer)
+	if !ok {
+		return
+	}
+
+	// Confirm VtM campaign.
+	sess, err := s.db.GetSession(sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+	camp, err := s.db.GetCampaign(sess.CampaignID)
+	if err != nil || camp == nil {
+		return
+	}
+	rs, err := s.db.GetRuleset(camp.RulesetID)
+	if err != nil || rs == nil || rs.Name != "vtm" {
+		return
+	}
+
+	prompt := fmt.Sprintf(`You are a Vampire: The Masquerade V5 rules engine.
+
+Read the player action and GM narration below. Count how many Rouse Checks the character owes.
+
+V5 ROUSE CHECK RULES:
+- Every use of a Discipline power requires exactly 1 Rouse Check.
+- Disciplines: Animalism, Auspex, Blood Sorcery, Celerity, Dominate, Fortitude, Obfuscate, Oblivion, Potence, Presence, Protean.
+- Celerity: vampiric speed, blur of motion, moving faster than humanly possible.
+- Fortitude: shrugging off damage, supernatural endurance, resisting pain.
+- Potence: supernatural strength, jumping impossible distances, crushing objects.
+- Auspex: reading emotions/auras, detecting supernatural presence, enhanced senses beyond normal vampire range.
+- Obfuscate: becoming invisible or blending into a crowd supernaturally.
+- Dominate: compelling obedience, erasing memories, issuing irresistible commands.
+- Presence: inspiring fear, awe, or attraction supernaturally.
+- Blood Surge is NOT counted here — it fires its own Rouse Check separately.
+- Waking from day sleep is NOT counted here — handled separately.
+- Normal vampire senses (smelling blood, hearing heartbeats, seeing in the dark) do NOT require Rouse Checks.
+- If unsure whether something is a Discipline use or a natural vampire ability, do NOT count it.
+
+Player action: %s
+GM narration: %s
+
+Reply with ONLY a single integer: the number of Rouse Checks owed (0 if none). No explanation.`, playerAction, gmText)
+
+	raw, err := completer.Generate(ctx, prompt, 10)
+	if err != nil {
+		return
+	}
+	raw = strings.TrimSpace(raw)
+	count := 0
+	if _, err := fmt.Sscanf(raw, "%d", &count); err != nil || count <= 0 {
+		return
+	}
+	if count > 5 {
+		count = 5 // sanity cap — no scene warrants more than 5 Rouse Checks
+	}
+
+	for range count {
+		_ = s.handleVtMRouseCheck(ctx, sessionID)
+	}
+}
+
 // bloodPotencyBonusDice returns the bonus dice granted by Blood Surge for a given Blood Potency.
 func bloodPotencyBonusDice(bp int) int {
 	switch {
@@ -3875,7 +3948,9 @@ func (s *Server) detectAndApplyVtMStains(ctx context.Context, sessionID int64, t
 
 // autoUpdateChronicleNight detects when a new night begins in a VtM session
 // and increments the campaign's chronicle_night counter. Zero AI cost — keyword only.
-func (s *Server) autoUpdateChronicleNight(_ context.Context, sessionID int64, gmText string) {
+// Also fires a Rouse Check to rise (Hunger may increase) and restores Willpower
+// by min(Composure, Resolve), both of which happen mechanically every night in V5.
+func (s *Server) autoUpdateChronicleNight(ctx context.Context, sessionID int64, gmText string) {
 	if !vtmNewNightRE.MatchString(strings.ToLower(gmText)) {
 		return
 	}
@@ -3898,6 +3973,82 @@ func (s *Server) autoUpdateChronicleNight(_ context.Context, sessionID int64, gm
 	s.bus.Publish(Event{Type: "campaign_updated", Payload: map[string]any{
 		"campaign_id":     camp.ID,
 		"chronicle_night": newNight,
+	}})
+
+	// Rouse Check to rise: every vampire makes a Rouse Check when waking for the night.
+	// handleVtMRouseCheck handles the d10 roll, updates Hunger if failed, and broadcasts.
+	_ = s.handleVtMRouseCheck(ctx, sessionID)
+
+	// Willpower restoration: sleeping the day restores min(Composure, Resolve) willpower.
+	// This is deterministic — no AI call needed.
+	s.vtmRestoreWillpowerOnWake(sessionID)
+}
+
+// vtmRestoreWillpowerOnWake restores Willpower by min(Composure, Resolve) when the
+// vampire wakes for a new night, capped at willpower_max. Pure calculation, no AI.
+func (s *Server) vtmRestoreWillpowerOnWake(sessionID int64) {
+	charIDStr, err := s.db.GetSetting("active_character_id")
+	if err != nil || charIDStr == "" {
+		return
+	}
+	charID, err := strconv.ParseInt(charIDStr, 10, 64)
+	if err != nil {
+		return
+	}
+	char, err := s.db.GetCharacter(charID)
+	if err != nil || char == nil || char.DataJSON == "" {
+		return
+	}
+	var stats map[string]any
+	if err := json.Unmarshal([]byte(char.DataJSON), &stats); err != nil {
+		return
+	}
+
+	getInt := func(key string) int {
+		switch v := stats[key].(type) {
+		case float64:
+			return int(v)
+		case int:
+			return v
+		case string:
+			n, _ := strconv.Atoi(v)
+			return n
+		}
+		return 0
+	}
+
+	composure := getInt("composure")
+	resolve := getInt("resolve")
+	wMax := getInt("willpower_max")
+	wCurrent := getInt("willpower_superficial")
+
+	restore := composure
+	if resolve < restore {
+		restore = resolve
+	}
+	if restore <= 0 {
+		return
+	}
+
+	newW := wCurrent + restore
+	if newW > wMax {
+		newW = wMax
+	}
+	if newW == wCurrent {
+		return
+	}
+
+	stats["willpower_superficial"] = float64(newW)
+	updated, err := json.Marshal(stats)
+	if err != nil {
+		return
+	}
+	if err := s.db.UpdateCharacterData(charID, string(updated)); err != nil {
+		return
+	}
+	s.bus.Publish(Event{Type: EventCharacterUpdated, Payload: map[string]any{
+		"id":        charID,
+		"data_json": string(updated),
 	}})
 }
 
