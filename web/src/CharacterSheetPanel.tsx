@@ -13,6 +13,7 @@ interface CharacterSheetPanelProps {
   character: Character | null
   rulesetId: number | null
   lastEvent: unknown
+  afterTracks?: React.ReactNode
 }
 
 interface CharacterUpdatedPayload {
@@ -87,7 +88,7 @@ function PipRow({ label, value, max, onChange, color = 'gold' }: {
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '3px' }}>
-      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--gold-dim)', width: '110px', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--gold-dim)', width: '72px', flexShrink: 0 }}>{label}</span>
       <div style={{ display: 'flex', gap: '3px' }}>
         {Array.from({ length: max }, (_, i) => (
           <div
@@ -166,9 +167,10 @@ interface VtMSheetProps {
   character: Character
   fields: Record<string, string>
   onChange: (key: string, value: string) => void
+  afterTracks?: React.ReactNode
 }
 
-function VtMCharacterSheet({ character, fields, onChange }: VtMSheetProps) {
+function VtMCharacterSheet({ character, fields, onChange, afterTracks }: VtMSheetProps) {
   const labelStyle: React.CSSProperties = {
     fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1.5px',
     color: 'var(--gold-dim)', fontFamily: 'var(--serif)'
@@ -216,45 +218,49 @@ function VtMCharacterSheet({ character, fields, onChange }: VtMSheetProps) {
         </label>
       </div>
 
-      {/* Damage tracks */}
-      <DamageTrack
-        label="Health"
-        max={n('health_max') || 4}
-        superficial={n('health_superficial')}
-        aggravated={n('health_aggravated')}
-        onClickBox={(i) => {
-          const max = n('health_max') || 4
-          const fromRight = max - 1 - i
-          const curAgg = n('health_aggravated')
-          const curSup = n('health_superficial')
-          if (fromRight < curAgg) {
-            onChange('health_aggravated', String(Math.max(0, curAgg - 1)))
-          } else if (fromRight < curAgg + curSup) {
-            onChange('health_superficial', String(Math.max(0, curSup - 1)))
-          } else {
-            onChange('health_superficial', String(curSup + 1))
-          }
-        }}
-      />
-      <DamageTrack
-        label="Willpower"
-        max={n('willpower_max') || 3}
-        superficial={n('willpower_superficial')}
-        aggravated={n('willpower_aggravated')}
-        onClickBox={(i) => {
-          const max = n('willpower_max') || 3
-          const fromRight = max - 1 - i
-          const curAgg = n('willpower_aggravated')
-          const curSup = n('willpower_superficial')
-          if (fromRight < curAgg) {
-            onChange('willpower_aggravated', String(Math.max(0, curAgg - 1)))
-          } else if (fromRight < curAgg + curSup) {
-            onChange('willpower_superficial', String(Math.max(0, curSup - 1)))
-          } else {
-            onChange('willpower_superficial', String(curSup + 1))
-          }
-        }}
-      />
+      {/* Damage tracks — Health and Willpower side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px', marginBottom: '4px' }}>
+        <DamageTrack
+          label="Health"
+          max={n('health_max') || 4}
+          superficial={n('health_superficial')}
+          aggravated={n('health_aggravated')}
+          onClickBox={(i) => {
+            const max = n('health_max') || 4
+            const fromRight = max - 1 - i
+            const curAgg = n('health_aggravated')
+            const curSup = n('health_superficial')
+            if (fromRight < curAgg) {
+              onChange('health_aggravated', String(Math.max(0, curAgg - 1)))
+            } else if (fromRight < curAgg + curSup) {
+              onChange('health_superficial', String(Math.max(0, curSup - 1)))
+            } else {
+              onChange('health_superficial', String(curSup + 1))
+            }
+          }}
+        />
+        <DamageTrack
+          label="Willpower"
+          max={n('willpower_max') || 3}
+          superficial={n('willpower_superficial')}
+          aggravated={n('willpower_aggravated')}
+          onClickBox={(i) => {
+            const max = n('willpower_max') || 3
+            const fromRight = max - 1 - i
+            const curAgg = n('willpower_aggravated')
+            const curSup = n('willpower_superficial')
+            if (fromRight < curAgg) {
+              onChange('willpower_aggravated', String(Math.max(0, curAgg - 1)))
+            } else if (fromRight < curAgg + curSup) {
+              onChange('willpower_superficial', String(Math.max(0, curSup - 1)))
+            } else {
+              onChange('willpower_superficial', String(curSup + 1))
+            }
+          }}
+        />
+      </div>
+
+      {afterTracks}
 
       {/* Attributes */}
       <div style={sectionHead}>Attributes</div>
@@ -302,17 +308,19 @@ function VtMCharacterSheet({ character, fields, onChange }: VtMSheetProps) {
         ))}
       </div>
 
-      {/* Disciplines */}
+      {/* Disciplines — 2-column grid */}
       <div style={sectionHead}>Disciplines</div>
-      {VTM_DISCIPLINES.map((key) => (
-        <PipRow
-          key={key}
-          label={key.replace(/_/g, ' ')}
-          value={n(key)}
-          max={5}
-          onChange={(v) => onChange(key, String(v))}
-        />
-      ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+        {VTM_DISCIPLINES.map((key) => (
+          <PipRow
+            key={key}
+            label={key.replace(/_/g, ' ')}
+            value={n(key)}
+            max={5}
+            onChange={(v) => onChange(key, String(v))}
+          />
+        ))}
+      </div>
 
       {/* Identity */}
       <div style={sectionHead}>Identity</div>
@@ -338,7 +346,7 @@ function VtMCharacterSheet({ character, fields, onChange }: VtMSheetProps) {
   )
 }
 
-export function CharacterSheetPanel({ character, rulesetId, lastEvent }: CharacterSheetPanelProps) {
+export function CharacterSheetPanel({ character, rulesetId, lastEvent, afterTracks }: CharacterSheetPanelProps) {
   const [ruleset, setRuleset] = useState<Ruleset | null>(null)
   const [fields, setFields] = useState<Record<string, string>>({})
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -437,7 +445,7 @@ export function CharacterSheetPanel({ character, rulesetId, lastEvent }: Charact
 
   const isVtM = ruleset?.name?.toLowerCase() === 'vtm'
   if (isVtM) {
-    return <VtMCharacterSheet character={character} fields={fields} onChange={handleChange} />
+    return <VtMCharacterSheet character={character} fields={fields} onChange={handleChange} afterTracks={afterTracks} />
   }
 
   const attributeFields = schema.filter((f) => ATTRIBUTE_KEYS.has(f.key))

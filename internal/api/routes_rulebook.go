@@ -161,32 +161,55 @@ func chunkByHeadingsWithSource(text, source string) []db.RulebookChunk {
 }
 
 // chunkByParagraphs splits plain text (no markdown headings) on blank lines,
-// grouping paragraphs into chunks up to maxChunkRunes characters.
+// grouping paragraphs into chunks up to maxChunkRunes characters, with
+// overlapRunes of trailing content carried into the next chunk so that rules
+// spanning a chunk boundary are not silently truncated.
 func chunkByParagraphs(text, source string) []db.RulebookChunk {
-	const maxChunkRunes = 2000
+	const maxChunkRunes = 3000
+	const overlapRunes = 500
 
 	var chunks []db.RulebookChunk
+
+	// Collect non-empty paragraphs.
+	var paras []string
+	for _, p := range strings.Split(text, "\n\n") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			paras = append(paras, p)
+		}
+	}
+
 	var current strings.Builder
+	var overlap string // tail of the previous chunk to prepend
 
 	flushChunk := func() {
 		s := strings.TrimSpace(current.String())
-		if s != "" {
-			chunks = append(chunks, db.RulebookChunk{
-				Source:  source,
-				Heading: "",
-				Content: s,
-			})
+		if s == "" {
+			return
+		}
+		chunks = append(chunks, db.RulebookChunk{
+			Source:  source,
+			Heading: "",
+			Content: s,
+		})
+		// Carry the last overlapRunes runes into the next chunk.
+		runes := []rune(s)
+		if len(runes) > overlapRunes {
+			overlap = string(runes[len(runes)-overlapRunes:])
+		} else {
+			overlap = s
 		}
 		current.Reset()
 	}
 
-	for _, para := range strings.Split(text, "\n\n") {
-		para = strings.TrimSpace(para)
-		if para == "" {
-			continue
-		}
+	for _, para := range paras {
 		if current.Len() > 0 && current.Len()+len(para) > maxChunkRunes {
 			flushChunk()
+			// Seed next chunk with overlap from previous chunk.
+			if overlap != "" {
+				current.WriteString(overlap)
+				overlap = ""
+			}
 		}
 		if current.Len() > 0 {
 			current.WriteString("\n\n")

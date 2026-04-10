@@ -46,6 +46,11 @@ var vtmInClanDisciplines = map[string][]string{
 	"giovanni":  {"dominate", "fortitude", "oblivion"},
 	"ravnos":    {"animalism", "obfuscate", "presence"},
 	"setite":    {"obfuscate", "presence", "protean"},
+	// V5 supplement clan names.
+	"banu_haqim": {"blood_sorcery", "celerity", "obfuscate"},
+	"hecata":     {"auspex", "fortitude", "oblivion"},
+	"ministry":   {"obfuscate", "presence", "protean"},
+	"salubri":    {"auspex", "fortitude", "oblivion"},
 	// Caitiff: no in-clan disciplines; explicit entry prevents nil lookup confusion.
 	"caitiff": {},
 }

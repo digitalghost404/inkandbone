@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -145,6 +146,10 @@ func (s *Server) handleAdvanceCharacter(w http.ResponseWriter, r *http.Request) 
 		currentVal := 0
 		if v, ok := stats[field].(float64); ok {
 			currentVal = int(v)
+		} else if s, ok := stats[field].(string); ok {
+			if n, err := strconv.Atoi(s); err == nil {
+				currentVal = n
+			}
 		}
 		if newVal != currentVal+1 {
 			http.Error(w, "new_value must be current value + 1", http.StatusBadRequest)

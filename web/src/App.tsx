@@ -807,10 +807,14 @@ export default function App() {
             character={ctx?.character ?? null}
             rulesetId={ctx?.campaign?.ruleset_id ?? null}
             lastEvent={lastEvent}
+            afterTracks={ctx.session ? (
+              <>
+                <DiceRoller sessionId={ctx.session.id} />
+                <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />
+              </>
+            ) : undefined}
           />
-          {ctx.session && (
-            <DiceRoller sessionId={ctx.session.id} />
-          )}
+          <hr className="sidebar-rule" />
           {ctx.character && (
             <InventoryPanel
               characterId={ctx.character.id}
@@ -818,10 +822,6 @@ export default function App() {
               characterCurrencyLabel={ctx.character.currency_label ?? 'Gold'}
               lastEvent={lastEvent}
             />
-          )}
-          <hr className="sidebar-rule" />
-          {ctx.session && (
-            <DiceHistoryPanel sessionId={ctx.session.id} lastEvent={lastEvent} />
           )}
         </aside>
 

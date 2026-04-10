@@ -84,7 +84,7 @@ body {
 /* ── Left Sidebar ───────────────────────────────────────── */
 
 .sidebar-left {
-  width: 260px;
+  width: 520px;
   flex-shrink: 0;
   background: var(--surface2);
   border-right: 1px solid var(--border);

@@ -1255,6 +1255,20 @@ var mechanicKeywords = map[string][]string{
 	"craft":    {"crafting"},
 	"ritual":   {"ritual", "magic"},
 	"pray":     {"prayer", "divine"},
+	// VtM V5 keywords
+	"rouse":      {"rouse check", "hunger", "blood", "vitae"},
+	"frenzy":     {"frenzy", "hunger", "beast", "compulsion"},
+	"hunger":     {"hunger", "feeding", "beast"},
+	"feed":       {"feeding", "hunger", "blood potency"},
+	"blood":      {"vitae", "blood potency", "hunger"},
+	"discipline": {"discipline", "power", "supernatural"},
+	"coterie":    {"coterie", "covenant", "sect"},
+	"vinculum":   {"vinculum", "blood bond", "regnant"},
+	"masquerade": {"masquerade", "breach", "exposure"},
+	"beast":      {"beast", "frenzy", "compulsion", "hunger"},
+	"torpor":     {"torpor", "aggravated", "damage"},
+	"embrace":    {"embrace", "creation", "sire", "childe"},
+	"diablerie":  {"diablerie", "amaranth", "soul", "thin blood"},
 }
 
 // appendRulebookContext searches uploaded rulebook chunks for keywords from the player's
@@ -1310,6 +1324,7 @@ func (s *Server) appendRulebookContext(ctx context.Context, sessionID int64, pla
 	}
 
 	seenChunks := map[int64]bool{}
+	sourceCount := map[string]int{}
 	var chunks []db.RulebookChunk
 	for _, kw := range keywords {
 		results, err := s.db.SearchRulebookChunks(camp.RulesetID, kw)
@@ -1317,15 +1332,16 @@ func (s *Server) appendRulebookContext(ctx context.Context, sessionID int64, pla
 			continue
 		}
 		for _, c := range results {
-			if !seenChunks[c.ID] {
+			if !seenChunks[c.ID] && sourceCount[c.Source] < 2 {
 				seenChunks[c.ID] = true
+				sourceCount[c.Source]++
 				chunks = append(chunks, c)
-				if len(chunks) >= 5 {
+				if len(chunks) >= 8 {
 					break
 				}
 			}
 		}
-		if len(chunks) >= 5 {
+		if len(chunks) >= 8 {
 			break
 		}
 	}
@@ -1855,6 +1871,8 @@ HUMANITY:
 XP:
 - Add 1 XP for any meaningful scene (tense social encounter, surviving danger, significant feeding). Add 2 XP for a major milestone (story arc completed, powerful enemy survived, pivotal breach). Update "xp" by adding to its current value.
 
+DISCIPLINES: DO NOT change discipline dot values (animalism, auspex, blood_sorcery, celerity, dominate, fortitude, obfuscate, oblivion, potence, presence, protean). Discipline ratings only increase through explicit XP spending — never from scene events.
+
 STAINS: DO NOT update stains here — handled separately.
 Return {} if nothing clearly changed. Only update fields that exist in the current stats JSON.
 `
@@ -1942,6 +1960,18 @@ Return ONLY a JSON object with the fields that must change and their new values.
 					continue
 				}
 			}
+			// VtM: never let the AI goroutine change discipline dots (increase or decrease).
+			// Disciplines only advance via explicit XP spending (/advance command).
+			if ruleset.Name == "vtm" {
+				vtmDisciplineFields := map[string]bool{
+					"animalism": true, "auspex": true, "blood_sorcery": true, "celerity": true,
+					"dominate": true, "fortitude": true, "obfuscate": true, "oblivion": true,
+					"potence": true, "presence": true, "protean": true,
+				}
+				if vtmDisciplineFields[k] {
+					continue
+				}
+			}
 			current[k] = v
 		}
 	}
@@ -1955,6 +1985,40 @@ Return ONLY a JSON object with the fields that must change and their new values.
 		if n, err := strconv.Atoi(s); err == nil {
 			afterXP = n
 			current[xpFieldKey] = float64(n) // normalize to number
+		}
+	}
+
+	// VtM: re-read live hunger before writing to avoid overwriting rouse check increases.
+	// autoUpdateCharacterStats reads char data before the AI call (slow). By the time
+	// the AI responds, a rouse check goroutine may have already incremented hunger via
+	// a concurrent handleVtMRouseCheck. Writing the stale snapshot would undo that.
+	//
+	// Two cases to handle correctly:
+	//   Feeding: AI decreases hunger (e.g. 5→2). Apply that same delta to the live
+	//            value so concurrent rouse changes are preserved proportionally.
+	//   No feed: AI returned hunger unchanged. Preserve whatever live value is (may be
+	//            higher due to a rouse check that ran while we waited for the AI).
+	if ruleset.Name == "vtm" {
+		if liveChar, liveErr := s.db.GetCharacter(charID); liveErr == nil && liveChar != nil && liveChar.DataJSON != "" {
+			var liveStats map[string]any
+			if json.Unmarshal([]byte(liveChar.DataJSON), &liveStats) == nil {
+				if liveHunger, ok := liveStats["hunger"].(float64); ok {
+					curHunger, _ := current["hunger"].(float64)
+					initialHungerF := float64(currentHunger) // captured before AI call
+					if curHunger < initialHungerF {
+						// AI decreased hunger (feeding): apply delta to live value.
+						delta := initialHungerF - curHunger
+						newHunger := liveHunger - delta
+						if newHunger < 0 {
+							newHunger = 0
+						}
+						current["hunger"] = newHunger
+					} else if liveHunger > curHunger {
+						// No feeding: preserve live value (rouse check may have raised it).
+						current["hunger"] = liveHunger
+					}
+				}
+			}
 		}
 	}
 
@@ -2176,9 +2240,14 @@ If there are no good suggestions, return an empty JSON array: []
 		field, _ := sg["field"].(string)
 		// Always use the ACTUAL current value from stats — the AI may hallucinate current_value.
 		// This ensures new_value agrees with what the advance handler will validate.
+		// Stats may be stored as float64 (numeric JSON) or string ("2") depending on ruleset schema.
 		actualCurVal := 0
 		if v, ok := stats[field].(float64); ok {
 			actualCurVal = int(v)
+		} else if s, ok := stats[field].(string); ok {
+			if n, err := strconv.Atoi(s); err == nil {
+				actualCurVal = n
+			}
 		}
 		newVal := actualCurVal + 1
 		sg["current_value"] = float64(actualCurVal)
